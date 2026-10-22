@@ -1,0 +1,72 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Мини-приложение MAX</title>
+
+    <script src="https://st.max.ru/js/max-web-app.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        main {
+            max-width: 420px;
+            margin: 40px auto;
+            padding: 24px;
+            background: white;
+            border-radius: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            background: #1688f8;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 16px;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>Мини-приложение</h1>
+
+        <p id="greeting">Добро пожаловать!</p>
+
+        <button id="action" type="button">
+            Нажми меня
+        </button>
+
+        <p id="result" aria-live="polite"></p>
+    </main>
+
+    <script>
+        const webApp = window.WebApp;
+        const userName = webApp?.initDataUnsafe?.user?.first_name;
+
+        if (userName) {
+            document.querySelector("#greeting").textContent =
+                `Привет, ${userName}!`;
+        }
+
+        document.querySelector("#action").addEventListener("click", () => {
+            document.querySelector("#result").textContent =
+                "Кнопка работает!";
+        });
+    </script>
+</body>
+</html>
