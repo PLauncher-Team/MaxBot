@@ -4,6 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
 const { sendBroadcastMessage } = require('../bot');
+const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
 const router = express.Router();
 
@@ -13,6 +14,57 @@ function safeJsonParse(data, fallback = []) {
         return JSON.parse(data);
     } catch (e) {
         return fallback;
+    }
+}
+
+
+function getTargetChatIds(userId, validRecipients) {
+    const targetChatIds = [];
+
+    if (validRecipients.includes('Себе')) {
+        targetChatIds.push(String(userId));
+    }
+
+    const groupNames = validRecipients.filter(name => name !== 'Себе');
+    if (groupNames.length > 0) {
+        const placeholders = groupNames.map(() => '?').join(',');
+        const query = `
+            SELECT DISTINCT p.chat_id
+            FROM participants p
+            JOIN groups g ON p.group_id = g.id
+            WHERE g.user_id = ? AND g.name IN (${placeholders})
+        `;
+        const rows = db.prepare(query).all(userId, ...groupNames);
+        rows.forEach(row => {
+            const chatId = String(row.chat_id);
+            if (!targetChatIds.includes(chatId)) targetChatIds.push(chatId);
+        });
+    }
+
+    return targetChatIds;
+}
+
+async function sendImmediateReminder(reminderId, userId, recipients, text, quickReplies, images, repeatType, repeatTime) {
+    const targetChatIds = getTargetChatIds(userId, recipients);
+    const sendResult = await sendBroadcastMessage(reminderId, targetChatIds, text, quickReplies, images);
+
+    if (repeatType && repeatType !== 'Никогда') {
+        const now = getMoscowDateTimeString();
+        const failedChatIds = Array.isArray(sendResult?.failedChatIds) ? sendResult.failedChatIds : [];
+        const nextTime = failedChatIds.length > 0
+            ? now
+            : calculateNextScheduledTime(now, repeatType, repeatTime, now);
+
+        db.prepare(`
+            UPDATE reminders
+            SET status = 'scheduled', scheduled_time = ?, pending_recipients = ?
+            WHERE id = ? AND user_id = ?
+        `).run(
+            nextTime || now,
+            failedChatIds.length > 0 ? JSON.stringify(failedChatIds) : null,
+            reminderId,
+            userId
+        );
     }
 }
 
@@ -126,7 +178,7 @@ router.delete('/:id', (req, res) => {
     }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
     try {
         const {
             title,
@@ -150,12 +202,12 @@ router.post('/', (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
-        const status = send_now ? 'sent' : 'scheduled';
+        const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
 
-        const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
+        const validRepeatTypes = ['Никогда', 'Каждую минуту', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         const cleanRepeatType = validRepeatTypes.includes(repeat_type) ? repeat_type : 'Никогда';
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
-        const cleanScheduledTime = typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null;
+        const cleanScheduledTime = send_now && cleanRepeatType !== 'Никогда' ? getMoscowDateTimeString() : (typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null);
 
         const validRecipients = Array.isArray(recipients) ? recipients.slice(0, 50).map(r => String(r).trim().slice(0, 100)).filter(r => r.length > 0) : [];
         if (validRecipients.length === 0) {
@@ -190,41 +242,25 @@ router.post('/', (req, res) => {
         );
 
         if (send_now) {
-            let targetChatIds = [];
-            if (validRecipients.includes('Себе')) {
-                targetChatIds.push(req.userId);
-            }
-
-            const groupNames = validRecipients.filter(r => r !== 'Себе');
-            if (groupNames.length > 0) {
-                const placeholders = groupNames.map(() => '?').join(',');
-                const query = `
-                    SELECT DISTINCT p.chat_id
-                    FROM participants p
-                    JOIN groups g ON p.group_id = g.id
-                    WHERE g.user_id = ? AND g.name IN (${placeholders})
-                `;
-                const rows = db.prepare(query).all(req.userId, ...groupNames);
-                rows.forEach(r => {
-                    if (!targetChatIds.includes(r.chat_id)) {
-                        targetChatIds.push(r.chat_id);
-                    }
-                });
-            }
-
-            if (targetChatIds.length > 0) {
-                const fullText = cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : '');
-                sendBroadcastMessage(info.lastInsertRowid, targetChatIds, fullText, validReplies, validImages);
-            }
+            const fullText = cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : '');
+            await sendImmediateReminder(
+                info.lastInsertRowid,
+                req.userId,
+                validRecipients,
+                fullText,
+                validReplies,
+                validImages,
+                cleanRepeatType,
+                cleanRepeatTime
+            );
         }
-
         res.json({ id: info.lastInsertRowid, status });
     } catch (e) {
         res.status(500).json({ error: 'Failed to save reminder' });
     }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id) || id <= 0) {
@@ -279,7 +315,7 @@ router.put('/:id', (req, res) => {
 
         const stmt = db.prepare(`
             UPDATE reminders
-            SET title = ?, description = ?, send_now = ?, scheduled_time = ?, repeat_type = ?, repeat_time = ?, recipients = ?, quick_replies = ?, images = ?, status = ?
+            SET title = ?, description = ?, send_now = ?, scheduled_time = ?, repeat_type = ?, repeat_time = ?, recipients = ?, quick_replies = ?, images = ?, status = ?, pending_recipients = NULL
             WHERE id = ? AND user_id = ?
         `);
 
@@ -299,34 +335,18 @@ router.put('/:id', (req, res) => {
         );
 
         if (send_now) {
-            let targetChatIds = [];
-            if (validRecipients.includes('Себе')) {
-                targetChatIds.push(req.userId);
-            }
-
-            const groupNames = validRecipients.filter(r => r !== 'Себе');
-            if (groupNames.length > 0) {
-                const placeholders = groupNames.map(() => '?').join(',');
-                const query = `
-                    SELECT DISTINCT p.chat_id
-                    FROM participants p
-                    JOIN groups g ON p.group_id = g.id
-                    WHERE g.user_id = ? AND g.name IN (${placeholders})
-                `;
-                const rows = db.prepare(query).all(req.userId, ...groupNames);
-                rows.forEach(r => {
-                    if (!targetChatIds.includes(r.chat_id)) {
-                        targetChatIds.push(r.chat_id);
-                    }
-                });
-            }
-
-            if (targetChatIds.length > 0) {
-                const fullText = cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : '');
-                sendBroadcastMessage(id, targetChatIds, fullText, validReplies, validImages);
-            }
+            const fullText = cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : '');
+            await sendImmediateReminder(
+                id,
+                req.userId,
+                validRecipients,
+                fullText,
+                validReplies,
+                validImages,
+                cleanRepeatType,
+                cleanRepeatTime
+            );
         }
-
         res.json({ id, status });
     } catch (e) {
         res.status(500).json({ error: 'Failed to update reminder' });
