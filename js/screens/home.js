@@ -1,6 +1,7 @@
 const HomeScreen = {
     selectedParticipantIds: [],
     expandedGroupIds: {},
+    remindersRefreshInProgress: false,
 
     loadData: async function() {
         const templatesScroll = document.getElementById('templates-scroll');
@@ -33,95 +34,110 @@ const HomeScreen = {
             });
         }
 
-        const scheduledList = document.getElementById('scheduled-list');
-        const scheduledPlaceholder = document.getElementById('scheduled-placeholder');
-        const scheduledCount = document.getElementById('scheduled-count');
-        const sentList = document.getElementById('sent-list');
-        const sentPlaceholder = document.getElementById('sent-placeholder');
-        const sentCount = document.getElementById('sent-count');
-
-        const reminders = await App.getReminders();
-        const scheduled = reminders.filter(r => r.status === 'scheduled');
-        const sent = reminders.filter(r => r.status === 'sent');
-
-        if (scheduledCount) scheduledCount.textContent = scheduled.length;
-        if (sentCount) sentCount.textContent = sent.length;
-
-        if (scheduledList && scheduledPlaceholder) {
-            scheduledList.innerHTML = '';
-            if (scheduled.length === 0) {
-                scheduledPlaceholder.style.display = 'flex';
-                scheduledList.style.display = 'none';
-            } else {
-                scheduledPlaceholder.style.display = 'none';
-                scheduledList.style.display = 'flex';
-                scheduled.forEach(item => {
-                    let displayTime = 'Запланировано';
-                    if (item.scheduled_time) {
-                        const parts = item.scheduled_time.split('T');
-                        if (parts.length === 2) {
-                            const dateParts = parts[0].split('-');
-                            if (dateParts.length === 3) {
-                                displayTime = `${dateParts[2]}.${dateParts[1]} в ${parts[1]} МСК`;
-                            }
-                        }
-                    }
-
-                    const el = document.createElement('div');
-                    el.className = 'reminder-item';
-                    el.innerHTML = `
-                        <div class="reminder-item-header">
-                            <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
-                            <span class="reminder-item-time">${App.escapeHtml(displayTime)}</span>
-                        </div>
-                        <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
-                        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
-                            <button class="group-share-btn edit-reminder-btn" style="background-color: #e5f2ff; color: #007aff;" data-id="${item.id}">Изменить</button>
-                            <button class="group-share-btn cancel-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;" data-id="${item.id}">Отменить</button>
-                        </div>
-                    `;
-
-                    el.querySelector('.edit-reminder-btn').addEventListener('click', () => {
-                        CreateScreen.populateForEdit(item);
-                        App.showScreen('create');
-                    });
-
-                    el.querySelector('.cancel-reminder-btn').addEventListener('click', async () => {
-                        await App.deleteReminder(item.id);
-                        App.showToast('Запланированное напоминание отменено');
-                        this.loadData();
-                    });
-
-                    scheduledList.appendChild(el);
-                });
-            }
-        }
-
-        if (sentList && sentPlaceholder) {
-            sentList.innerHTML = '';
-            const recentSent = sent.slice(0, 5);
-            if (recentSent.length === 0) {
-                sentPlaceholder.style.display = 'flex';
-                sentList.style.display = 'none';
-            } else {
-                sentPlaceholder.style.display = 'none';
-                sentList.style.display = 'flex';
-                recentSent.forEach(item => {
-                    const el = document.createElement('div');
-                    el.className = 'reminder-item';
-                    el.innerHTML = `
-                        <div class="reminder-item-header">
-                            <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
-                            <span class="reminder-item-time">Отправлено</span>
-                        </div>
-                        <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
-                    `;
-                    sentList.appendChild(el);
-                });
-            }
-        }
+        await this.refreshReminders();
 
         this.loadRecipientsData();
+    },
+
+    refreshReminders: async function() {
+        if (this.remindersRefreshInProgress) return;
+        this.remindersRefreshInProgress = true;
+
+        try {
+            const scheduledList = document.getElementById('scheduled-list');
+            const scheduledPlaceholder = document.getElementById('scheduled-placeholder');
+            const scheduledCount = document.getElementById('scheduled-count');
+            const sentList = document.getElementById('sent-list');
+            const sentPlaceholder = document.getElementById('sent-placeholder');
+            const sentCount = document.getElementById('sent-count');
+    
+            const reminders = await App.getReminders();
+            const scheduled = reminders.filter(r => r.status === 'scheduled');
+            const sent = reminders.filter(r => r.status === 'sent');
+    
+            if (scheduledCount) scheduledCount.textContent = scheduled.length;
+            if (sentCount) sentCount.textContent = sent.length;
+    
+            if (scheduledList && scheduledPlaceholder) {
+                scheduledList.innerHTML = '';
+                if (scheduled.length === 0) {
+                    scheduledPlaceholder.style.display = 'flex';
+                    scheduledList.style.display = 'none';
+                } else {
+                    scheduledPlaceholder.style.display = 'none';
+                    scheduledList.style.display = 'flex';
+                    scheduled.forEach(item => {
+                        let displayTime = 'Запланировано';
+                        if (item.scheduled_time) {
+                            const parts = item.scheduled_time.split('T');
+                            if (parts.length === 2) {
+                                const dateParts = parts[0].split('-');
+                                if (dateParts.length === 3) {
+                                    displayTime = `${dateParts[2]}.${dateParts[1]} в ${parts[1]} МСК`;
+                                }
+                            }
+                        }
+    
+                        const el = document.createElement('div');
+                        el.className = 'reminder-item';
+                        el.innerHTML = `
+                            <div class="reminder-item-header">
+                                <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
+                                <span class="reminder-item-time">${App.escapeHtml(displayTime)}</span>
+                            </div>
+                            <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
+                            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                <button class="group-share-btn edit-reminder-btn" style="background-color: #e5f2ff; color: #007aff;" data-id="${item.id}">Изменить</button>
+                                <button class="group-share-btn cancel-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;" data-id="${item.id}">Отменить</button>
+                            </div>
+                        `;
+    
+                        el.querySelector('.edit-reminder-btn').addEventListener('click', () => {
+                            CreateScreen.populateForEdit(item);
+                            App.showScreen('create');
+                        });
+    
+                        el.querySelector('.cancel-reminder-btn').addEventListener('click', async () => {
+                            await App.deleteReminder(item.id);
+                            App.showToast('Запланированное напоминание отменено');
+                            await this.refreshReminders();
+                        });
+    
+                        scheduledList.appendChild(el);
+                    });
+                }
+            }
+    
+            if (sentList && sentPlaceholder) {
+                sentList.innerHTML = '';
+                const recentSent = sent.slice(0, 5);
+                if (recentSent.length === 0) {
+                    sentPlaceholder.style.display = 'flex';
+                    sentList.style.display = 'none';
+                } else {
+                    sentPlaceholder.style.display = 'none';
+                    sentList.style.display = 'flex';
+                    recentSent.forEach(item => {
+                        const el = document.createElement('div');
+                        el.className = 'reminder-item';
+                        el.innerHTML = `
+                            <div class="reminder-item-header">
+                                <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
+                                <span class="reminder-item-time">Отправлено</span>
+                            </div>
+                            <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
+                        `;
+                        sentList.appendChild(el);
+                    });
+                }
+            }
+    
+    
+        } catch (error) {
+            console.error('Failed to refresh reminders:', error);
+        } finally {
+            this.remindersRefreshInProgress = false;
+        }
     },
 
     loadRecipientsData: async function() {
@@ -414,9 +430,23 @@ const HomeScreen = {
 
         if (!this.autoRefreshInterval) {
             this.autoRefreshInterval = setInterval(() => {
-                this.loadData();
-            }, 5000);
+                if (App.currentScreen === 'home' && !document.hidden) {
+                    this.refreshReminders();
+                }
+            }, 10000);
         }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && App.currentScreen === 'home') {
+                this.refreshReminders();
+            }
+        });
+
+        window.addEventListener('focus', () => {
+            if (App.currentScreen === 'home') {
+                this.refreshReminders();
+            }
+        });
     }
 };
 
