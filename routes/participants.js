@@ -24,7 +24,10 @@ router.delete('/:id', (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        db.prepare('DELETE FROM participants WHERE id = ? AND teacher_id = ?').run(id, req.userId);
+        const result = db.prepare('DELETE FROM participants WHERE id = ? AND teacher_id = ?').run(id, req.userId);
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Participant not found' });
+        }
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete participant' });
