@@ -114,7 +114,7 @@ const HomeScreen = {
     
             if (sentList && sentPlaceholder) {
                 sentList.innerHTML = '';
-                const recentSent = sent;
+                const recentSent = sent.slice(0, 3);
                 if (recentSent.length === 0) {
                     sentPlaceholder.style.display = 'flex';
                     sentList.style.display = 'none';
