@@ -194,7 +194,6 @@ const App = {
     },
 
     updateReminder: async function(id, reminder) {
-        const userId = this.getUserId();
         try {
             const res = await fetch('/api/reminders/' + id, {
                 method: 'PUT',
@@ -204,18 +203,14 @@ const App = {
                 },
                 body: JSON.stringify(reminder)
             });
-            if (res.ok) {
-                return await res.json();
+            const data = await res.json();
+            if (!res.ok) {
+                return { error: data.error || 'Не удалось обновить напоминание' };
             }
-        } catch (e) {}
-
-        const reminders = await this.getReminders();
-        const index = reminders.findIndex(r => String(r.id) === String(id));
-        if (index !== -1) {
-            reminders[index] = { ...reminders[index], ...reminder };
-            localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(reminders));
+            return data;
+        } catch (e) {
+            return { error: 'Не удалось связаться с сервером' };
         }
-        return reminder;
     },
 
     uploadMedia: async function(mediaData) {
