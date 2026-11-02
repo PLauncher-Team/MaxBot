@@ -4,6 +4,8 @@ const CreateScreen = {
     selectedPeople: [],
     recipientGroups: [],
     recipientPeople: [],
+    recipientLoadError: null,
+    recipientLoadRequestId: 0,
     sendToSelf: true,
     wizardActive: false,
     wizardStep: 1,
@@ -123,11 +125,13 @@ const CreateScreen = {
     },
 
     loadRecipientOptions: async function() {
+        const requestId = ++this.recipientLoadRequestId;
         const listIds = ['wizard-recipients-list', 'details-recipients-list'];
         listIds.forEach(id => {
             const list = document.getElementById(id);
             if (list) list.textContent = 'Загружаем получателей...';
         });
+        this.recipientLoadError = null;
 
         const selfOption = document.getElementById('wizard-self-option');
         if (selfOption) {
@@ -138,46 +142,64 @@ const CreateScreen = {
         if (selfToggle) selfToggle.classList.toggle('active', this.sendToSelf);
         this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
 
-        const userId = App.getUserId();
-        const readLocal = (key) => {
+        const fetchList = async (url, label) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
             try {
-                const value = localStorage.getItem(key);
-                const parsed = value ? JSON.parse(value) : [];
-                return Array.isArray(parsed) ? parsed : [];
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: App.getAuthHeaders(),
+                    signal: controller.signal
+                });
+                const data = await response.json().catch(() => null);
+                if (!response.ok) {
+                    throw new Error(data?.error || label + ': HTTP ' + response.status);
+                }
+                if (!Array.isArray(data)) {
+                    throw new Error(label + ': сервер вернул некорректный список');
+                }
+                return data;
             } catch (error) {
-                return [];
+                if (error.name === 'AbortError') {
+                    throw new Error(label + ': сервер не ответил за 10 секунд');
+                }
+                throw error;
+            } finally {
+                clearTimeout(timeoutId);
             }
         };
 
-        let timeoutId;
         try {
-            const timeout = new Promise((resolve, reject) => {
-                timeoutId = setTimeout(() => reject(new Error('Recipient loading timed out')), 8000);
-            });
-            const [groups, people] = await Promise.race([
-                Promise.all([App.getGroups(), App.getParticipants()]),
-                timeout
-            ]);
-            this.recipientGroups = Array.isArray(groups) ? groups : [];
-            this.recipientPeople = Array.isArray(people) ? people : [];
-        } catch (error) {
-            this.recipientGroups = readLocal('maxapp_groups_' + userId);
-            this.recipientPeople = readLocal('maxapp_participants_' + userId);
-            App.showToast('Не удалось загрузить получателей с сервера. Показаны сохранённые данные');
-        } finally {
-            clearTimeout(timeoutId);
-        }
+            const groups = await fetchList('/api/groups', 'Группы');
+            if (requestId !== this.recipientLoadRequestId) return;
 
-        const groupNames = new Set(this.recipientGroups.map(group => String(group.name || '')));
-        const personIds = new Set(this.recipientPeople.map(person => String(person.id)));
-        this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
-        this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
-        this.renderSelectedRecipients();
+            const people = await fetchList('/api/participants', 'Участники');
+            if (requestId !== this.recipientLoadRequestId) return;
+
+            this.recipientGroups = groups;
+            this.recipientPeople = people;
+            const groupNames = new Set(groups.map(group => String(group.name || '')));
+            const personIds = new Set(people.map(person => String(person.id)));
+            this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
+            this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
+            this.renderSelectedRecipients();
+        } catch (error) {
+            if (requestId !== this.recipientLoadRequestId) return;
+            this.recipientGroups = [];
+            this.recipientPeople = [];
+            this.recipientLoadError = 'Не удалось загрузить получателей: ' + (error.message || 'ошибка сервера');
+            this.renderSelectedRecipients();
+            App.showToast(this.recipientLoadError);
+        }
     },
 
     renderRecipientChoices: function(listId, searchId) {
         const list = document.getElementById(listId);
         if (!list) return;
+        if (this.recipientLoadError) {
+            list.textContent = this.recipientLoadError;
+            return;
+        }
         const query = (document.getElementById(searchId)?.value || '').trim().toLocaleLowerCase();
         list.innerHTML = '';
         let visibleCount = 0;
