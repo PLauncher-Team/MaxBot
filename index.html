@@ -54,7 +54,7 @@
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
     <link rel="stylesheet" href="css/redesign.css?v=3">
-    <link rel="stylesheet" href="css/ambient-background.css?v=7">
+    <link rel="stylesheet" href="css/ambient-background.css?v=8">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -167,7 +167,6 @@
 
             <div class="tab-content" id="tab-groups-content" role="tabpanel" aria-labelledby="tab-groups-btn">
                 <div class="recipient-panel-heading">
-                    <span class="recipient-step-index">ШАГ 1</span>
                     <div>
                         <h2>Создайте группу</h2>
                         <p>Объедините людей, которым обычно нужны одни и те же напоминания.</p>
@@ -193,23 +192,24 @@
 
             <div class="tab-content" id="tab-people-content" role="tabpanel" aria-labelledby="tab-people-btn" style="display: none;">
                 <div class="recipient-panel-heading">
-                    <span class="recipient-step-index">ШАГ 3</span>
                     <div>
                         <h2>Распределите участников</h2>
                         <p>Здесь можно перенести уже присоединившихся людей в другую группу.</p>
                     </div>
                 </div>
                 <div class="combine-bar" id="combine-bar">
-                    <label class="recipient-field-label" for="combine-group-select">1. Выберите группу назначения</label>
-                    <select class="modal-input" id="combine-group-select">
-                        <option value="">Сначала выберите группу...</option>
-                    </select>
+                    <div class="recipient-assignment-heading">
+                        <strong>Добавить участников в группы</strong>
+                        <span>Можно выбрать несколько групп. Уже назначенные группы сохранятся.</span>
+                    </div>
+                    <div class="recipient-field-label">1. Выберите одну или несколько групп</div>
+                    <div class="assignment-groups-list" id="assignment-groups-list"></div>
                     <div class="recipient-selection-hint">
                         <strong>2. Отметьте участников ниже</strong>
-                        <span>Нажмите на карточки людей, которых нужно добавить в выбранную группу.</span>
+                        <span>Выбранные люди будут добавлены во все отмеченные группы.</span>
                     </div>
                     <button type="button" class="quick-reply-submit-btn" id="combine-submit-btn" disabled>
-                        <span>Назначить выбранным участникам</span>
+                        <span>Добавить в выбранные группы</span>
                         <span class="selection-count" id="selected-participants-count">0</span>
                     </button>
                 </div>
@@ -385,7 +385,7 @@
 </div>
 
 <script src="js/app.js?v=12"></script>
-<script src="js/screens/home.js?v=19"></script>
+<script src="js/screens/home.js?v=20"></script>
 <script src="js/screens/templates.js?v=9"></script>
 <script src="js/screens/create.js?v=12"></script>
 </body>
