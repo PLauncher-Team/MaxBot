@@ -497,6 +497,72 @@ const App = {
         if (modal) modal.style.display = 'none';
     },
 
+    openReminderTemplateModal: async function() {
+        const modal = document.getElementById('reminder-template-modal');
+        const list = document.getElementById('reminder-template-options');
+        if (!modal || !list) return;
+
+        modal.style.display = 'flex';
+        list.innerHTML = '';
+
+        const openForm = template => {
+            this.closeReminderTemplateModal();
+            this.selectedTemplate = template;
+            CreateScreen.populateForm(template);
+            this.showScreen('create');
+        };
+
+        const emptyOption = document.createElement('button');
+        emptyOption.type = 'button';
+        emptyOption.className = 'reminder-template-option reminder-template-option-empty';
+        emptyOption.innerHTML = '<span class="reminder-template-option-title">Без шаблона</span><span class="reminder-template-option-description">Создать напоминание с пустой формой</span>';
+        emptyOption.addEventListener('click', () => openForm(null));
+        list.appendChild(emptyOption);
+
+        const loading = document.createElement('div');
+        loading.className = 'reminder-template-loading';
+        loading.textContent = 'Загрузка шаблонов...';
+        list.appendChild(loading);
+
+        try {
+            const templates = await this.getTemplates();
+            if (modal.style.display !== 'flex') return;
+            loading.remove();
+
+            templates.forEach(template => {
+                const option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'reminder-template-option';
+
+                const title = document.createElement('span');
+                title.className = 'reminder-template-option-title';
+                title.textContent = template.title || 'Без названия';
+
+                const description = document.createElement('span');
+                description.className = 'reminder-template-option-description';
+                description.textContent = template.description || 'Без описания';
+
+                option.append(title, description);
+                if (Array.isArray(template.quick_replies) && template.quick_replies.length > 0) {
+                    const details = document.createElement('span');
+                    details.className = 'reminder-template-option-details';
+                    details.textContent = 'Быстрых ответов: ' + template.quick_replies.length;
+                    option.appendChild(details);
+                }
+
+                option.addEventListener('click', () => openForm(template));
+                list.appendChild(option);
+            });
+        } catch (error) {
+            loading.textContent = 'Не удалось загрузить шаблоны';
+        }
+    },
+
+    closeReminderTemplateModal: function() {
+        const modal = document.getElementById('reminder-template-modal');
+        if (modal) modal.style.display = 'none';
+    },
+
     init: function() {
         const appContainer = document.getElementById('app-container');
         const browserGate = document.getElementById('browser-gate');
@@ -578,9 +644,20 @@ const App = {
         const addReminderBtn = document.getElementById('add-reminder-btn');
         if (addReminderBtn) {
             addReminderBtn.addEventListener('click', () => {
-                this.selectedTemplate = null;
-                CreateScreen.populateForm(null);
-                this.showScreen('create');
+                this.openReminderTemplateModal();
+            });
+        }
+
+        const reminderTemplateModal = document.getElementById('reminder-template-modal');
+        const reminderTemplateCancel = document.getElementById('reminder-template-cancel');
+        if (reminderTemplateCancel) {
+            reminderTemplateCancel.addEventListener('click', () => {
+                this.closeReminderTemplateModal();
+            });
+        }
+        if (reminderTemplateModal) {
+            reminderTemplateModal.addEventListener('click', event => {
+                if (event.target === reminderTemplateModal) this.closeReminderTemplateModal();
             });
         }
 
