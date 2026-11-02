@@ -98,7 +98,11 @@ const HomeScreen = {
                         });
     
                         el.querySelector('.cancel-reminder-btn').addEventListener('click', async () => {
-                            await App.deleteReminder(item.id);
+                            const result = await App.deleteReminder(item.id);
+                            if (result && result.error) {
+                                App.showToast(result.error);
+                                return;
+                            }
                             App.showToast('Запланированное напоминание отменено');
                             await this.refreshReminders();
                         });
@@ -147,7 +151,11 @@ const HomeScreen = {
                         });
                         el.querySelector('.delete-sent-reminder-btn').addEventListener('click', async () => {
                             if (!window.confirm('Удалить сообщение у получателей и убрать его из истории?')) return;
-                            await App.deleteReminder(item.id);
+                            const result = await App.deleteReminder(item.id);
+                            if (result && result.error) {
+                                App.showToast(result.error);
+                                return;
+                            }
                             App.showToast('Отправленное сообщение удалено');
                             await this.refreshReminders();
                         });
