@@ -5,6 +5,24 @@ const HomeScreen = {
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
 
+    updateTemplateScrollControls: function() {
+        const container = document.getElementById('templates-scroll');
+        const leftButton = document.getElementById('scroll-left-btn');
+        const rightButton = document.getElementById('scroll-right-btn');
+        if (!container || !leftButton || !rightButton) return;
+
+        const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+        const hasOverflow = maxScroll > 2;
+        const currentScroll = container.scrollLeft;
+
+        leftButton.hidden = !hasOverflow;
+        rightButton.hidden = !hasOverflow;
+        leftButton.disabled = !hasOverflow || currentScroll <= 2;
+        rightButton.disabled = !hasOverflow || currentScroll >= maxScroll - 2;
+        leftButton.setAttribute('aria-hidden', String(!hasOverflow));
+        rightButton.setAttribute('aria-hidden', String(!hasOverflow));
+    },
+
     loadData: async function() {
         const templatesScroll = document.getElementById('templates-scroll');
         const homeTemplatesCount = document.getElementById('home-templates-count');
@@ -37,6 +55,7 @@ const HomeScreen = {
             });
         }
 
+        this.updateTemplateScrollControls();
         await this.refreshReminders();
 
         this.loadRecipientsData();
@@ -483,13 +502,16 @@ const HomeScreen = {
         const homeAddCard = document.getElementById('home-add-template-card');
 
         if (scrollLeftBtn && scrollRightBtn && scrollContainer) {
-            scrollLeftBtn.addEventListener('click', () => {
-                scrollContainer.scrollBy({ left: -200, behavior: 'smooth' });
-            });
+            const scrollTemplates = direction => {
+                const distance = Math.max(180, Math.round(scrollContainer.clientWidth * 0.72));
+                scrollContainer.scrollBy({ left: direction * distance, behavior: 'smooth' });
+            };
 
-            scrollRightBtn.addEventListener('click', () => {
-                scrollContainer.scrollBy({ left: 200, behavior: 'smooth' });
-            });
+            scrollLeftBtn.addEventListener('click', () => scrollTemplates(-1));
+            scrollRightBtn.addEventListener('click', () => scrollTemplates(1));
+            scrollContainer.addEventListener('scroll', () => this.updateTemplateScrollControls(), { passive: true });
+            window.addEventListener('resize', () => this.updateTemplateScrollControls(), { passive: true });
+            this.updateTemplateScrollControls();
         }
 
         if (homeAddCard) {
