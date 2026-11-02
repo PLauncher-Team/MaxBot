@@ -32,31 +32,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
-      - name: Configure SSH
+      - name: Validate deployment settings
         shell: bash
-        env:
-          SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == refs/heads/* ]] || { echo "::error::Select a branch to deploy"; exit 1; }
           test -n "$SSHPASS" || { echo "::error::Missing DEPLOY_SSH_PASSWORD"; exit 1; }
           test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
-          test -n "$SSH_KNOWN_HOSTS" || { echo "::error::Missing DEPLOY_SSH_KNOWN_HOSTS"; exit 1; }
-          install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Check server
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes "$DEPLOY_SSH_USER@$DEPLOY_HOST" "test -d '$DEPLOY_PATH' && test -f '$DEPLOY_PATH/ecosystem.config.js' && command -v rsync && command -v npm && command -v pm2"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "test -d '$DEPLOY_PATH' && test -f '$DEPLOY_PATH/ecosystem.config.js' && command -v rsync && command -v npm && command -v pm2"
 
       - name: Upload application files
         shell: bash
         run: |
           set -euo pipefail
-          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes" \
+          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.idea/' \
@@ -75,13 +69,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && npm install --omit=dev"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && npm install --omit=dev"
 
       - name: Restart application
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && pm2 startOrReload ecosystem.config.js --update-env && pm2 save && pm2 status"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && pm2 startOrReload ecosystem.config.js --update-env && pm2 save && pm2 status"
 
       - name: Deployment summary
         shell: bash
