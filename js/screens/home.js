@@ -18,7 +18,8 @@ const HomeScreen = {
         if (templatesScroll) {
             templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
             templates.forEach(t => {
-                const card = document.createElement('div');
+                const card = document.createElement('button');
+                card.type = 'button';
                 card.className = 'template-card';
                 card.setAttribute('data-id', t.id);
                 card.innerHTML = `
