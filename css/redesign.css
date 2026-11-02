@@ -229,10 +229,15 @@ button {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 0;
+    border: 0;
+    background: transparent;
     color: var(--accent);
+    font: inherit;
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
+    appearance: none;
 }
 
 .link-all::after {
@@ -317,6 +322,12 @@ button {
     text-align: left;
     scroll-snap-align: start;
     cursor: pointer;
+}
+
+.template-card {
+    appearance: none;
+    font: inherit;
+    color: var(--text);
 }
 
 .template-card-content {
