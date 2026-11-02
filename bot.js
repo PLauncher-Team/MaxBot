@@ -4,8 +4,80 @@ const db = require('./db');
 const { BOT_TOKEN } = require('./auth');
 
 let botInstance = null;
-const lastReplyMid = {};
 const sentMessageMids = {};
+
+function getStoredReplyMessages(reminderId) {
+    const row = db.prepare('SELECT reply_message_ids FROM reminders WHERE id = ?').get(reminderId);
+    const parsed = safeJsonParse(row?.reply_message_ids, {});
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+}
+
+function safeJsonParse(value, fallback) {
+    if (!value || typeof value !== 'string') return fallback;
+    try {
+        return JSON.parse(value);
+    } catch (e) {
+        return fallback;
+    }
+}
+
+function normalizeReplyRecords(value) {
+    if (Array.isArray(value)) return value.filter(record => record && record.mid);
+    if (value && typeof value === 'object' && value.mid) return [value];
+    return [];
+}
+
+function storeReplyMessage(reminderId, chatId, replyMid, parentMid) {
+    const replyMessages = getStoredReplyMessages(reminderId);
+    const records = normalizeReplyRecords(replyMessages[String(chatId)]);
+    records.push({
+        mid: String(replyMid),
+        parent_mid: parentMid ? String(parentMid) : null
+    });
+    replyMessages[String(chatId)] = records;
+    db.prepare('UPDATE reminders SET reply_message_ids = ? WHERE id = ?')
+        .run(JSON.stringify(replyMessages), reminderId);
+}
+
+async function deleteLinkedReplyMessages(reminderId, chatId, parentMid) {
+    const replyMessages = getStoredReplyMessages(reminderId);
+    const chatKey = String(chatId);
+    const records = normalizeReplyRecords(replyMessages[chatKey]);
+    if (records.length === 0) return true;
+
+    const remaining = [];
+    let failed = false;
+    let deletedAny = false;
+
+    for (const record of records) {
+        const isLinked = !parentMid || String(record.parent_mid) === String(parentMid);
+        if (!isLinked) {
+            remaining.push(record);
+            continue;
+        }
+
+        if (deletedAny) await new Promise(resolve => setTimeout(resolve, 550));
+        const deleted = await deleteMaxMessage(BOT_TOKEN, record.mid);
+        deletedAny = true;
+
+        if (!deleted) {
+            remaining.push(record);
+            failed = true;
+        }
+    }
+
+    if (remaining.length > 0) {
+        replyMessages[chatKey] = remaining;
+    } else {
+        delete replyMessages[chatKey];
+    }
+
+    db.prepare('UPDATE reminders SET reply_message_ids = ? WHERE id = ?')
+        .run(JSON.stringify(replyMessages), reminderId);
+
+    if (deletedAny) await new Promise(resolve => setTimeout(resolve, 550));
+    return !failed;
+}
 
 async function deleteMaxMessage(botToken, mid) {
     if (!botToken || !mid) return false;
@@ -14,7 +86,10 @@ async function deleteMaxMessage(botToken, mid) {
             method: 'DELETE',
             headers: { Authorization: botToken }
         });
-        return response.ok || response.status === 404;
+        if (response.status === 404) return true;
+        if (!response.ok) return false;
+        const result = await response.json().catch(() => null);
+        return !result || result.success !== false;
     } catch (e) {
         return false;
     }
@@ -124,52 +199,28 @@ try {
                 try {
                     const reminderId = ctx.match[1];
                     const answerText = ctx.match[2];
-                    let senderId = null;
                     const update = ctx.update || {};
-                    if (update.chat_id) {
-                        senderId = String(update.chat_id);
-                    } else if (update.user && update.user.user_id) {
-                        senderId = String(update.user.user_id);
-                    } else if (ctx.user && ctx.user.user_id) {
-                        senderId = String(ctx.user.user_id);
-                    }
+                    const recipient = update.message?.recipient || {};
+                    const callbackUser = update.callback?.user || update.user || ctx.user || {};
+                    const senderCandidate = update.chat_id || recipient.chat_id || recipient.user_id || callbackUser.user_id;
+                    const senderId = senderCandidate ? String(senderCandidate) : null;
 
                     if (!senderId) return;
 
                     const key = senderId + '_' + reminderId;
-                    const messageId = lastReplyMid[key];
+                    const originalMid = update.message?.body?.mid || update.message?.mid || update.mid || sentMessageMids[key] || null;
 
-                    if (messageId) {
-                        try {
-                            if (typeof ctx.api?.deleteMessage === 'function') {
-                                await ctx.api.deleteMessage(messageId);
-                            } else if (botInstance && typeof botInstance.api?.deleteMessage === 'function') {
-                                await botInstance.api.deleteMessage(messageId);
-                            } else {
-                                await deleteMaxMessage(BOT_TOKEN, messageId);
-                            }
-                            delete lastReplyMid[key];
-                        } catch (err) {
-                            console.error('Delete error:', err);
-                        }
-                    }
+                    await deleteLinkedReplyMessages(reminderId, senderId);
 
-                    const originalMid = update.message?.body?.mid || update.message?.mid || update.mid || sentMessageMids[key];
                     const options = originalMid ? { link: { type: 'reply', mid: originalMid } } : {};
-
                     const sentReply = await ctx.reply(`${answerText}`, options);
-                    let replyMid = null;
-                    if (sentReply) {
-                        if (sentReply.body && sentReply.body.mid) {
-                            replyMid = sentReply.body.mid;
-                        } else if (sentReply.mid) {
-                            replyMid = sentReply.mid;
-                        } else if (sentReply.body && sentReply.body.message_id) {
-                            replyMid = sentReply.body.message_id;
-                        }
-                    }
+                    const replyMid = sentReply?.message?.body?.mid
+                        || sentReply?.body?.mid
+                        || sentReply?.mid
+                        || sentReply?.body?.message_id;
+
                     if (replyMid) {
-                        lastReplyMid[key] = replyMid;
+                        storeReplyMessage(reminderId, senderId, replyMid, originalMid);
                     }
                 } catch (err) {
                     console.error('Action handler error:', err);
@@ -342,5 +393,6 @@ module.exports = {
     botInstance,
     sendBroadcastMessage,
     deleteMaxMessage,
+    deleteLinkedReplyMessages,
     editMaxMessage
 };
