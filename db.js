@@ -71,4 +71,8 @@ try {
     db.exec('ALTER TABLE reminders ADD COLUMN pending_recipients TEXT;');
 } catch (e) {}
 
+try {
+    db.exec("UPDATE reminders SET repeat_type = 'Никогда', status = 'sent', pending_recipients = NULL WHERE repeat_type = 'Каждую минуту' AND status = 'scheduled';");
+} catch (e) {}
+
 module.exports = db;
