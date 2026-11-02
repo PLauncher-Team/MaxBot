@@ -201,3 +201,77 @@
     color: #636366;
     font-size: 12px;
 }
+
+
+.sent-delete-card {
+    max-width: 340px;
+    align-items: center;
+    text-align: center;
+    gap: 12px;
+}
+
+.sent-delete-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff0f0;
+    color: #ff3b30;
+}
+
+.sent-delete-icon svg {
+    width: 26px;
+    height: 26px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.sent-delete-title {
+    color: #000;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.sent-delete-description {
+    color: #636366;
+    font-size: 14px;
+    line-height: 1.45;
+}
+
+.sent-delete-actions {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.sent-delete-actions button {
+    flex: 1;
+    min-height: 44px;
+    border: 0;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.sent-delete-cancel {
+    background: #f2f2f7;
+    color: #007aff;
+}
+
+.sent-delete-confirm {
+    background: #ff3b30;
+    color: #fff;
+}
+
+.sent-delete-actions button:disabled {
+    opacity: 0.55;
+    cursor: default;
+}
