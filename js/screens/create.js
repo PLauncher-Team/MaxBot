@@ -3,7 +3,7 @@ const CreateScreen = {
     selectedGroups: [],
     currentImages: [],
 
-    repeatOptions: ['Никогда', 'Каждую минуту', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
+    repeatOptions: ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
     repeatIndex: 0,
 
     getMinDateTimeString: function() {
@@ -89,7 +89,7 @@ const CreateScreen = {
         this.repeatIndex = repIdx !== -1 ? repIdx : 0;
         if (repeatTypeText) repeatTypeText.textContent = this.repeatOptions[this.repeatIndex];
         if (repeatTimeRow) {
-            repeatTimeRow.style.display = ['Никогда', 'Каждую минуту'].includes(this.repeatOptions[this.repeatIndex]) ? 'none' : 'flex';
+            repeatTimeRow.style.display = this.repeatOptions[this.repeatIndex] === 'Никогда' ? 'none' : 'flex';
         }
         if (repeatTimeInput && reminder.repeat_time) {
             repeatTimeInput.value = reminder.repeat_time;
@@ -373,7 +373,7 @@ const CreateScreen = {
                 const chosen = this.repeatOptions[this.repeatIndex];
                 repeatTypeText.textContent = chosen;
                 if (repeatTimeRow) {
-                    repeatTimeRow.style.display = ['Никогда', 'Каждую минуту'].includes(chosen) ? 'none' : 'flex';
+                    repeatTimeRow.style.display = chosen === 'Никогда' ? 'none' : 'flex';
                 }
             });
         }
@@ -457,7 +457,7 @@ const CreateScreen = {
                 }
 
                 const repeatType = repeatTypeText?.textContent || 'Никогда';
-                const repeatTime = ['Никогда', 'Каждую минуту'].includes(repeatType) ? null : document.getElementById('repeat-time-input')?.value;
+                const repeatTime = repeatType === 'Никогда' ? null : document.getElementById('repeat-time-input')?.value;
 
                 const finalRecipients = [...this.selectedGroups];
                 const sendToSelf = sendToSelfToggle?.classList.contains('active');
