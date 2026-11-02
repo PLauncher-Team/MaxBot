@@ -8,21 +8,32 @@ const lastReplyMid = {};
 const sentMessageMids = {};
 
 async function deleteMaxMessage(botToken, mid) {
-    if (!botToken || !mid) return null;
+    if (!botToken || !mid) return false;
     try {
-        const response = await fetch(`https://api.max.ru/bot${botToken}/messages?message_id=${mid}`, {
-            method: 'DELETE'
+        const response = await fetch(`https://platform-api2.max.ru/messages?message_id=${encodeURIComponent(mid)}`, {
+            method: 'DELETE',
+            headers: { Authorization: botToken }
         });
-        return await response.json();
-    } catch (e1) {
-        try {
-            const response = await fetch(`https://api.max.ru/bot${botToken}/messages/${mid}`, {
-                method: 'DELETE'
-            });
-            return await response.json();
-        } catch (e2) {
-            return null;
-        }
+        return response.ok;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function editMaxMessage(botToken, mid, text) {
+    if (!botToken || !mid) return false;
+    try {
+        const response = await fetch(`https://platform-api2.max.ru/messages?message_id=${encodeURIComponent(mid)}`, {
+            method: 'PUT',
+            headers: {
+                Authorization: botToken,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ text })
+        });
+        return response.ok;
+    } catch (e) {
+        return false;
     }
 }
 
@@ -176,7 +187,8 @@ try {
 async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images) {
     const result = {
         sentChatIds: [],
-        failedChatIds: []
+        failedChatIds: [],
+        messageIds: {}
     };
     const uniqueChatIds = [...new Set((Array.isArray(chatIds) ? chatIds : []).filter(Boolean).map(String))];
 
@@ -284,7 +296,10 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
                 try {
                     const resMsg = await botInstance.api.sendMessageToUser(chatId, text, { attachments });
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
-                    if (mid) sentMessageMids[chatId + '_' + reminderId] = mid;
+                    if (mid) {
+                        sentMessageMids[chatId + '_' + reminderId] = mid;
+                        result.messageIds[chatId] = mid;
+                    }
                     sentSuccess = true;
                     break;
                 } catch (e) {
@@ -299,7 +314,10 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
                 try {
                     const resMsg = await botInstance.api.sendMessageToChat(chatId, text, { attachments });
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
-                    if (mid) sentMessageMids[chatId + '_' + reminderId] = mid;
+                    if (mid) {
+                        sentMessageMids[chatId + '_' + reminderId] = mid;
+                        result.messageIds[chatId] = mid;
+                    }
                     sentSuccess = true;
                 } catch (e) {
                     lastError = e;
@@ -322,5 +340,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 }
 module.exports = {
     botInstance,
-    sendBroadcastMessage
+    sendBroadcastMessage,
+    deleteMaxMessage,
+    editMaxMessage
 };
