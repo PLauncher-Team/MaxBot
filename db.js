@@ -72,6 +72,22 @@ db.exec(`
     );
 `);
 
+
+const reminderColumns = new Set(
+    db.prepare('PRAGMA table_info(reminders)').all().map(column => column.name)
+);
+const reminderColumnMigrations = {
+    pending_recipients: 'TEXT',
+    sent_at: 'TEXT',
+    message_ids: 'TEXT',
+    reply_message_ids: 'TEXT'
+};
+for (const [columnName, columnType] of Object.entries(reminderColumnMigrations)) {
+    if (!reminderColumns.has(columnName)) {
+        db.exec(`ALTER TABLE reminders ADD COLUMN ${columnName} ${columnType}`);
+    }
+}
+
 // Multiple groups per participant. Existing single-group assignments are migrated once.
 db.pragma('foreign_keys = ON');
 db.exec(`
