@@ -322,8 +322,17 @@ const App = {
         const localParticipants = localStorage.getItem(participantsKey);
         if (localParticipants) {
             const participants = JSON.parse(localParticipants).map(participant => {
-                if (String(participant.group_id) !== String(id)) return participant;
-                return { ...participant, group_id: null, group_name: null };
+                const groups = Array.isArray(participant.groups)
+                    ? participant.groups.filter(group => String(group.id) !== String(id))
+                    : (String(participant.group_id) === String(id) ? [] : (participant.group_id ? [{ id: participant.group_id, name: participant.group_name }] : []));
+                return {
+                    ...participant,
+                    groups,
+                    group_ids: groups.map(group => group.id),
+                    group_names: groups.map(group => group.name),
+                    group_id: groups[0]?.id ?? null,
+                    group_name: groups[0]?.name ?? null
+                };
             });
             localStorage.setItem(participantsKey, JSON.stringify(participants));
         }
@@ -367,21 +376,32 @@ const App = {
         return data;
     },
 
-    combineParticipantsToGroup: async function(participantIds, groupId) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/participants/batch-group', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify({ participant_ids: participantIds, group_id: groupId })
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
+    addParticipantsToGroups: async function(participantIds, groupIds) {
+        const response = await fetch('/api/participants/batch-group', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ participant_ids: participantIds, group_ids: groupIds })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось добавить участников в группы');
+        }
+        return data;
+    },
+
+    removeParticipantFromGroup: async function(participantId, groupId) {
+        const response = await fetch('/api/participants/' + participantId + '/groups/' + groupId, {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось убрать участника из группы');
+        }
+        return data;
     },
 
     joinGroup: async function(uniqueId) {
