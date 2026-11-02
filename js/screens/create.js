@@ -407,6 +407,11 @@ const CreateScreen = {
             repeatTimeRow.style.display = 'none';
         }
 
+        ['wizard-recipient-search', 'details-recipient-search'].forEach(id => {
+            const search = document.getElementById(id);
+            if (search) search.value = '';
+        });
+
         this.selectedGroups = [];
         this.selectedPeople = [];
         this.renderQuickReplies();
@@ -495,74 +500,6 @@ const CreateScreen = {
         const badge = document.getElementById('recipients-badge');
         if (badge) {
             badge.textContent = count !== undefined ? count : 1;
-        }
-    },
-
-    openRecipientModal: async function() {
-        const modal = document.getElementById('recipient-modal');
-        const listContainer = document.getElementById('groups-modal-list');
-        const countSpan = document.getElementById('recipient-modal-count');
-
-        if (!modal || !listContainer) return;
-
-        const groups = await App.getGroups();
-        let selectedMap = {};
-        this.selectedGroups.forEach(gName => { selectedMap[gName] = true; });
-
-        const renderModalGroups = () => {
-            listContainer.innerHTML = '';
-
-            groups.forEach(g => {
-                const isChecked = Boolean(selectedMap[g.name]);
-
-                const card = document.createElement('div');
-                card.className = 'contact-modal-item';
-                card.innerHTML = `
-                    <div class="recipient-check ${isChecked ? '' : 'unchecked'}">
-                        <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div class="contact-modal-info">
-                        <div class="contact-modal-name">${App.escapeHtml(g.name)}</div>
-                        <div class="contact-modal-status">${g.participant_count || 0} участников</div>
-                    </div>
-                `;
-
-                card.addEventListener('click', () => {
-                    const check = card.querySelector('.recipient-check');
-                    if (selectedMap[g.name]) {
-                        delete selectedMap[g.name];
-                        check.classList.add('unchecked');
-                    } else {
-                        selectedMap[g.name] = true;
-                        check.classList.remove('unchecked');
-                    }
-                    if (countSpan) countSpan.textContent = Object.keys(selectedMap).length;
-                });
-
-                listContainer.appendChild(card);
-            });
-
-            if (countSpan) countSpan.textContent = Object.keys(selectedMap).length;
-        };
-
-        renderModalGroups();
-
-        modal.style.display = 'flex';
-
-        const confirmBtn = document.getElementById('recipient-modal-confirm');
-        if (confirmBtn) {
-            confirmBtn.onclick = () => {
-                this.selectedGroups = Object.keys(selectedMap);
-                this.renderSelectedRecipients();
-                modal.style.display = 'none';
-            };
-        }
-
-        const cancelBtn = document.getElementById('recipient-modal-cancel');
-        if (cancelBtn) {
-            cancelBtn.onclick = () => {
-                modal.style.display = 'none';
-            };
         }
     },
 
