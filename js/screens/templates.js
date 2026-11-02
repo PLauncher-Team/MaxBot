@@ -43,10 +43,15 @@ const TemplatesScreen = {
             if (deleteBtn) {
                 deleteBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    await App.deleteTemplate(t.id);
-                    await this.loadTemplates();
-                    if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
-                        HomeScreen.loadData();
+                    try {
+                        await App.deleteTemplate(t.id);
+                        App.showToast('Шаблон удалён');
+                        await this.loadTemplates();
+                        if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
+                            HomeScreen.loadData();
+                        }
+                    } catch (error) {
+                        App.showToast(error.message || 'Не удалось удалить шаблон');
                     }
                 });
             }
