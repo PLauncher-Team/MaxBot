@@ -50,9 +50,23 @@ router.delete('/:id', (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        db.prepare('DELETE FROM groups WHERE id = ? AND user_id = ?').run(id, req.userId);
-        db.prepare('UPDATE participants SET group_id = NULL WHERE teacher_id = ? AND group_id = ?').run(req.userId, id);
-        res.json({ success: true });
+
+        const deleteGroup = db.transaction(() => {
+            const group = db.prepare('SELECT id FROM groups WHERE id = ? AND user_id = ?').get(id, req.userId);
+            if (!group) return null;
+
+            const unassigned = db.prepare('UPDATE participants SET group_id = NULL WHERE teacher_id = ? AND group_id = ?')
+                .run(req.userId, id);
+            db.prepare('DELETE FROM groups WHERE id = ? AND user_id = ?').run(id, req.userId);
+
+            return { unassigned_participants: unassigned.changes };
+        });
+
+        const result = deleteGroup();
+        if (!result) {
+            return res.status(404).json({ error: 'Group not found' });
+        }
+        res.json({ success: true, ...result });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete group' });
     }
