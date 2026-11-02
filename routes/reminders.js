@@ -169,7 +169,7 @@ router.post('/upload-image', (req, res) => {
     }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         if (isNaN(id) || id <= 0) {
