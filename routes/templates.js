@@ -32,15 +32,20 @@ const defaultTemplates = [
 ];
 
 function seedDefaultTemplates(userId) {
-    try {
+    const seed = db.transaction(() => {
+        const result = db.prepare('INSERT OR IGNORE INTO template_seed_state (user_id) VALUES (?)').run(userId);
+        if (result.changes === 0) return;
+
         const check = db.prepare('SELECT COUNT(*) as count FROM templates WHERE user_id = ?').get(userId);
         if (check && check.count === 0) {
             const insert = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies) VALUES (?, ?, ?, ?)');
-            for (const t of defaultTemplates) {
-                insert.run(userId, t.title, t.description, t.quick_replies);
+            for (const template of defaultTemplates) {
+                insert.run(userId, template.title, template.description, template.quick_replies);
             }
         }
-    } catch (e) {}
+    });
+
+    seed();
 }
 
 router.get('/', (req, res) => {
@@ -88,7 +93,10 @@ router.delete('/:id', (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        db.prepare('DELETE FROM templates WHERE id = ? AND user_id = ?').run(id, req.userId);
+        const result = db.prepare('DELETE FROM templates WHERE id = ? AND user_id = ?').run(id, req.userId);
+        if (result.changes === 0) {
+            return res.status(404).json({ error: 'Template not found' });
+        }
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete template' });
