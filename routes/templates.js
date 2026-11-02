@@ -79,8 +79,13 @@ router.post('/', (req, res) => {
             answer: String(r.answer || '').trim().slice(0, 500)
         })).filter(r => r.question.length > 0) : [];
 
-        const stmt = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies) VALUES (?, ?, ?, ?)');
-        const info = stmt.run(req.userId, cleanTitle, cleanDesc, JSON.stringify(validReplies));
+        const createTemplate = db.transaction(() => {
+            const info = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies) VALUES (?, ?, ?, ?)')
+                .run(req.userId, cleanTitle, cleanDesc, JSON.stringify(validReplies));
+            db.prepare('INSERT OR IGNORE INTO template_seed_state (user_id) VALUES (?)').run(req.userId);
+            return info;
+        });
+        const info = createTemplate();
         res.json({ id: info.lastInsertRowid, user_id: req.userId, title: cleanTitle, description: cleanDesc, quick_replies: validReplies });
     } catch (e) {
         res.status(500).json({ error: 'Failed to save template' });
@@ -93,7 +98,14 @@ router.delete('/:id', (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        const result = db.prepare('DELETE FROM templates WHERE id = ? AND user_id = ?').run(id, req.userId);
+        const deleteTemplate = db.transaction(() => {
+            const result = db.prepare('DELETE FROM templates WHERE id = ? AND user_id = ?').run(id, req.userId);
+            if (result.changes > 0) {
+                db.prepare('INSERT OR IGNORE INTO template_seed_state (user_id) VALUES (?)').run(req.userId);
+            }
+            return result;
+        });
+        const result = deleteTemplate();
         if (result.changes === 0) {
             return res.status(404).json({ error: 'Template not found' });
         }
