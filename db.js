@@ -67,4 +67,8 @@ try {
     db.exec('ALTER TABLE reminders ADD COLUMN images TEXT;');
 } catch (e) {}
 
+try {
+    db.exec('ALTER TABLE reminders ADD COLUMN pending_recipients TEXT;');
+} catch (e) {}
+
 module.exports = db;
