@@ -176,12 +176,22 @@ async function handleBotStart(ctx) {
         if (uniqueId) {
             const group = db.prepare('SELECT * FROM groups WHERE unique_id = ?').get(uniqueId);
             if (group) {
-                const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, senderId);
-                if (existing) {
-                    db.prepare('UPDATE participants SET group_id = ?, name = ? WHERE id = ?').run(group.id, senderName, existing.id);
-                } else {
-                    db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)').run(group.user_id, group.id, senderId, senderName);
-                }
+                const joinGroup = db.transaction(() => {
+                    const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, senderId);
+                    let participantId;
+                    if (existing) {
+                        participantId = existing.id;
+                        db.prepare('UPDATE participants SET name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
+                            .run(senderName, group.id, participantId);
+                    } else {
+                        const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)')
+                            .run(group.user_id, group.id, senderId, senderName);
+                        participantId = created.lastInsertRowid;
+                    }
+                    db.prepare('INSERT OR IGNORE INTO participant_groups (participant_id, group_id) VALUES (?, ?)')
+                        .run(participantId, group.id);
+                });
+                joinGroup();
 
                 const replyMsg = `Вы успешно присоединились к группе "${group.name}"! Теперь вы будете получать важные напоминания.`;
                 if (typeof ctx.reply === 'function') {
