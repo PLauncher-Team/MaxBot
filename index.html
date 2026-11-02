@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/screens/home.css?v=12">
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
-    <link rel="stylesheet" href="css/redesign.css?v=2">
+    <link rel="stylesheet" href="css/redesign.css?v=3">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -47,9 +47,9 @@
             <div class="section-header">
                 <div class="section-header-left">
                     Шаблоны
-                    <span class="badge" id="home-templates-count">2</span>
+                    <span class="badge" id="home-templates-count">0</span>
                 </div>
-                <div class="link-all" id="show-templates-btn">Все шаблоны</div>
+                <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
             </div>
             <div class="templates-wrapper">
                 <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить влево"></button>
@@ -66,7 +66,7 @@
                     Получатели
                     <span class="badge" id="home-groups-count">0</span>
                 </div>
-                <div class="link-all" id="show-recipients-btn">Управление</div>
+                <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
             </div>
             <div class="placeholder-box recipients-placeholder">
                 <div class="placeholder-icon">
@@ -122,7 +122,7 @@
     <div class="screen" id="templates-screen">
         <div class="templates-header">
             <button class="back-btn" id="back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
-            <div class="templates-title">Шаблоны <span class="badge" id="templates-count">2</span></div>
+            <div class="templates-title">Шаблоны <span class="badge" id="templates-count">0</span></div>
             <button class="add-template-btn" id="templates-add-btn" aria-label="Добавить шаблон">
                 <svg width="20" height="20" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
@@ -282,7 +282,7 @@
 </div>
 
 <script src="js/app.js?v=12"></script>
-<script src="js/screens/home.js?v=14"></script>
+<script src="js/screens/home.js?v=15"></script>
 <script src="js/screens/templates.js?v=9"></script>
 <script src="js/screens/create.js?v=12"></script>
 </body>
