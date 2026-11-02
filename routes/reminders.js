@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
-const { sendBroadcastMessage, deleteMaxMessage, editMaxMessage } = require('../bot');
+const { sendBroadcastMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
 const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
@@ -184,6 +184,11 @@ router.delete('/:id', async (req, res) => {
         let deletedMessages = 0;
         const remainingMessageIds = {};
         for (const [chatId, mid] of Object.entries(messageIds)) {
+            if (!await deleteLinkedReplyMessages(id, chatId, mid)) {
+                remainingMessageIds[chatId] = mid;
+                continue;
+            }
+
             if (await deleteMaxMessage(BOT_TOKEN, mid)) {
                 deletedMessages++;
             } else {
@@ -353,6 +358,9 @@ router.put('/:id', async (req, res) => {
             for (const chatId of oldChatIds) {
                 const oldMid = oldMessageIds[chatId];
                 if (!newChatIds.includes(chatId)) {
+                    if (oldMid && !await deleteLinkedReplyMessages(id, chatId, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось удалить ответ у исключённого получателя' });
+                    }
                     if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
                         return res.status(502).json({ error: 'Не удалось удалить сообщение у исключённого получателя' });
                     }
@@ -360,6 +368,9 @@ router.put('/:id', async (req, res) => {
                 }
 
                 if (attachmentDataChanged) {
+                    if (oldMid && !await deleteLinkedReplyMessages(id, chatId, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось удалить ответ на заменяемое сообщение. Повторите попытку' });
+                    }
                     if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
                         return res.status(502).json({ error: 'Не удалось заменить старое сообщение. Повторите попытку' });
                     }
@@ -370,6 +381,9 @@ router.put('/:id', async (req, res) => {
                 if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''))) {
                     updatedMessageIds[chatId] = oldMid;
                 } else {
+                    if (oldMid && !await deleteLinkedReplyMessages(id, chatId, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось удалить ответ на заменяемое сообщение. Повторите попытку' });
+                    }
                     if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
                         return res.status(502).json({ error: 'Не удалось заменить старое сообщение. Повторите попытку' });
                     }
