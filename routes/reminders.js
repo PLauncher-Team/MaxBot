@@ -202,12 +202,11 @@ router.post('/', async (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
-        const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
-
         const validRepeatTypes = ['Никогда', 'Каждую минуту', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         const cleanRepeatType = validRepeatTypes.includes(repeat_type) ? repeat_type : 'Никогда';
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
         const cleanScheduledTime = send_now && cleanRepeatType !== 'Никогда' ? getMoscowDateTimeString() : (typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null);
+        const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
 
         const validRecipients = Array.isArray(recipients) ? recipients.slice(0, 50).map(r => String(r).trim().slice(0, 100)).filter(r => r.length > 0) : [];
         if (validRecipients.length === 0) {
@@ -294,12 +293,11 @@ router.put('/:id', async (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
-        const status = send_now ? 'sent' : 'scheduled';
-
-        const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
+        const validRepeatTypes = ['Никогда', 'Каждую минуту', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         const cleanRepeatType = validRepeatTypes.includes(repeat_type) ? repeat_type : 'Никогда';
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
-        const cleanScheduledTime = typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null;
+        const cleanScheduledTime = send_now && cleanRepeatType !== 'Никогда' ? getMoscowDateTimeString() : (typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null);
+        const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
 
         const validRecipients = Array.isArray(recipients) ? recipients.slice(0, 50).map(r => String(r).trim().slice(0, 100)).filter(r => r.length > 0) : [];
         if (validRecipients.length === 0) {
