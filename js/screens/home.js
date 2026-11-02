@@ -1,5 +1,6 @@
 const HomeScreen = {
     selectedParticipantIds: [],
+    selectedGroupIds: [],
     expandedGroupIds: {},
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
@@ -293,7 +294,12 @@ const HomeScreen = {
 
                     const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
                     const isExpanded = Boolean(this.expandedGroupIds[g.id]);
-                    const groupParticipants = participants.filter(p => Number(p.group_id) === Number(g.id));
+                    const groupParticipants = participants.filter(p => {
+                        if (Array.isArray(p.groups)) {
+                            return p.groups.some(group => Number(group.id) === Number(g.id));
+                        }
+                        return Number(p.group_id) === Number(g.id);
+                    });
                     const participantCount = groupParticipants.length;
 
                     let participantsHtml = '';
@@ -373,7 +379,7 @@ const HomeScreen = {
                         btn.addEventListener('click', async event => {
                             event.stopPropagation();
                             const pId = btn.getAttribute('data-remove-id');
-                            await App.combineParticipantsToGroup([pId], null);
+                            await App.removeParticipantFromGroup(pId, g.id);
                             App.showToast('Участник убран из группы');
                             await this.loadRecipientsData();
                         });
@@ -434,19 +440,39 @@ const HomeScreen = {
             }
         }
 
-        const combineSelect = document.getElementById('combine-group-select');
-        if (combineSelect) {
-            const currentSelectedGroup = combineSelect.value;
-            combineSelect.innerHTML = '<option value="">Сначала выберите группу...</option>';
-            groups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.id;
-                opt.textContent = g.name;
-                if (String(g.id) === String(currentSelectedGroup)) {
-                    opt.selected = true;
-                }
-                combineSelect.appendChild(opt);
-            });
+        const assignmentGroupsList = document.getElementById('assignment-groups-list');
+        this.selectedGroupIds = this.selectedGroupIds.filter(id => groups.some(group => String(group.id) === String(id)));
+
+        if (assignmentGroupsList) {
+            assignmentGroupsList.innerHTML = '';
+            if (groups.length === 0) {
+                assignmentGroupsList.innerHTML = '<div class="assignment-groups-empty">Сначала создайте хотя бы одну группу.</div>';
+            } else {
+                groups.forEach(group => {
+                    const isChecked = this.selectedGroupIds.includes(String(group.id));
+                    const option = document.createElement('label');
+                    option.className = 'assignment-group-option' + (isChecked ? ' selected' : '');
+                    option.innerHTML = `
+                        <input type="checkbox" value="${group.id}" ${isChecked ? 'checked' : ''}>
+                        <span class="assignment-group-check" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </span>
+                        <span class="assignment-group-name">${App.escapeHtml(group.name)}</span>
+                    `;
+                    const checkbox = option.querySelector('input');
+                    checkbox.addEventListener('change', () => {
+                        const groupId = String(group.id);
+                        if (checkbox.checked) {
+                            if (!this.selectedGroupIds.includes(groupId)) this.selectedGroupIds.push(groupId);
+                        } else {
+                            this.selectedGroupIds = this.selectedGroupIds.filter(id => id !== groupId);
+                        }
+                        option.classList.toggle('selected', checkbox.checked);
+                        renderParticipantsList();
+                    });
+                    assignmentGroupsList.appendChild(option);
+                });
+            }
         }
 
         const renderParticipantsList = () => {
@@ -454,21 +480,19 @@ const HomeScreen = {
             if (!participantsList) return;
             participantsList.innerHTML = '';
 
-            const selectedGroupId = combineSelect ? combineSelect.value : '';
             const selectedCount = document.getElementById('selected-participants-count');
             const submitButton = document.getElementById('combine-submit-btn');
             const updateSelectionSummary = () => {
                 const count = this.selectedParticipantIds.length;
                 if (selectedCount) selectedCount.textContent = count;
-                if (submitButton) submitButton.disabled = !selectedGroupId || count === 0;
+                if (submitButton) submitButton.disabled = this.selectedGroupIds.length === 0 || count === 0;
             };
 
             if (groups.length === 0) {
                 participantsList.innerHTML = `
                     <div class="recipient-empty-state">
-                        <div class="recipient-empty-icon">01</div>
                         <strong>Сначала создайте группу</strong>
-                        <p>Перейдите на вкладку «Группы», создайте группу и отправьте людям ссылку-приглашение. После присоединения они появятся здесь.</p>
+                        <p>Перейдите на вкладку «Группы», создайте её и отправьте людям ссылку-приглашение. После присоединения они появятся здесь.</p>
                     </div>
                 `;
                 updateSelectionSummary();
@@ -478,76 +502,64 @@ const HomeScreen = {
             if (participants.length === 0) {
                 participantsList.innerHTML = `
                     <div class="recipient-empty-state">
-                        <div class="recipient-empty-icon">02</div>
                         <strong>Участников пока нет</strong>
-                        <p>Откройте вкладку «Группы», выберите нужную группу и отправьте ссылку-приглашение. Когда человек присоединится, он появится в этом списке.</p>
+                        <p>Отправьте ссылку-приглашение из карточки группы. Когда человек присоединится, он появится в этом списке.</p>
                     </div>
                 `;
                 updateSelectionSummary();
                 return;
             }
 
-            const filteredParticipants = participants.filter(p => {
-                if (!selectedGroupId) return true;
-                return Number(p.group_id) !== Number(selectedGroupId);
-            });
-
-            if (filteredParticipants.length === 0) {
-                participantsList.innerHTML = `
-                    <div class="recipient-empty-state recipient-empty-state-compact">
-                        <strong>Все участники уже в этой группе</strong>
-                        <p>Выберите другую группу назначения или проверьте состав во вкладке «Группы».</p>
-                    </div>
-                `;
-                updateSelectionSummary();
-                return;
-            }
-
-            filteredParticipants.forEach(p => {
-                const isSelected = this.selectedParticipantIds.includes(String(p.id));
+            participants.forEach(participant => {
+                const isSelected = this.selectedParticipantIds.includes(String(participant.id));
                 const item = document.createElement('div');
                 item.className = 'participant-item' + (isSelected ? ' selected' : '');
+                const currentGroups = Array.isArray(participant.groups)
+                    ? participant.groups.map(group => group.name)
+                    : (participant.group_name ? [participant.group_name] : []);
+                const currentGroupsText = currentGroups.length
+                    ? 'Сейчас в группах: ' + currentGroups.join(', ')
+                    : 'Пока без группы';
+
                 item.innerHTML = `
                     <button type="button" class="participant-select-button" aria-pressed="${isSelected}">
                         <span class="recipient-check ${isSelected ? '' : 'unchecked'}">
                             <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
                         </span>
                         <span class="contact-modal-info participant-main-info">
-                            <span class="participant-name">${App.escapeHtml(p.name)}</span>
-                            <span class="participant-group">${p.group_name ? 'Сейчас в группе: ' + App.escapeHtml(p.group_name) : 'Пока без группы'}</span>
+                            <span class="participant-name">${App.escapeHtml(participant.name)}</span>
+                            <span class="participant-group">${App.escapeHtml(currentGroupsText)}</span>
                         </span>
                         <span class="participant-selection-label">${isSelected ? 'Выбран' : 'Выбрать'}</span>
                     </button>
-                    <button type="button" class="group-delete-btn" data-id="${p.id}"
-                            aria-label="Удалить участника ${App.escapeHtml(p.name)}" title="Удалить участника">
+                    <button type="button" class="group-delete-btn" data-id="${participant.id}"
+                            aria-label="Удалить участника ${App.escapeHtml(participant.name)}" title="Удалить участника">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 `;
 
                 const toggleParticipant = () => {
-                    const pIdStr = String(p.id);
-                    if (this.selectedParticipantIds.includes(pIdStr)) {
-                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== pIdStr);
+                    const participantId = String(participant.id);
+                    if (this.selectedParticipantIds.includes(participantId)) {
+                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== participantId);
                     } else {
-                        this.selectedParticipantIds.push(pIdStr);
+                        this.selectedParticipantIds.push(participantId);
                     }
                     renderParticipantsList();
                 };
 
                 item.querySelector('.participant-select-button').addEventListener('click', toggleParticipant);
-
                 item.querySelector('.group-delete-btn').addEventListener('click', async event => {
                     event.stopPropagation();
                     try {
-                        await App.deleteParticipant(p.id);
-                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(p.id));
+                        await App.deleteParticipant(participant.id);
+                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(participant.id));
                         App.showToast('Участник удалён');
                         await this.loadRecipientsData();
                     } catch (error) {
                         App.showToast(error.message || 'Не удалось удалить участника');
                     }
                 });
-
                 participantsList.appendChild(item);
             });
 
@@ -555,13 +567,6 @@ const HomeScreen = {
         };
 
         renderParticipantsList();
-
-        if (combineSelect) {
-            combineSelect.onchange = () => {
-                this.selectedParticipantIds = [];
-                renderParticipantsList();
-            };
-        }
     },
 
     init: function() {
@@ -664,23 +669,31 @@ const HomeScreen = {
         }
 
         const combineSubmitBtn = document.getElementById('combine-submit-btn');
-        const combineGroupSelect = document.getElementById('combine-group-select');
-        if (combineSubmitBtn && combineGroupSelect) {
+        if (combineSubmitBtn) {
             combineSubmitBtn.addEventListener('click', async () => {
-                const groupId = combineGroupSelect.value;
-                if (!groupId) {
-                    App.showToast('Сначала выберите группу назначения');
+                const groupIds = [...this.selectedGroupIds];
+                const participantIds = [...this.selectedParticipantIds];
+                if (groupIds.length === 0) {
+                    App.showToast('Выберите хотя бы одну группу');
                     return;
                 }
-                if (this.selectedParticipantIds.length === 0) {
+                if (participantIds.length === 0) {
                     App.showToast('Отметьте хотя бы одного участника в списке');
                     return;
                 }
 
-                await App.combineParticipantsToGroup(this.selectedParticipantIds, groupId);
-                this.selectedParticipantIds = [];
-                App.showToast('Группа назначена выбранным участникам');
-                this.loadRecipientsData();
+                combineSubmitBtn.disabled = true;
+                try {
+                    const result = await App.addParticipantsToGroups(participantIds, groupIds);
+                    this.selectedParticipantIds = [];
+                    App.showToast(result.memberships_added
+                        ? 'Участники добавлены в выбранные группы'
+                        : 'Эти участники уже состоят в выбранных группах');
+                    await this.loadRecipientsData();
+                } catch (error) {
+                    App.showToast(error.message || 'Не удалось назначить группы');
+                    combineSubmitBtn.disabled = false;
+                }
             });
         }
 
