@@ -294,7 +294,7 @@ const HomeScreen = {
                     const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
                     const isExpanded = Boolean(this.expandedGroupIds[g.id]);
                     const groupParticipants = participants.filter(p => Number(p.group_id) === Number(g.id));
-                    const participantCount = Number(g.participant_count || groupParticipants.length) || 0;
+                    const participantCount = groupParticipants.length;
 
                     let participantsHtml = '';
                     if (isExpanded) {
@@ -507,18 +507,17 @@ const HomeScreen = {
                 const isSelected = this.selectedParticipantIds.includes(String(p.id));
                 const item = document.createElement('div');
                 item.className = 'participant-item' + (isSelected ? ' selected' : '');
-                item.setAttribute('role', 'checkbox');
-                item.setAttribute('aria-checked', String(isSelected));
-                item.setAttribute('tabindex', '0');
                 item.innerHTML = `
-                    <div class="recipient-check ${isSelected ? '' : 'unchecked'}">
-                        <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div class="contact-modal-info participant-main-info">
-                        <div class="participant-name">${App.escapeHtml(p.name)}</div>
-                        <div class="participant-group">${p.group_name ? 'Сейчас в группе: ' + App.escapeHtml(p.group_name) : 'Пока без группы'}</div>
-                    </div>
-                    <span class="participant-selection-label">${isSelected ? 'Выбран' : 'Выбрать'}</span>
+                    <button type="button" class="participant-select-button" aria-pressed="${isSelected}">
+                        <span class="recipient-check ${isSelected ? '' : 'unchecked'}">
+                            <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </span>
+                        <span class="contact-modal-info participant-main-info">
+                            <span class="participant-name">${App.escapeHtml(p.name)}</span>
+                            <span class="participant-group">${p.group_name ? 'Сейчас в группе: ' + App.escapeHtml(p.group_name) : 'Пока без группы'}</span>
+                        </span>
+                        <span class="participant-selection-label">${isSelected ? 'Выбран' : 'Выбрать'}</span>
+                    </button>
                     <button type="button" class="group-delete-btn" data-id="${p.id}"
                             aria-label="Удалить участника ${App.escapeHtml(p.name)}" title="Удалить участника">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -535,16 +534,7 @@ const HomeScreen = {
                     renderParticipantsList();
                 };
 
-                item.addEventListener('click', event => {
-                    if (event.target.closest('.group-delete-btn')) return;
-                    toggleParticipant();
-                });
-                item.addEventListener('keydown', event => {
-                    if ((event.key === 'Enter' || event.key === ' ') && event.target === item) {
-                        event.preventDefault();
-                        toggleParticipant();
-                    }
-                });
+                item.querySelector('.participant-select-button').addEventListener('click', toggleParticipant);
 
                 item.querySelector('.group-delete-btn').addEventListener('click', async event => {
                     event.stopPropagation();
