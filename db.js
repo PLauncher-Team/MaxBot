@@ -72,9 +72,6 @@ db.exec(`
     );
 `);
 
-module.exports = db;
-
-
 // Multiple groups per participant. Existing single-group assignments are migrated once.
 db.pragma('foreign_keys = ON');
 db.exec(`
@@ -96,3 +93,5 @@ db.exec(`
     INNER JOIN groups g ON g.id = p.group_id
     WHERE p.group_id IS NOT NULL;
 `);
+
+module.exports = db;
