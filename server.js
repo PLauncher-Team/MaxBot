@@ -66,12 +66,22 @@ app.post('/api/join-group', (req, res) => {
         }
 
         const cleanName = typeof user_name === 'string' && user_name.trim() ? user_name.trim().slice(0, 100) : 'Участник ' + req.userId;
-        const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, req.userId);
-        if (existing) {
-            db.prepare('UPDATE participants SET group_id = ?, name = ? WHERE id = ?').run(group.id, cleanName, existing.id);
-        } else {
-            db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)').run(group.user_id, group.id, req.userId, cleanName);
-        }
+        const joinGroup = db.transaction(() => {
+            const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, req.userId);
+            let participantId;
+            if (existing) {
+                participantId = existing.id;
+                db.prepare('UPDATE participants SET name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
+                    .run(cleanName, group.id, participantId);
+            } else {
+                const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)')
+                    .run(group.user_id, group.id, req.userId, cleanName);
+                participantId = created.lastInsertRowid;
+            }
+            db.prepare('INSERT OR IGNORE INTO participant_groups (participant_id, group_id) VALUES (?, ?)')
+                .run(participantId, group.id);
+        });
+        joinGroup();
         res.json({ success: true, group_name: group.name });
     } catch (e) {
         res.status(500).json({ error: 'Failed to join group' });
