@@ -112,7 +112,8 @@ function getTargetChatIds(reminder) {
         const query = `
             SELECT DISTINCT p.chat_id
             FROM participants p
-            JOIN groups g ON p.group_id = g.id
+            JOIN participant_groups pg ON pg.participant_id = p.id
+            JOIN groups g ON pg.group_id = g.id
             WHERE g.user_id = ? AND g.name IN (${placeholders})
         `;
         const rows = db.prepare(query).all(reminder.user_id, ...groupNames);
