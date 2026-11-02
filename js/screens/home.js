@@ -2,6 +2,8 @@ const HomeScreen = {
     selectedParticipantIds: [],
     expandedGroupIds: {},
     remindersRefreshInProgress: false,
+    pendingSentDeleteId: null,
+    sentDeleteInProgress: false,
 
     loadData: async function() {
         const templatesScroll = document.getElementById('templates-scroll');
@@ -37,6 +39,85 @@ const HomeScreen = {
         await this.refreshReminders();
 
         this.loadRecipientsData();
+    },
+
+    formatSentTime: function(item) {
+        const value = typeof item.sent_at === 'string' && item.sent_at
+            ? item.sent_at
+            : item.created_at;
+        if (!value) return 'Дата не сохранена';
+
+        const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+        if (!match) return 'Дата не сохранена';
+
+        const [, year, month, day, hours, minutes] = match;
+        const date = new Date(Date.UTC(
+            Number(year),
+            Number(month) - 1,
+            Number(day),
+            Number(hours) + (item.sent_at ? 0 : 3),
+            Number(minutes)
+        ));
+        const pad = number => String(number).padStart(2, '0');
+
+        return pad(date.getUTCDate()) + '.' +
+            pad(date.getUTCMonth() + 1) + '.' +
+            date.getUTCFullYear() + ' ' +
+            pad(date.getUTCHours()) + ':' +
+            pad(date.getUTCMinutes()) + ' МСК';
+    },
+
+    openSentDeleteModal: function(item) {
+        const modal = document.getElementById('sent-delete-modal');
+        if (!modal || this.sentDeleteInProgress) return;
+        this.pendingSentDeleteId = item.id;
+        modal.style.display = 'flex';
+    },
+
+    closeSentDeleteModal: function() {
+        if (this.sentDeleteInProgress) return;
+        const modal = document.getElementById('sent-delete-modal');
+        if (modal) modal.style.display = 'none';
+        this.pendingSentDeleteId = null;
+    },
+
+    confirmSentDelete: async function() {
+        if (this.pendingSentDeleteId === null || this.sentDeleteInProgress) return;
+
+        const modal = document.getElementById('sent-delete-modal');
+        const confirmButton = document.getElementById('sent-delete-confirm');
+        const cancelButton = document.getElementById('sent-delete-cancel');
+        const buttonText = confirmButton ? confirmButton.textContent : '';
+
+        this.sentDeleteInProgress = true;
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.textContent = 'Удаление...';
+        }
+        if (cancelButton) cancelButton.disabled = true;
+
+        try {
+            const result = await App.deleteReminder(this.pendingSentDeleteId);
+            if (result && result.error) {
+                App.showToast(result.error);
+            } else {
+                App.showToast('Отправленное сообщение удалено');
+            }
+            if (modal) modal.style.display = 'none';
+            this.pendingSentDeleteId = null;
+            if (!result || !result.error) await this.refreshReminders();
+        } catch (error) {
+            App.showToast('Не удалось удалить сообщение');
+            if (modal) modal.style.display = 'none';
+            this.pendingSentDeleteId = null;
+        } finally {
+            this.sentDeleteInProgress = false;
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.textContent = buttonText || 'Удалить';
+            }
+            if (cancelButton) cancelButton.disabled = false;
+        }
     },
 
     refreshReminders: async function() {
@@ -124,16 +205,8 @@ const HomeScreen = {
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
                         el.className = 'reminder-item';
-                        const sentMatch = typeof item.sent_at === 'string'
-                            ? item.sent_at.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/)
-                            : null;
-                        const sentTime = sentMatch
-                            ? sentMatch[3] + '.' + sentMatch[2] + '.' + sentMatch[1] + ' ' + sentMatch[4] + ':' + sentMatch[5] + ' МСК'
-                            : 'Дата не сохранена';
+                        const sentTime = this.formatSentTime(item);
                         const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
-                        const repliesHtml = Array.isArray(item.quick_replies) && item.quick_replies.length
-                            ? item.quick_replies.map(reply => `<div class="sent-reminder-reply"><strong>${App.escapeHtml(reply.question)}</strong><span>${App.escapeHtml(reply.answer)}</span></div>`).join('')
-                            : '<div class="sent-reminder-muted">Быстрых ответов нет</div>';
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
@@ -141,7 +214,6 @@ const HomeScreen = {
                             </div>
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
                             <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
-                            <div class="sent-reminder-replies"><strong>Быстрые ответы</strong>${repliesHtml}</div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
                                 <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
                                 <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
@@ -151,15 +223,8 @@ const HomeScreen = {
                             CreateScreen.populateForSentEdit(item);
                             App.showScreen('create');
                         });
-                        el.querySelector('.delete-sent-reminder-btn').addEventListener('click', async () => {
-                            if (!window.confirm('Удалить сообщение у получателей и убрать его из истории?')) return;
-                            const result = await App.deleteReminder(item.id);
-                            if (result && result.error) {
-                                App.showToast(result.error);
-                                return;
-                            }
-                            App.showToast('Отправленное сообщение удалено');
-                            await this.refreshReminders();
+                        el.querySelector('.delete-sent-reminder-btn').addEventListener('click', () => {
+                            this.openSentDeleteModal(item);
                         });
                         sentList.appendChild(el);
                     });
@@ -258,10 +323,20 @@ const HomeScreen = {
                         navigator.clipboard.writeText(inviteUrl).then(() => {
                             App.showToast('Ссылка скопирована!');
                         }).catch(() => {
-                            prompt('Скопируйте ссылку на бота:', inviteUrl);
+                            const linkInput = card.querySelector('.group-link-input');
+                            if (linkInput) {
+                                linkInput.focus();
+                                linkInput.select();
+                            }
+                            App.showToast('Ссылка выделена для копирования');
                         });
                     } else {
-                        prompt('Скопируйте ссылку на бота:', inviteUrl);
+                        const linkInput = card.querySelector('.group-link-input');
+                        if (linkInput) {
+                            linkInput.focus();
+                            linkInput.select();
+                        }
+                        App.showToast('Ссылка выделена для копирования');
                     }
                 });
 
@@ -274,7 +349,12 @@ const HomeScreen = {
                     } else if (window.WebApp && typeof window.WebApp.openMaxLink === 'function') {
                         window.WebApp.openMaxLink(inviteUrl);
                     } else {
-                        prompt('Ссылка для вашей группы:', inviteUrl);
+                        const linkInput = card.querySelector('.group-link-input');
+                        if (linkInput) {
+                            linkInput.focus();
+                            linkInput.select();
+                        }
+                        App.showToast('Ссылка выделена для копирования');
                     }
                 });
 
@@ -367,6 +447,25 @@ const HomeScreen = {
     },
 
     init: function() {
+        const sentDeleteModal = document.getElementById('sent-delete-modal');
+        const sentDeleteCancel = document.getElementById('sent-delete-cancel');
+        const sentDeleteConfirm = document.getElementById('sent-delete-confirm');
+
+        if (sentDeleteCancel) {
+            sentDeleteCancel.addEventListener('click', () => this.closeSentDeleteModal());
+        }
+        if (sentDeleteConfirm) {
+            sentDeleteConfirm.addEventListener('click', () => this.confirmSentDelete());
+        }
+        if (sentDeleteModal) {
+            sentDeleteModal.addEventListener('click', event => {
+                if (event.target === sentDeleteModal) this.closeSentDeleteModal();
+            });
+        }
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') this.closeSentDeleteModal();
+        });
+
         const scrollContainer = document.getElementById('templates-scroll');
         const scrollLeftBtn = document.getElementById('scroll-left-btn');
         const scrollRightBtn = document.getElementById('scroll-right-btn');
