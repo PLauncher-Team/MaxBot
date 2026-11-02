@@ -150,17 +150,23 @@ const App = {
     },
 
     deleteTemplate: async function(id) {
-        const userId = this.getUserId();
-        try {
-            await fetch('/api/templates/' + id, {
-                method: 'DELETE',
-                headers: this.getAuthHeaders()
-            });
-        } catch (e) {}
+        const response = await fetch('/api/templates/' + id, {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось удалить шаблон');
+        }
 
-        const templates = await this.getTemplates();
-        const filtered = templates.filter(t => String(t.id) !== String(id));
-        localStorage.setItem('maxapp_templates_' + userId, JSON.stringify(filtered));
+        const storageKey = 'maxapp_templates_' + this.getUserId();
+        const local = localStorage.getItem(storageKey);
+        if (local) {
+            const templates = JSON.parse(local).filter(template => String(template.id) !== String(id));
+            localStorage.setItem(storageKey, JSON.stringify(templates));
+        }
+
+        return data;
     },
 
     getReminders: async function() {
@@ -295,17 +301,34 @@ const App = {
     },
 
     deleteGroup: async function(id) {
-        const userId = this.getUserId();
-        try {
-            await fetch('/api/groups/' + id, {
-                method: 'DELETE',
-                headers: this.getAuthHeaders()
-            });
-        } catch (e) {}
+        const response = await fetch('/api/groups/' + id, {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось удалить группу');
+        }
 
-        const groups = await this.getGroups();
-        const filtered = groups.filter(g => String(g.id) !== String(id));
-        localStorage.setItem('maxapp_groups_' + userId, JSON.stringify(filtered));
+        const userId = this.getUserId();
+        const groupsKey = 'maxapp_groups_' + userId;
+        const localGroups = localStorage.getItem(groupsKey);
+        if (localGroups) {
+            const groups = JSON.parse(localGroups).filter(group => String(group.id) !== String(id));
+            localStorage.setItem(groupsKey, JSON.stringify(groups));
+        }
+
+        const participantsKey = 'maxapp_participants_' + userId;
+        const localParticipants = localStorage.getItem(participantsKey);
+        if (localParticipants) {
+            const participants = JSON.parse(localParticipants).map(participant => {
+                if (String(participant.group_id) !== String(id)) return participant;
+                return { ...participant, group_id: null, group_name: null };
+            });
+            localStorage.setItem(participantsKey, JSON.stringify(participants));
+        }
+
+        return data;
     },
 
     getParticipants: async function() {
@@ -325,17 +348,23 @@ const App = {
     },
 
     deleteParticipant: async function(id) {
-        const userId = this.getUserId();
-        try {
-            await fetch('/api/participants/' + id, {
-                method: 'DELETE',
-                headers: this.getAuthHeaders()
-            });
-        } catch (e) {}
+        const response = await fetch('/api/participants/' + id, {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось удалить участника');
+        }
 
-        const participants = await this.getParticipants();
-        const filtered = participants.filter(p => String(p.id) !== String(id));
-        localStorage.setItem('maxapp_participants_' + userId, JSON.stringify(filtered));
+        const storageKey = 'maxapp_participants_' + this.getUserId();
+        const local = localStorage.getItem(storageKey);
+        if (local) {
+            const participants = JSON.parse(local).filter(participant => String(participant.id) !== String(id));
+            localStorage.setItem(storageKey, JSON.stringify(participants));
+        }
+
+        return data;
     },
 
     combineParticipantsToGroup: async function(participantIds, groupId) {
