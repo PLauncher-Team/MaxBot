@@ -2,6 +2,7 @@ const CreateScreen = {
     currentQuickReplies: [],
     selectedGroups: [],
     currentImages: [],
+    editingSentReminder: false,
 
     repeatOptions: ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
     repeatIndex: 0,
@@ -51,6 +52,7 @@ const CreateScreen = {
     },
 
     populateForEdit: function(reminder) {
+        this.editingSentReminder = false;
         App.editingReminderId = reminder.id;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
@@ -63,6 +65,10 @@ const CreateScreen = {
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
+        const sendNowSection = sendNowToggle?.closest('.create-section');
+        const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
+        if (sendNowSection) sendNowSection.style.display = 'block';
+        if (repeatSection) repeatSection.style.display = 'block';
 
         if (headerTitle) headerTitle.textContent = 'Редактирование напоминания';
         if (saveBtn) {
@@ -108,7 +114,31 @@ const CreateScreen = {
         this.renderImagesPreview();
     },
 
+    populateForSentEdit: function(reminder) {
+        this.populateForEdit({
+            ...reminder,
+            send_now: 1,
+            scheduled_time: null,
+            repeat_type: 'Никогда',
+            repeat_time: null
+        });
+        this.editingSentReminder = true;
+        const sendNowToggle = document.getElementById('send-now-toggle');
+        const sendNowSection = sendNowToggle?.closest('.create-section');
+        const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
+        const sendTimeRow = document.getElementById('send-time-picker-row');
+        if (sendNowSection) sendNowSection.style.display = 'none';
+        if (repeatSection) repeatSection.style.display = 'none';
+        if (sendNowToggle) sendNowToggle.classList.add('active');
+        if (sendTimeRow) sendTimeRow.style.display = 'none';
+        const headerTitle = document.querySelector('#create-screen .create-title');
+        if (headerTitle) headerTitle.textContent = 'Изменение отправленного сообщения';
+        const saveBtn = document.getElementById('save-reminder-btn');
+        if (saveBtn) saveBtn.childNodes[0].nodeValue = 'Сохранить изменения ';
+    },
+
     populateForm: function(template) {
+        this.editingSentReminder = false;
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
@@ -120,6 +150,10 @@ const CreateScreen = {
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
+        const sendNowSection = sendNowToggle?.closest('.create-section');
+        const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
+        if (sendNowSection) sendNowSection.style.display = 'block';
+        if (repeatSection) repeatSection.style.display = 'block';
 
         if (headerTitle) headerTitle.textContent = 'Новое напоминание';
         if (saveBtn) {
@@ -444,9 +478,9 @@ const CreateScreen = {
                     return;
                 }
 
-                const sendNow = sendNowToggle.classList.contains('active');
+                const sendNow = this.editingSentReminder || sendNowToggle.classList.contains('active');
                 let scheduledTime = null;
-                if (!sendNow) {
+                if (!sendNow && !this.editingSentReminder) {
                     const chosenVal = document.getElementById('send-datetime-input')?.value;
                     const minStr = this.getMinDateTimeString();
                     if (!chosenVal || chosenVal < minStr) {
@@ -456,7 +490,7 @@ const CreateScreen = {
                     scheduledTime = chosenVal;
                 }
 
-                const repeatType = repeatTypeText?.textContent || 'Никогда';
+                const repeatType = this.editingSentReminder ? 'Никогда' : (repeatTypeText?.textContent || 'Никогда');
                 const repeatTime = repeatType === 'Никогда' ? null : document.getElementById('repeat-time-input')?.value;
 
                 const finalRecipients = [...this.selectedGroups];
@@ -476,15 +510,20 @@ const CreateScreen = {
                     send_now: sendNow,
                     scheduled_time: scheduledTime,
                     repeat_type: repeatType,
-                    repeat_time: repeatTime,
+                    repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
                     images: this.currentImages
                 };
 
                 if (App.editingReminderId) {
-                    await App.updateReminder(App.editingReminderId, payload);
+                    const result = await App.updateReminder(App.editingReminderId, payload);
+                    if (result && result.error) {
+                        App.showToast(result.error);
+                        return;
+                    }
                     App.editingReminderId = null;
+                    this.editingSentReminder = false;
                     App.showToast('Напоминание обновлено');
                 } else {
                     await App.saveReminder(payload);
