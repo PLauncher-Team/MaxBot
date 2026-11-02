@@ -125,7 +125,8 @@ const CreateScreen = {
     },
 
     loadRecipientOptions: async function() {
-        const requestId = ++this.recipientLoadRequestId;
+        this.recipientLoadRequestId = (Number(this.recipientLoadRequestId) || 0) + 1;
+        const requestId = this.recipientLoadRequestId;
         const listIds = ['wizard-recipients-list', 'details-recipients-list'];
         listIds.forEach(id => {
             const list = document.getElementById(id);
@@ -142,39 +143,28 @@ const CreateScreen = {
         if (selfToggle) selfToggle.classList.toggle('active', this.sendToSelf);
         this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
 
-        const fetchList = async (url, label) => {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
-            try {
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: App.getAuthHeaders(),
-                    signal: controller.signal
-                });
-                const data = await response.json().catch(() => null);
-                if (!response.ok) {
-                    throw new Error(data?.error || label + ': HTTP ' + response.status);
-                }
-                if (!Array.isArray(data)) {
-                    throw new Error(label + ': сервер вернул некорректный список');
-                }
-                return data;
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    throw new Error(label + ': сервер не ответил за 10 секунд');
-                }
-                throw error;
-            } finally {
+        let timeoutIds = [];
+        const withTimeout = (promise, label) => {
+            let timeoutId;
+            const timeout = new Promise((resolve, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(label + ': превышено время ожидания')), 12000);
+                timeoutIds.push(timeoutId);
+            });
+            return Promise.race([promise, timeout]).finally(() => {
                 clearTimeout(timeoutId);
-            }
+                timeoutIds = timeoutIds.filter(id => id !== timeoutId);
+            });
         };
 
         try {
-            const groups = await fetchList('/api/groups', 'Группы');
+            const groups = await withTimeout(App.getGroups(), 'Загрузка групп');
+            if (requestId !== this.recipientLoadRequestId) return;
+            const people = await withTimeout(App.getParticipants(), 'Загрузка участников');
             if (requestId !== this.recipientLoadRequestId) return;
 
-            const people = await fetchList('/api/participants', 'Участники');
-            if (requestId !== this.recipientLoadRequestId) return;
+            if (!Array.isArray(groups) || !Array.isArray(people)) {
+                throw new Error('Сервер вернул некорректный список получателей');
+            }
 
             this.recipientGroups = groups;
             this.recipientPeople = people;
@@ -190,6 +180,17 @@ const CreateScreen = {
             this.recipientLoadError = 'Не удалось загрузить получателей: ' + (error.message || 'ошибка сервера');
             this.renderSelectedRecipients();
             App.showToast(this.recipientLoadError);
+        } finally {
+            timeoutIds.forEach(clearTimeout);
+            if (requestId === this.recipientLoadRequestId) {
+                const wizardList = document.getElementById('wizard-recipients-list');
+                const detailsList = document.getElementById('details-recipients-list');
+                if (wizardList?.textContent === 'Загружаем получателей...' ||
+                    detailsList?.textContent === 'Загружаем получателей...') {
+                    this.recipientLoadError = this.recipientLoadError || 'Не удалось отобразить список получателей. Попробуйте открыть шаг ещё раз';
+                    this.renderSelectedRecipients();
+                }
+            }
         }
     },
 
