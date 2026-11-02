@@ -156,6 +156,11 @@ async function checkScheduledReminders() {
 
                 const failedChatIds = Array.isArray(sendResult?.failedChatIds) ? sendResult.failedChatIds : [];
 
+                if (Object.keys(sendResult.messageIds || {}).length > 0) {
+                    db.prepare('UPDATE reminders SET sent_at = ?, message_ids = ? WHERE id = ?')
+                        .run(getMoscowDateTimeString(), JSON.stringify(sendResult.messageIds), reminder.id);
+                }
+
                 if (failedChatIds.length > 0) {
                     db.prepare('UPDATE reminders SET pending_recipients = ? WHERE id = ?')
                         .run(JSON.stringify(failedChatIds), reminder.id);
