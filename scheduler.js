@@ -106,7 +106,7 @@ function getTargetChatIds(reminder) {
         targetChatIds.push(String(reminder.user_id));
     }
 
-    const groupNames = validRecipients.filter(name => name !== 'Себе');
+    const groupNames = validRecipients.filter(name => name !== 'Себе' && !/^person:[0-9]+$/.test(name));
     if (groupNames.length > 0) {
         const placeholders = groupNames.map(() => '?').join(',');
         const query = `
@@ -123,6 +123,22 @@ function getTargetChatIds(reminder) {
         });
     }
 
+
+    const personIds = validRecipients
+        .filter(value => /^person:[0-9]+$/.test(value))
+        .map(value => Number(value.slice(7)))
+        .filter(id => Number.isSafeInteger(id) && id > 0);
+    if (personIds.length > 0) {
+        const placeholders = personIds.map(() => '?').join(',');
+        const rows = db.prepare(`
+            SELECT chat_id FROM participants
+            WHERE teacher_id = ? AND id IN (${placeholders})
+        `).all(reminder.user_id, ...personIds);
+        rows.forEach(row => {
+            const chatId = String(row.chat_id);
+            if (!targetChatIds.includes(chatId)) targetChatIds.push(chatId);
+        });
+    }
     return targetChatIds;
 }
 
