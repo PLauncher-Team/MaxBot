@@ -72,6 +72,14 @@ try {
 } catch (e) {}
 
 try {
+    db.exec('ALTER TABLE reminders ADD COLUMN sent_at TEXT;');
+} catch (e) {}
+
+try {
+    db.exec('ALTER TABLE reminders ADD COLUMN message_ids TEXT;');
+} catch (e) {}
+
+try {
     db.exec("UPDATE reminders SET repeat_type = 'Никогда', status = 'sent', pending_recipients = NULL WHERE repeat_type = 'Каждую минуту' AND status = 'scheduled';");
 } catch (e) {}
 
