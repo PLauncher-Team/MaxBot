@@ -124,9 +124,11 @@ const HomeScreen = {
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
                         el.className = 'reminder-item';
-                        const sentDate = item.sent_at ? new Date(item.sent_at.replace(' ', 'T')) : null;
-                        const sentTime = sentDate && !Number.isNaN(sentDate.getTime())
-                            ? sentDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' МСК'
+                        const sentMatch = typeof item.sent_at === 'string'
+                            ? item.sent_at.match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})/)
+                            : null;
+                        const sentTime = sentMatch
+                            ? sentMatch[3] + '.' + sentMatch[2] + '.' + sentMatch[1] + ' ' + sentMatch[4] + ':' + sentMatch[5] + ' МСК'
                             : 'Дата не сохранена';
                         const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
                         const repliesHtml = Array.isArray(item.quick_replies) && item.quick_replies.length
