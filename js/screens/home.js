@@ -48,9 +48,7 @@ const HomeScreen = {
                     </div>
                 `;
                 card.addEventListener('click', () => {
-                    App.selectedTemplate = t;
-                    CreateScreen.populateForm(t);
-                    App.showScreen('create');
+                    CreateScreen.startWizard(t);
                 });
                 templatesScroll.insertBefore(card, addCard);
             });
@@ -623,7 +621,10 @@ const HomeScreen = {
         const recipientsBackBtn = document.getElementById('recipients-back-btn');
         if (recipientsBackBtn) {
             recipientsBackBtn.addEventListener('click', () => {
-                App.showScreen('home');
+                const target = App.recipientsReturnScreen || 'home';
+                App.recipientsReturnScreen = null;
+                App.showScreen(target);
+                if (target === 'create') CreateScreen.loadRecipientOptions();
             });
         }
 
