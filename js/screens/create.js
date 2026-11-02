@@ -123,23 +123,48 @@ const CreateScreen = {
     },
 
     loadRecipientOptions: async function() {
-        ['wizard-recipients-list', 'details-recipients-list'].forEach(id => {
+        const listIds = ['wizard-recipients-list', 'details-recipients-list'];
+        listIds.forEach(id => {
             const list = document.getElementById(id);
             if (list) list.textContent = 'Загружаем получателей...';
         });
+        this.renderSelectedRecipients();
 
+        const userId = App.getUserId();
+        const readLocal = (key) => {
+            try {
+                const value = localStorage.getItem(key);
+                const parsed = value ? JSON.parse(value) : [];
+                return Array.isArray(parsed) ? parsed : [];
+            } catch (error) {
+                return [];
+            }
+        };
+
+        let timeoutId;
         try {
-            const [groups, people] = await Promise.all([App.getGroups(), App.getParticipants()]);
+            const timeout = new Promise((resolve, reject) => {
+                timeoutId = setTimeout(() => reject(new Error('Recipient loading timed out')), 8000);
+            });
+            const [groups, people] = await Promise.race([
+                Promise.all([App.getGroups(), App.getParticipants()]),
+                timeout
+            ]);
             this.recipientGroups = Array.isArray(groups) ? groups : [];
             this.recipientPeople = Array.isArray(people) ? people : [];
-            const groupNames = new Set(this.recipientGroups.map(group => String(group.name || '')));
-            const personIds = new Set(this.recipientPeople.map(person => String(person.id)));
-            this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
-            this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
-            this.renderSelectedRecipients();
         } catch (error) {
-            App.showToast('Не удалось загрузить список получателей');
+            this.recipientGroups = readLocal('maxapp_groups_' + userId);
+            this.recipientPeople = readLocal('maxapp_participants_' + userId);
+            App.showToast('Не удалось загрузить получателей с сервера. Показаны сохранённые данные');
+        } finally {
+            clearTimeout(timeoutId);
         }
+
+        const groupNames = new Set(this.recipientGroups.map(group => String(group.name || '')));
+        const personIds = new Set(this.recipientPeople.map(person => String(person.id)));
+        this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
+        this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
+        this.renderSelectedRecipients();
     },
 
     renderRecipientChoices: function(listId, searchId) {
@@ -550,7 +575,9 @@ const CreateScreen = {
         if (wizardSelfOption) {
             wizardSelfOption.addEventListener('click', () => {
                 this.sendToSelf = !this.sendToSelf;
-                this.renderSelectedRecipients();
+                wizardSelfOption.classList.toggle('selected', this.sendToSelf);
+                wizardSelfOption.setAttribute('aria-pressed', String(this.sendToSelf));
+                this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
             });
         }
 
