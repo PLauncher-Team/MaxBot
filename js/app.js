@@ -538,17 +538,7 @@ const App = {
                 title.className = 'reminder-template-option-title';
                 title.textContent = template.title || 'Без названия';
 
-                const description = document.createElement('span');
-                description.className = 'reminder-template-option-description';
-                description.textContent = template.description || 'Без описания';
-
-                option.append(title, description);
-                if (Array.isArray(template.quick_replies) && template.quick_replies.length > 0) {
-                    const details = document.createElement('span');
-                    details.className = 'reminder-template-option-details';
-                    details.textContent = 'Быстрых ответов: ' + template.quick_replies.length;
-                    option.appendChild(details);
-                }
+                option.appendChild(title);
 
                 option.addEventListener('click', () => openForm(template));
                 list.appendChild(option);
