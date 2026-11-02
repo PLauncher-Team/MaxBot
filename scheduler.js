@@ -53,11 +53,6 @@ function addRepeatInterval(currentStr, repeatType, repeatTime) {
     const date = parseMoscowDateTime(currentStr);
     if (!date) return null;
 
-    if (repeatType === 'Каждую минуту') {
-        date.setUTCMinutes(date.getUTCMinutes() + 1);
-        return formatMoscowDateTime(date);
-    }
-
     if (repeatType === 'Каждый день') {
         date.setUTCDate(date.getUTCDate() + 1);
         applyRepeatTime(date, repeatTime);
