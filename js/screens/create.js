@@ -123,10 +123,19 @@ const CreateScreen = {
     },
 
     loadRecipientOptions: async function() {
+        ['wizard-recipients-list', 'details-recipients-list'].forEach(id => {
+            const list = document.getElementById(id);
+            if (list) list.textContent = 'Загружаем получателей...';
+        });
+
         try {
             const [groups, people] = await Promise.all([App.getGroups(), App.getParticipants()]);
             this.recipientGroups = Array.isArray(groups) ? groups : [];
             this.recipientPeople = Array.isArray(people) ? people : [];
+            const groupNames = new Set(this.recipientGroups.map(group => String(group.name || '')));
+            const personIds = new Set(this.recipientPeople.map(person => String(person.id)));
+            this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
+            this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
             this.renderSelectedRecipients();
         } catch (error) {
             App.showToast('Не удалось загрузить список получателей');
