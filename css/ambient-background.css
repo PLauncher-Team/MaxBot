@@ -540,3 +540,118 @@ body {
 :root[data-theme="dark"] .bottom-button-container .bottom-button:active {
     background: #3a5072;
 }
+
+
+/* Make recipient management a primary destination in the dark workspace. */
+:root[data-theme="dark"] .recipients-management-card {
+    display: grid;
+    width: calc(100% - 40px);
+    min-height: 112px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 13px;
+    margin: 0 20px 24px;
+    padding: 17px;
+    border: 1px solid #435a79;
+    border-radius: 18px;
+    background:
+        radial-gradient(circle at 100% 0%, rgba(111, 139, 207, .16), transparent 58%),
+        linear-gradient(125deg, #263954 0%, #1d2c42 100%);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .20);
+    color: #e9f0fc;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+:root[data-theme="dark"] .recipients-management-card:active {
+    transform: scale(.988);
+    border-color: #657fa5;
+    box-shadow: 0 5px 14px rgba(0, 0, 0, .22);
+}
+
+:root[data-theme="dark"] .recipients-management-card:focus-visible {
+    outline: 2px solid #9aafff;
+    outline-offset: 3px;
+}
+
+:root[data-theme="dark"] .recipients-management-icon {
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgba(173, 194, 230, .16);
+    border-radius: 13px;
+    background: #354c6b;
+    color: #d0dcff;
+}
+
+:root[data-theme="dark"] .recipients-management-icon svg {
+    width: 21px;
+    height: 21px;
+    stroke: currentColor;
+    stroke-width: 1.7;
+}
+
+:root[data-theme="dark"] .recipients-management-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 5px;
+}
+
+:root[data-theme="dark"] .recipients-management-copy strong {
+    color: #f0f4fc;
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.25;
+}
+
+:root[data-theme="dark"] .recipients-management-copy > span {
+    color: #afbdd1;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+:root[data-theme="dark"] .recipients-management-action {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 1px solid rgba(173, 194, 230, .19);
+    border-radius: 9px;
+    background: rgba(11, 20, 34, .24);
+    color: #d5e0ff;
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+:root[data-theme="dark"] .recipients-management-action svg {
+    width: 14px;
+    height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+@media (max-width: 370px) {
+    :root[data-theme="dark"] .recipients-management-card {
+        grid-template-columns: 40px minmax(0, 1fr);
+        gap: 10px;
+        padding: 14px;
+    }
+
+    :root[data-theme="dark"] .recipients-management-action {
+        grid-column: 2;
+        justify-self: start;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :root[data-theme="dark"] .recipients-management-card {
+        transition: none;
+    }
+}
