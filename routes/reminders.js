@@ -347,7 +347,7 @@ router.put('/:id', async (req, res) => {
                     continue;
                 }
 
-                if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\\n\\n' + cleanDesc : ''))) {
+                if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''))) {
                     updatedMessageIds[chatId] = oldMid;
                 } else {
                     if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
@@ -363,7 +363,7 @@ router.put('/:id', async (req, res) => {
                 const sendResult = await sendBroadcastMessage(
                     id,
                     recipientsToSend,
-                    cleanTitle + (cleanDesc ? '\\n\\n' + cleanDesc : ''),
+                    cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''),
                     validReplies,
                     validImages
                 );
