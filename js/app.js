@@ -257,48 +257,33 @@ const App = {
     },
 
     getGroups: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/groups', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_groups_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+        const res = await fetch('/api/groups', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить группы');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список групп');
+        }
+        return data;
     },
 
     saveGroup: async function(name) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/groups', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify({ name })
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const groups = await this.getGroups();
-        const group = {
-            id: Date.now(),
-            user_id: userId,
-            name: name,
-            unique_id: 'g_' + Math.random().toString(36).substr(2, 9),
-            participant_count: 0
-        };
-        groups.unshift(group);
-        localStorage.setItem('maxapp_groups_' + userId, JSON.stringify(groups));
-        return group;
+        const res = await fetch('/api/groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось создать группу');
+        }
+        return data;
     },
 
     deleteGroup: async function(id) {
@@ -310,51 +295,21 @@ const App = {
         if (!response.ok) {
             throw new Error(data?.error || 'Не удалось удалить группу');
         }
-
-        const userId = this.getUserId();
-        const groupsKey = 'maxapp_groups_' + userId;
-        const localGroups = localStorage.getItem(groupsKey);
-        if (localGroups) {
-            const groups = JSON.parse(localGroups).filter(group => String(group.id) !== String(id));
-            localStorage.setItem(groupsKey, JSON.stringify(groups));
-        }
-
-        const participantsKey = 'maxapp_participants_' + userId;
-        const localParticipants = localStorage.getItem(participantsKey);
-        if (localParticipants) {
-            const participants = JSON.parse(localParticipants).map(participant => {
-                const groups = Array.isArray(participant.groups)
-                    ? participant.groups.filter(group => String(group.id) !== String(id))
-                    : (String(participant.group_id) === String(id) ? [] : (participant.group_id ? [{ id: participant.group_id, name: participant.group_name }] : []));
-                return {
-                    ...participant,
-                    groups,
-                    group_ids: groups.map(group => group.id),
-                    group_names: groups.map(group => group.name),
-                    group_id: groups[0]?.id ?? null,
-                    group_name: groups[0]?.name ?? null
-                };
-            });
-            localStorage.setItem(participantsKey, JSON.stringify(participants));
-        }
-
         return data;
     },
 
     getParticipants: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/participants', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_participants_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+        const res = await fetch('/api/participants', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить участников');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список участников');
+        }
+        return data;
     },
 
     deleteParticipant: async function(id) {
@@ -366,14 +321,6 @@ const App = {
         if (!response.ok) {
             throw new Error(data?.error || 'Не удалось удалить участника');
         }
-
-        const storageKey = 'maxapp_participants_' + this.getUserId();
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            const participants = JSON.parse(local).filter(participant => String(participant.id) !== String(id));
-            localStorage.setItem(storageKey, JSON.stringify(participants));
-        }
-
         return data;
     },
 
