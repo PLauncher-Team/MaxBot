@@ -43,7 +43,7 @@ jobs:
           test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
           test -n "$SSH_KNOWN_HOSTS" || { echo "::error::Missing DEPLOY_SSH_KNOWN_HOSTS"; exit 1; }
           install -m 700 -d "$HOME/.ssh"
-          printf '%s\\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Check server
@@ -56,19 +56,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes" \\
-            --exclude='.git/' \\
-            --exclude='.github/' \\
-            --exclude='.idea/' \\
-            --exclude='.android-studio/' \\
-            --exclude='node_modules/' \\
-            --exclude='data/' \\
-            --exclude='ecosystem.config.js' \\
-            --exclude='package-lock.json' \\
-            --exclude='.env' \\
-            --exclude='.env.*' \\
-            --exclude='logs/' \\
-            --exclude='*.log' \\
+          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.idea/' \
+            --exclude='.android-studio/' \
+            --exclude='node_modules/' \
+            --exclude='data/' \
+            --exclude='ecosystem.config.js' \
+            --exclude='package-lock.json' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='logs/' \
+            --exclude='*.log' \
             "$GITHUB_WORKSPACE/" "$DEPLOY_SSH_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 
       - name: Install production dependencies
