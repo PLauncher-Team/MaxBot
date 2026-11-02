@@ -27,6 +27,27 @@ function normalizeReplyRecords(value) {
     return [];
 }
 
+function resolveChatIdForMessage(reminderId, originalMid, update, ctxUser) {
+    if (originalMid) {
+        const row = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(reminderId);
+        const messageIds = safeJsonParse(row?.message_ids, {});
+        const match = Object.entries(messageIds).find(([, mid]) => String(mid) === String(originalMid));
+        if (match) return String(match[0]);
+
+        const suffix = '_' + reminderId;
+        for (const [key, mid] of Object.entries(sentMessageMids)) {
+            if (key.endsWith(suffix) && String(mid) === String(originalMid)) {
+                return key.slice(0, -suffix.length);
+            }
+        }
+    }
+
+    const recipient = update.message?.recipient || {};
+    const callbackUser = update.callback?.user || update.user || ctxUser || {};
+    const candidate = update.chat_id || recipient.chat_id || recipient.user_id || callbackUser.user_id;
+    return candidate ? String(candidate) : null;
+}
+
 function storeReplyMessage(reminderId, chatId, replyMid, parentMid) {
     const replyMessages = getStoredReplyMessages(reminderId);
     const records = normalizeReplyRecords(replyMessages[String(chatId)]);
@@ -201,14 +222,15 @@ try {
                     const answerText = ctx.match[2];
                     const update = ctx.update || {};
                     const recipient = update.message?.recipient || {};
-                    const callbackUser = update.callback?.user || update.user || ctx.user || {};
-                    const senderCandidate = update.chat_id || recipient.chat_id || recipient.user_id || callbackUser.user_id;
-                    const senderId = senderCandidate ? String(senderCandidate) : null;
+                    const tentativeKey = update.chat_id || recipient.chat_id || recipient.user_id || update.callback?.user?.user_id || ctx.user?.user_id;
+                    const tentativeSenderId = tentativeKey ? String(tentativeKey) : null;
+                    const tentativeMid = update.message?.body?.mid || update.message?.mid || update.mid || null;
+                    const originalMid = tentativeMid || (tentativeSenderId ? sentMessageMids[tentativeSenderId + '_' + reminderId] : null);
+                    const senderId = resolveChatIdForMessage(reminderId, originalMid, update, ctx.user);
 
                     if (!senderId) return;
 
                     const key = senderId + '_' + reminderId;
-                    const originalMid = update.message?.body?.mid || update.message?.mid || update.mid || sentMessageMids[key] || null;
 
                     await deleteLinkedReplyMessages(reminderId, senderId);
 
