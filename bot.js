@@ -14,7 +14,7 @@ async function deleteMaxMessage(botToken, mid) {
             method: 'DELETE',
             headers: { Authorization: botToken }
         });
-        return response.ok;
+        return response.ok || response.status === 404;
     } catch (e) {
         return false;
     }
