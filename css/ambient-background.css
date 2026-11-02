@@ -1,0 +1,178 @@
+/*
+ * Ambient background only: the original screen layouts remain unchanged.
+ * Theme is supplied by MAX when available and falls back to system preference.
+ */
+:root {
+    color-scheme: light;
+    --ambient-glow-one: rgba(66, 99, 235, .11);
+    --ambient-glow-two: rgba(37, 166, 145, .08);
+    --ambient-dot: rgba(77, 98, 134, .10);
+    --ambient-outside: #edf1f7;
+}
+
+:root[data-theme="light"] {
+    color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #111827;
+    --surface: #1b2638;
+    --surface-muted: #232f42;
+    --text: #edf2fb;
+    --muted: #a5b1c5;
+    --line: #2d3a50;
+    --accent: #91a7ff;
+    --accent-strong: #a8b8ff;
+    --accent-soft: rgba(145, 167, 255, .15);
+    --success: #43c694;
+    --danger: #ff788d;
+    --shadow: 0 14px 36px rgba(0, 0, 0, .30);
+    --ambient-glow-one: rgba(89, 112, 220, .17);
+    --ambient-glow-two: rgba(46, 158, 139, .12);
+    --ambient-dot: rgba(179, 197, 225, .10);
+    --ambient-outside: #0b1220;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]):not([data-theme="dark"]) {
+        color-scheme: dark;
+        --page: #111827;
+        --surface: #1b2638;
+        --surface-muted: #232f42;
+        --text: #edf2fb;
+        --muted: #a5b1c5;
+        --line: #2d3a50;
+        --accent: #91a7ff;
+        --accent-strong: #a8b8ff;
+        --accent-soft: rgba(145, 167, 255, .15);
+        --success: #43c694;
+        --danger: #ff788d;
+        --shadow: 0 14px 36px rgba(0, 0, 0, .30);
+        --ambient-glow-one: rgba(89, 112, 220, .17);
+        --ambient-glow-two: rgba(46, 158, 139, .12);
+        --ambient-dot: rgba(179, 197, 225, .10);
+        --ambient-outside: #0b1220;
+    }
+}
+
+html,
+body {
+    min-height: 100%;
+    background-color: var(--page);
+}
+
+body {
+    background:
+        radial-gradient(ellipse 540px 430px at 0% 0%, var(--ambient-glow-one), transparent 72%),
+        radial-gradient(ellipse 460px 390px at 100% 38%, var(--ambient-glow-two), transparent 72%),
+        var(--ambient-outside);
+}
+
+.app-container,
+.browser-gate {
+    background-color: var(--page);
+    background-image:
+        radial-gradient(ellipse 440px 340px at 0% 0%, var(--ambient-glow-one), transparent 72%),
+        radial-gradient(ellipse 420px 360px at 100% 32%, var(--ambient-glow-two), transparent 72%),
+        radial-gradient(circle at 1px 1px, var(--ambient-dot) 1px, transparent 1.25px);
+    background-size: auto, auto, 28px 28px;
+    background-position: top left, right 22%, 0 0;
+    background-repeat: no-repeat, no-repeat, repeat;
+}
+
+.screen {
+    background: transparent;
+}
+
+:root[data-theme="dark"] .placeholder-box {
+    border-color: #3b4961;
+    background: rgba(27, 38, 56, .78);
+    color: var(--muted);
+}
+
+:root[data-theme="dark"] .template-add-card {
+    border-color: #465875;
+    background: rgba(35, 47, 66, .72);
+}
+
+:root[data-theme="dark"] .reminder-item-desc,
+:root[data-theme="dark"] .quick-reply-answer,
+:root[data-theme="dark"] .sent-reminder-meta,
+:root[data-theme="dark"] .sent-reminder-replies {
+    color: #c0cada;
+}
+
+:root[data-theme="dark"] .toggle-switch {
+    background: #43516a;
+}
+
+:root[data-theme="dark"] .toggle-switch::after {
+    background: #f5f7fb;
+}
+
+:root[data-theme="dark"] .recipient-add-row {
+    border-color: #465875;
+    background: rgba(35, 47, 66, .76);
+}
+
+:root[data-theme="dark"] .recipient-check.unchecked {
+    border-color: #64738c;
+}
+
+:root[data-theme="dark"] .recipient-avatar {
+    background: #2b3a52;
+}
+
+:root[data-theme="dark"] .quick-reply-delete {
+    background: #2c3a50;
+}
+
+:root[data-theme="dark"] .modal-input,
+:root[data-theme="dark"] .modal-textarea,
+:root[data-theme="dark"] .modal-reply-add input,
+:root[data-theme="dark"] #modal-reply-q,
+:root[data-theme="dark"] #modal-reply-a {
+    border-color: var(--line);
+    background: #202d42;
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .recipients-tabs {
+    background: #202d42;
+}
+
+:root[data-theme="dark"] .tab-btn.active {
+    background: #2b3a51;
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .group-delete-btn,
+:root[data-theme="dark"] .modal-reply-del,
+:root[data-theme="dark"] .sent-delete-icon {
+    background: rgba(255, 120, 141, .14);
+    color: var(--danger);
+}
+
+:root[data-theme="dark"] .sent-delete-title {
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .sent-delete-description {
+    color: var(--muted);
+}
+
+:root[data-theme="dark"] .sent-delete-cancel {
+    background: #2b3a51;
+    color: var(--text);
+}
+
+:root[data-theme="dark"] .sent-delete-confirm {
+    background: #b94861;
+    color: #fff;
+}
+
+:root[data-theme="dark"] .group-link-box,
+:root[data-theme="dark"] .quick-reply-card {
+    background: #202d42;
+}
