@@ -128,7 +128,15 @@ const CreateScreen = {
             const list = document.getElementById(id);
             if (list) list.textContent = 'Загружаем получателей...';
         });
-        this.renderSelectedRecipients();
+
+        const selfOption = document.getElementById('wizard-self-option');
+        if (selfOption) {
+            selfOption.classList.toggle('selected', this.sendToSelf);
+            selfOption.setAttribute('aria-pressed', String(this.sendToSelf));
+        }
+        const selfToggle = document.getElementById('send-to-self-toggle');
+        if (selfToggle) selfToggle.classList.toggle('active', this.sendToSelf);
+        this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
 
         const userId = App.getUserId();
         const readLocal = (key) => {
