@@ -175,9 +175,12 @@ router.delete('/:id', async (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const reminder = db.prepare('SELECT status, message_ids FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder) return res.json({ success: true });
         const messageIds = safeJsonParse(reminder.message_ids, {});
+        if (reminder.status === 'sent' && Object.keys(messageIds).length === 0) {
+            return res.status(409).json({ error: 'Для этого старого сообщения не сохранён ID в MAX, поэтому удалить его у получателей автоматически нельзя' });
+        }
         let deletedMessages = 0;
         for (const mid of Object.values(messageIds)) {
             if (await deleteMaxMessage(BOT_TOKEN, mid)) deletedMessages++;
@@ -325,6 +328,9 @@ router.put('/:id', async (req, res) => {
         if (existing.status === 'sent') {
             const oldRecipients = safeJsonParse(existing.recipients, []);
             const oldMessageIds = safeJsonParse(existing.message_ids, {});
+            if (Object.keys(oldMessageIds).length === 0) {
+                return res.status(409).json({ error: 'Для этого старого сообщения не сохранены ID в MAX. Изменение доступно для сообщений, отправленных после обновления' });
+            }
             const oldQuickReplies = safeJsonParse(existing.quick_replies, []);
             const oldImages = safeJsonParse(existing.images, []);
             const oldChatIds = getTargetChatIds(req.userId, oldRecipients);
