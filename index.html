@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://st.max.ru/js/max-web-app.js"></script>
-    <meta name="theme-color" content="#f1f0e8">
+    <meta name="theme-color" content="#f5f7fb">
     <title>Напоминания</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
@@ -12,7 +12,6 @@
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
     <link rel="stylesheet" href="css/redesign.css?v=3">
-    <link rel="stylesheet" href="css/dispatch-ui.css?v=1">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -30,76 +29,65 @@
 
 <div class="app-container" id="app-container" style="display: none;">
     <div class="screen active" id="home-screen">
-        <div class="content home-dashboard">
-            <section class="home-widget home-widget--scheduled">
-                <div class="section-header">
-                    <div class="section-header-left">
-                        Запланированные
-                        <span class="count" id="scheduled-count">0</span>
-                    </div>
-                    <span class="widget-index">01 / ОЧЕРЕДЬ</span>
+        <div class="content">
+            <div class="section-header">
+                <div class="section-header-left">
+                    Запланированные
+                    <span class="count" id="scheduled-count">0</span>
                 </div>
-                <div class="placeholder-box" id="scheduled-placeholder">
-                    <div class="placeholder-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    </div>
-                    <span>Здесь появятся напоминания, которые ожидают отправки.</span>
+            </div>
+            <div class="placeholder-box" id="scheduled-placeholder">
+                <div class="placeholder-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </div>
-                <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
-            </section>
+                <span>Здесь появятся напоминания, которые ожидают отправки.</span>
+            </div>
+            <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
 
-            <section class="home-widget home-widget--templates">
-                <div class="section-header">
-                    <div class="section-header-left">
-                        Шаблоны
-                        <span class="badge" id="home-templates-count">0</span>
-                    </div>
-                    <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
+            <div class="section-header">
+                <div class="section-header-left">
+                    Шаблоны
+                    <span class="badge" id="home-templates-count">0</span>
                 </div>
-                <div class="templates-wrapper">
-                    <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить влево"></button>
-                    <div class="templates-scroll" id="templates-scroll">
-                        <button class="template-add-card" id="home-add-template-card" aria-label="Создать шаблон">
-                            <svg width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                            <span>НОВЫЙ</span>
-                        </button>
-                    </div>
-                    <button class="scroll-btn right" id="scroll-right-btn" aria-label="Прокрутить вправо"></button>
+                <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
+            </div>
+            <div class="templates-wrapper">
+                <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить влево"></button>
+                <div class="templates-scroll" id="templates-scroll">
+                    <button class="template-add-card" id="home-add-template-card" aria-label="Создать шаблон">
+                        <svg width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
                 </div>
-            </section>
+                <button class="scroll-btn right" id="scroll-right-btn" aria-label="Прокрутить вправо"></button>
+            </div>
 
-            <section class="home-widget home-widget--recipients">
-                <div class="section-header">
-                    <div class="section-header-left">
-                        Получатели
-                        <span class="badge" id="home-groups-count">0</span>
-                    </div>
-                    <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
+            <div class="section-header">
+                <div class="section-header-left">
+                    Получатели
+                    <span class="badge" id="home-groups-count">0</span>
                 </div>
-                <div class="placeholder-box recipients-placeholder">
-                    <div class="placeholder-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                    </div>
-                    <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
+                <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
+            </div>
+            <div class="placeholder-box recipients-placeholder">
+                <div class="placeholder-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                 </div>
-            </section>
+                <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
+            </div>
 
-            <section class="home-widget home-widget--sent">
-                <div class="section-header">
-                    <div class="section-header-left">
-                        Отправленные
-                        <span class="count" id="sent-count">0</span>
-                    </div>
-                    <span class="widget-index">04 / ЖУРНАЛ</span>
+            <div class="section-header">
+                <div class="section-header-left">
+                    Отправленные
+                    <span class="count" id="sent-count">0</span>
                 </div>
-                <div class="placeholder-box" id="sent-placeholder">
-                    <div class="placeholder-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
-                    </div>
-                    <span>История отправленных напоминаний будет храниться здесь.</span>
+            </div>
+            <div class="placeholder-box" id="sent-placeholder">
+                <div class="placeholder-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
                 </div>
-                <div class="reminders-list" id="sent-list" style="display: none;"></div>
-            </section>
+                <span>История отправленных напоминаний будет храниться здесь.</span>
+            </div>
+            <div class="reminders-list" id="sent-list" style="display: none;"></div>
         </div>
         <div class="bottom-button-container">
             <button class="bottom-button" id="add-reminder-btn">Создать напоминание</button>
@@ -294,7 +282,7 @@
 </div>
 
 <script src="js/app.js?v=12"></script>
-<script src="js/screens/home.js?v=16"></script>
+<script src="js/screens/home.js?v=15"></script>
 <script src="js/screens/templates.js?v=9"></script>
 <script src="js/screens/create.js?v=12"></script>
 </body>
