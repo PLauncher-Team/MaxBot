@@ -53,7 +53,7 @@
     <link rel="stylesheet" href="css/screens/home.css?v=12">
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
-    <link rel="stylesheet" href="css/redesign.css?v=4">
+    <link rel="stylesheet" href="css/redesign.css?v=5">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
 </head>
 <body>
@@ -247,7 +247,37 @@
             <button class="back-btn" id="create-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="create-title">Новое напоминание</div>
         </div>
+        <div class="reminder-wizard-progress" id="reminder-wizard-progress" aria-label="Этапы создания напоминания">
+            <div class="reminder-wizard-progress-step" data-wizard-step="1"><span class="reminder-wizard-progress-number">1</span><span>Шаблон</span></div>
+            <span class="reminder-wizard-progress-line"></span>
+            <div class="reminder-wizard-progress-step" data-wizard-step="2"><span class="reminder-wizard-progress-number">2</span><span>Получатели</span></div>
+            <span class="reminder-wizard-progress-line"></span>
+            <div class="reminder-wizard-progress-step" data-wizard-step="3"><span class="reminder-wizard-progress-number">3</span><span>Детали</span></div>
+        </div>
         <div class="create-content">
+            <section class="reminder-wizard-panel" id="reminder-step-template">
+                <div class="create-section wizard-intro-section">
+                    <div class="create-section-title">Выберите шаблон</div>
+                    <p class="wizard-step-description">Начните с готового шаблона или создайте напоминание с нуля.</p>
+                    <div class="wizard-template-list" id="wizard-template-options"></div>
+                </div>
+            </section>
+
+            <section class="reminder-wizard-panel" id="reminder-step-recipients" style="display: none;">
+                <div class="create-section wizard-intro-section">
+                    <div class="create-section-title">Кому отправить напоминание?</div>
+                    <p class="wizard-step-description">Выберите группы, отдельных участников или отправку себе.</p>
+                    <input type="search" class="recipient-search-input" id="wizard-recipient-search" placeholder="Поиск групп и участников" autocomplete="off">
+                    <button type="button" class="wizard-self-option" id="wizard-self-option" aria-pressed="true">
+                        <span class="wizard-recipient-check"></span>
+                        <span class="wizard-recipient-option-copy"><strong>Себе</strong><small>Личное сообщение</small></span>
+                    </button>
+                    <div class="wizard-recipient-list" id="wizard-recipients-list"></div>
+                    <button type="button" class="wizard-manage-recipients" id="manage-recipients-btn">Настроить группы и участников <span aria-hidden="true">↗</span></button>
+                </div>
+            </section>
+
+            <section class="reminder-wizard-panel" id="reminder-step-details" style="display: none;">
             <div class="create-section">
                 <div class="create-section-title">Содержание</div>
                 <input type="text" class="create-input" id="create-title-input" placeholder="Название напоминания">
@@ -264,16 +294,14 @@
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Кому отправить</div>
-                <div class="recipient-add-row" id="recipient-add-row">
-                    <div class="recipient-add-icon">+</div>
-                    <div class="recipient-add-text">Выбрать группы получателей</div>
-                </div>
+                <div class="create-section-title">Получатели</div>
+                <p class="wizard-step-description">Здесь можно изменить выбор групп и отдельных участников.</p>
                 <div class="create-row" style="margin-top: 12px;">
                     <div class="create-row-left">Отправить копию себе</div>
                     <div class="toggle-switch active" id="send-to-self-toggle" role="switch" aria-label="Отправить копию себе"></div>
                 </div>
-                <div class="recipient-list" id="recipient-list"></div>
+                <input type="search" class="recipient-search-input details-recipient-search" id="details-recipient-search" placeholder="Найти группу или участника" autocomplete="off">
+                <div class="wizard-recipient-list details-recipient-list" id="details-recipients-list"></div>
             </div>
 
             <div class="create-section">
@@ -311,8 +339,12 @@
                     <button class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить ответ</button>
                 </div>
             </div>
+            </section>
         </div>
-        <div class="create-bottom">
+        <div class="create-bottom" id="wizard-step-bottom" style="display: none;">
+            <button type="button" class="bottom-button" id="wizard-next-btn">Продолжить</button>
+        </div>
+        <div class="create-bottom" id="details-step-bottom" style="display: none;">
             <button class="bottom-button" id="save-reminder-btn">Сохранить напоминание <span class="btn-badge" id="recipients-badge">1</span></button>
         </div>
     </div>
@@ -399,9 +431,9 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=14"></script>
-<script src="js/screens/home.js?v=20"></script>
+<script src="js/app.js?v=15"></script>
+<script src="js/screens/home.js?v=21"></script>
 <script src="js/screens/templates.js?v=9"></script>
-<script src="js/screens/create.js?v=12"></script>
+<script src="js/screens/create.js?v=13"></script>
 </body>
 </html>
