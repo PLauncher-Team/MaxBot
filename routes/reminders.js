@@ -353,12 +353,16 @@ router.put('/:id', async (req, res) => {
             for (const chatId of oldChatIds) {
                 const oldMid = oldMessageIds[chatId];
                 if (!newChatIds.includes(chatId)) {
-                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось удалить сообщение у исключённого получателя' });
+                    }
                     continue;
                 }
 
                 if (attachmentDataChanged) {
-                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось заменить старое сообщение. Повторите попытку' });
+                    }
                     recipientsToSend.push(chatId);
                     continue;
                 }
@@ -366,7 +370,9 @@ router.put('/:id', async (req, res) => {
                 if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''))) {
                     updatedMessageIds[chatId] = oldMid;
                 } else {
-                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    if (oldMid && !await deleteMaxMessage(BOT_TOKEN, oldMid)) {
+                        return res.status(502).json({ error: 'Не удалось заменить старое сообщение. Повторите попытку' });
+                    }
                     recipientsToSend.push(chatId);
                 }
             }
