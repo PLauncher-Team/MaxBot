@@ -54,7 +54,7 @@
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
     <link rel="stylesheet" href="css/redesign.css?v=3">
-    <link rel="stylesheet" href="css/ambient-background.css?v=3">
+    <link rel="stylesheet" href="css/ambient-background.css?v=4">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -109,14 +109,26 @@
                     Получатели
                     <span class="badge" id="home-groups-count">0</span>
                 </div>
-                <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
             </div>
-            <div class="placeholder-box recipients-placeholder">
-                <div class="placeholder-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                </div>
-                <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
-            </div>
+            <button type="button" class="placeholder-box recipients-placeholder recipients-management-card"
+                    id="show-recipients-btn" aria-label="Открыть управление получателями">
+                <span class="placeholder-icon recipients-management-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </span>
+                <span class="recipients-management-copy">
+                    <strong>Группы и участники</strong>
+                    <span>Добавляйте людей, объединяйте их в группы и выбирайте адресатов для напоминаний.</span>
+                </span>
+                <span class="recipients-management-action">
+                    <span>Управлять</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+                </span>
+            </button>
 
             <div class="section-header">
                 <div class="section-header-left">
