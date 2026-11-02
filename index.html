@@ -4,14 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://st.max.ru/js/max-web-app.js"></script>
-    <meta name="theme-color" content="#f5f7fb">
+    <meta name="theme-color" content="#202b3b">
     <title>Напоминания</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/screens/home.css?v=12">
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
-    <link rel="stylesheet" href="css/redesign.css?v=3">
+    <link rel="stylesheet" href="css/redesign.css?v=3">\n    <link rel="stylesheet" href="css/experience.css?v=1">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -29,71 +29,93 @@
 
 <div class="app-container" id="app-container" style="display: none;">
     <div class="screen active" id="home-screen">
-        <div class="content">
-            <div class="section-header">
-                <div class="section-header-left">
-                    Запланированные
-                    <span class="count" id="scheduled-count">0</span>
+        <div class="content home-content">
+            <header class="home-hero">
+                <div class="home-hero-top">
+                    <span class="home-eyebrow">ПАНЕЛЬ УПРАВЛЕНИЯ</span>
+                    <span class="home-status">Рабочее пространство</span>
                 </div>
-            </div>
-            <div class="placeholder-box" id="scheduled-placeholder">
-                <div class="placeholder-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                <div class="home-hero-main">
+                    <h1>Всё важное<br>в нужное время.</h1>
+                    <p>Планируйте сообщения, собирайте ответы и держите рассылки под контролем.</p>
                 </div>
-                <span>Здесь появятся напоминания, которые ожидают отправки.</span>
-            </div>
-            <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
+                <button type="button" class="home-create-btn" id="add-reminder-btn">Создать напоминание</button>
+            </header>
 
-            <div class="section-header">
-                <div class="section-header-left">
-                    Шаблоны
-                    <span class="badge" id="home-templates-count">0</span>
+            <div class="home-metrics" aria-label="Сводка">
+                <div class="home-metric">
+                    <span class="home-metric-value" id="scheduled-count">0</span>
+                    <span class="home-metric-label">В очереди</span>
                 </div>
-                <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
-            </div>
-            <div class="templates-wrapper">
-                <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить влево"></button>
-                <div class="templates-scroll" id="templates-scroll">
-                    <button class="template-add-card" id="home-add-template-card" aria-label="Создать шаблон">
-                        <svg width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    </button>
+                <div class="home-metric">
+                    <span class="home-metric-value" id="sent-count">0</span>
+                    <span class="home-metric-label">Отправлено</span>
                 </div>
-                <button class="scroll-btn right" id="scroll-right-btn" aria-label="Прокрутить вправо"></button>
+                <div class="home-metric">
+                    <span class="home-metric-value" id="home-groups-count">0</span>
+                    <span class="home-metric-label">Группы</span>
+                </div>
             </div>
 
-            <div class="section-header">
-                <div class="section-header-left">
-                    Получатели
-                    <span class="badge" id="home-groups-count">0</span>
+            <section class="home-section">
+                <div class="section-header">
+                    <div class="section-header-left">Ближайшие отправки</div>
                 </div>
-                <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
-            </div>
-            <div class="placeholder-box recipients-placeholder">
-                <div class="placeholder-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                <div class="placeholder-box" id="scheduled-placeholder">
+                    <div class="placeholder-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
+                    <span>Здесь появятся напоминания, которые ожидают отправки.</span>
                 </div>
-                <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
-            </div>
+                <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
+            </section>
 
-            <div class="section-header">
-                <div class="section-header-left">
-                    Отправленные
-                    <span class="count" id="sent-count">0</span>
+            <section class="home-section">
+                <div class="section-header">
+                    <div class="section-header-left">
+                        Шаблоны
+                        <span class="badge" id="home-templates-count">0</span>
+                    </div>
+                    <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
                 </div>
-            </div>
-            <div class="placeholder-box" id="sent-placeholder">
-                <div class="placeholder-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
+                <div class="templates-wrapper">
+                    <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить влево"></button>
+                    <div class="templates-scroll" id="templates-scroll">
+                        <button class="template-add-card" id="home-add-template-card" aria-label="Создать шаблон">
+                            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        </button>
+                    </div>
+                    <button class="scroll-btn right" id="scroll-right-btn" aria-label="Прокрутить вправо"></button>
                 </div>
-                <span>История отправленных напоминаний будет храниться здесь.</span>
-            </div>
-            <div class="reminders-list" id="sent-list" style="display: none;"></div>
-        </div>
-        <div class="bottom-button-container">
-            <button class="bottom-button" id="add-reminder-btn">Создать напоминание</button>
+            </section>
+
+            <section class="home-section">
+                <div class="section-header">
+                    <div class="section-header-left">Получатели</div>
+                    <button type="button" class="link-all" id="show-recipients-btn">Управление</button>
+                </div>
+                <div class="placeholder-box recipients-placeholder">
+                    <div class="placeholder-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    </div>
+                    <span>Управляйте группами и участниками в одном месте.</span>
+                </div>
+            </section>
+
+            <section class="home-section">
+                <div class="section-header">
+                    <div class="section-header-left">Недавняя история</div>
+                </div>
+                <div class="placeholder-box" id="sent-placeholder">
+                    <div class="placeholder-icon">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
+                    </div>
+                    <span>Здесь будет история отправленных напоминаний.</span>
+                </div>
+                <div class="reminders-list" id="sent-list" style="display: none;"></div>
+            </section>
         </div>
     </div>
-
     <div class="screen" id="recipients-screen">
         <div class="templates-header">
             <button class="back-btn" id="recipients-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
@@ -140,41 +162,53 @@
     </div>
 
     <div class="screen" id="create-screen">
-        <div class="create-header">
-            <button class="back-btn" id="create-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
-            <div class="create-title">Новое напоминание</div>
+        <div class="create-header experience-create-header">
+            <button class="back-btn" id="create-back-btn" aria-label="Назад">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
+            </button>
+            <div>
+                <span class="create-header-kicker">НОВОЕ СООБЩЕНИЕ</span>
+                <div class="create-title">Новое напоминание</div>
+            </div>
         </div>
-        <div class="create-content">
-            <div class="create-section">
-                <div class="create-section-title">Содержание</div>
-                <input type="text" class="create-input" id="create-title-input" placeholder="Название напоминания">
-                <div style="height: 14px;"></div>
-                <textarea class="create-textarea" id="create-desc-input" placeholder="Добавьте подробности, место или другую важную информацию"></textarea>
+
+        <div class="create-content experience-create-content">
+            <div class="create-intro">
+                <span class="create-intro-index">01—06</span>
+                <span class="create-intro-copy">Заполните содержание, выберите адресатов и настройте отправку. Обязательное поле — только название.</span>
             </div>
 
-            <div class="create-section">
-                <div class="create-section-title">Фото и видео</div>
+            <section class="create-section create-section-message">
+                <div class="create-section-title" data-step="01">Содержание</div>
+                <label class="create-field-label" for="create-title-input">Заголовок напоминания</label>
+                <input type="text" class="create-input" id="create-title-input" placeholder="Например, собрание в пятницу">
+                <label class="create-field-label" for="create-desc-input">Текст и подробности</label>
+                <textarea class="create-textarea" id="create-desc-input" placeholder="Добавьте место, время или другую важную информацию"></textarea>
+            </section>
+
+            <section class="create-section">
+                <div class="create-section-title" data-step="02">Вложения</div>
+                <p class="create-section-note">Фото и видео можно добавить к сообщению — до 11 файлов.</p>
                 <div class="images-preview-grid" id="media-preview-grid"></div>
                 <input type="file" id="create-media-input" accept="image/*,video/*" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-media-btn" style="margin-top: 10px;">Добавить фото или видео</button>
-                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Можно прикрепить до 11 файлов.</div>
-            </div>
+                <button type="button" class="quick-reply-submit-btn" id="add-media-btn">Добавить фото или видео</button>
+            </section>
 
-            <div class="create-section">
-                <div class="create-section-title">Кому отправить</div>
+            <section class="create-section">
+                <div class="create-section-title" data-step="03">Кому отправить</div>
                 <div class="recipient-add-row" id="recipient-add-row">
                     <div class="recipient-add-icon">+</div>
                     <div class="recipient-add-text">Выбрать группы получателей</div>
                 </div>
-                <div class="create-row" style="margin-top: 12px;">
+                <div class="create-row" style="margin-top: 10px;">
                     <div class="create-row-left">Отправить копию себе</div>
                     <div class="toggle-switch active" id="send-to-self-toggle" role="switch" aria-label="Отправить копию себе"></div>
                 </div>
                 <div class="recipient-list" id="recipient-list"></div>
-            </div>
+            </section>
 
-            <div class="create-section">
-                <div class="create-section-title">Когда отправить</div>
+            <section class="create-section">
+                <div class="create-section-title" data-step="04">Время отправки</div>
                 <div class="create-row">
                     <div class="create-row-left">Отправить сейчас</div>
                     <div class="toggle-switch active" id="send-now-toggle" role="switch" aria-label="Отправить сейчас"></div>
@@ -183,32 +217,34 @@
                     <div class="time-picker-label">Дата и время (МСК)</div>
                     <input type="datetime-local" class="time-picker-input" id="send-datetime-input">
                 </div>
-            </div>
+            </section>
 
-            <div class="create-section">
-                <div class="create-section-title">Повторение</div>
+            <section class="create-section">
+                <div class="create-section-title" data-step="05">Повторение</div>
                 <div class="create-row">
-                    <div class="create-row-left">Повторять</div>
+                    <div class="create-row-left">Повторять сообщение</div>
                     <div class="create-row-right" id="repeat-type-btn"><span id="repeat-type-text">Никогда</span><span class="chevron-right"></span></div>
                 </div>
                 <div class="time-picker-row" id="repeat-time-picker-row" style="display: none;">
                     <div class="time-picker-label">Время повтора</div>
                     <input type="time" class="time-picker-input" id="repeat-time-input" value="09:00">
                 </div>
-            </div>
+            </section>
 
-            <div class="create-section">
-                <div class="create-section-title">Быстрые ответы</div>
+            <section class="create-section create-section-replies">
+                <div class="create-section-title" data-step="06">Быстрые ответы</div>
+                <p class="create-section-note">Добавьте вопросы, на которые получатели смогут ответить одним нажатием.</p>
                 <div class="quick-replies-list" id="quick-replies-list"></div>
                 <div class="quick-reply-add-box">
                     <div class="quick-reply-inputs">
                         <input type="text" class="quick-reply-input" id="quick-reply-q-input" placeholder="Вопрос, например: Где?">
                         <input type="text" class="quick-reply-input" id="quick-reply-a-input" placeholder="Ответ, например: В актовом зале">
                     </div>
-                    <button class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить ответ</button>
+                    <button type="button" class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить ответ</button>
                 </div>
-            </div>
+            </section>
         </div>
+
         <div class="create-bottom">
             <button class="bottom-button" id="save-reminder-btn">Сохранить напоминание <span class="btn-badge" id="recipients-badge">1</span></button>
         </div>
