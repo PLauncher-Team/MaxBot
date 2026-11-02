@@ -34,9 +34,7 @@ const TemplatesScreen = {
                 if (e.target.closest('.template-delete-btn')) {
                     return;
                 }
-                App.selectedTemplate = t;
-                CreateScreen.populateForm(t);
-                App.showScreen('create');
+                CreateScreen.startWizard(t);
             });
 
             const deleteBtn = item.querySelector('.template-delete-btn');
