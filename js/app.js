@@ -1,0 +1,606 @@
+const App = {
+    currentScreen: 'home',
+
+    screens: {},
+
+    selectedTemplate: null,
+
+    modalReplies: [],
+
+    escapeHtml: function(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    },
+
+    getAuthHeaders: function() {
+        const headers = {
+            'X-User-Id': this.getUserId()
+        };
+        if (window.WebApp && typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0) {
+            headers['X-Webapp-Init-Data'] = window.WebApp.initData;
+        }
+        return headers;
+    },
+
+    getUserId: function() {
+        if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+            return String(window.WebApp.initDataUnsafe.user.id);
+        }
+        return 'user_local';
+    },
+
+    isMaxApp: function() {
+        if (!window.WebApp) {
+            return false;
+        }
+        const hasInitData = typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0;
+        const hasPlatform = typeof window.WebApp.platform === 'string' && window.WebApp.platform.length > 0;
+        const hasVersion = typeof window.WebApp.version === 'string' && window.WebApp.version.length > 0;
+        const hasInitDataUnsafe = Boolean(window.WebApp.initDataUnsafe && Object.keys(window.WebApp.initDataUnsafe).length > 0);
+        const hasWebViewHandler = typeof window.WebViewHandler !== 'undefined';
+        const hasHashData = location.hash.includes('WebAppData') || location.hash.includes('WebAppPlatform');
+        const hasSessionData = Boolean(sessionStorage.getItem('WebAppData') || sessionStorage.getItem('WebAppPlatform'));
+
+        return Boolean(hasInitData || hasPlatform || hasVersion || hasInitDataUnsafe || hasWebViewHandler || hasHashData || hasSessionData);
+    },
+
+    showToast: function(message) {
+        const toast = document.getElementById('toast-notification');
+        const text = document.getElementById('toast-message');
+        if (!toast || !text) return;
+        text.textContent = message;
+        toast.classList.add('visible');
+        clearTimeout(this._toastTimer);
+        this._toastTimer = setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 2800);
+    },
+
+    showScreen: function(screenName) {
+        this.currentScreen = screenName;
+        Object.values(this.screens).forEach(screen => {
+            if (screen) {
+                screen.classList.remove('active');
+            }
+        });
+        if (this.screens[screenName]) {
+            this.screens[screenName].classList.add('active');
+        }
+
+        if (window.WebApp && window.WebApp.BackButton) {
+            if (screenName === 'home') {
+                window.WebApp.BackButton.hide();
+            } else {
+                window.WebApp.BackButton.show();
+            }
+        }
+    },
+
+    getTemplates: async function() {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/templates', {
+                headers: this.getAuthHeaders()
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const storageKey = 'maxapp_templates_' + userId;
+        const local = localStorage.getItem(storageKey);
+        if (local) {
+            return JSON.parse(local);
+        }
+
+        const defaults = [
+            {
+                id: 1,
+                title: 'Для соревнования',
+                description: 'Соревнование по [дисциплина].\nЗаявки принимаются с [дата/время] до [дата/время].\nПроводится с [дата/время] до [дата/время].',
+                quick_replies: [
+                    { question: 'Где?', answer: 'В спортивном комплексе школы' },
+                    { question: 'Когда?', answer: 'В субботу в 10:00' }
+                ]
+            },
+            {
+                id: 2,
+                title: 'Для справки об отсутствии',
+                description: 'Уважаемые родители, напоминаем о необходимости предоставить медицинскую справку или заявление об отсутствии ученика с указанием периода и причины.',
+                quick_replies: [
+                    { question: 'Какую именно справку надо?', answer: 'Справка от врача-педиатра с допуском к занятиям' },
+                    { question: 'Куда приносить?', answer: 'Классному руководителю или медпункт' }
+                ]
+            }
+        ];
+        localStorage.setItem(storageKey, JSON.stringify(defaults));
+        return defaults;
+    },
+
+    saveTemplate: async function(template) {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/templates', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify(template)
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const templates = await this.getTemplates();
+        template.id = Date.now();
+        templates.push(template);
+        localStorage.setItem('maxapp_templates_' + userId, JSON.stringify(templates));
+        return template;
+    },
+
+    deleteTemplate: async function(id) {
+        const userId = this.getUserId();
+        try {
+            await fetch('/api/templates/' + id, {
+                method: 'DELETE',
+                headers: this.getAuthHeaders()
+            });
+        } catch (e) {}
+
+        const templates = await this.getTemplates();
+        const filtered = templates.filter(t => String(t.id) !== String(id));
+        localStorage.setItem('maxapp_templates_' + userId, JSON.stringify(filtered));
+    },
+
+    getReminders: async function() {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/reminders', {
+                headers: this.getAuthHeaders()
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const storageKey = 'maxapp_reminders_' + userId;
+        const local = localStorage.getItem(storageKey);
+        return local ? JSON.parse(local) : [];
+    },
+
+    deleteReminder: async function(id) {
+        const userId = this.getUserId();
+        try {
+            await fetch('/api/reminders/' + id, {
+                method: 'DELETE',
+                headers: this.getAuthHeaders()
+            });
+        } catch (e) {}
+
+        const reminders = await this.getReminders();
+        const filtered = reminders.filter(r => String(r.id) !== String(id));
+        localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(filtered));
+    },
+
+    updateReminder: async function(id, reminder) {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/reminders/' + id, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify(reminder)
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const reminders = await this.getReminders();
+        const index = reminders.findIndex(r => String(r.id) === String(id));
+        if (index !== -1) {
+            reminders[index] = { ...reminders[index], ...reminder };
+            localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(reminders));
+        }
+        return reminder;
+    },
+
+    uploadMedia: async function(mediaData) {
+        try {
+            const res = await fetch('/api/reminders/upload-media', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({ media_data: mediaData })
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+        return null;
+    },
+
+    uploadImage: async function(imageData) {
+        try {
+            const res = await fetch('/api/reminders/upload-image', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({ image_data: imageData })
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+        return null;
+    },
+
+    getGroups: async function() {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/groups', {
+                headers: this.getAuthHeaders()
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const storageKey = 'maxapp_groups_' + userId;
+        const local = localStorage.getItem(storageKey);
+        return local ? JSON.parse(local) : [];
+    },
+
+    saveGroup: async function(name) {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const groups = await this.getGroups();
+        const group = {
+            id: Date.now(),
+            user_id: userId,
+            name: name,
+            unique_id: 'g_' + Math.random().toString(36).substr(2, 9),
+            participant_count: 0
+        };
+        groups.unshift(group);
+        localStorage.setItem('maxapp_groups_' + userId, JSON.stringify(groups));
+        return group;
+    },
+
+    deleteGroup: async function(id) {
+        const userId = this.getUserId();
+        try {
+            await fetch('/api/groups/' + id, {
+                method: 'DELETE',
+                headers: this.getAuthHeaders()
+            });
+        } catch (e) {}
+
+        const groups = await this.getGroups();
+        const filtered = groups.filter(g => String(g.id) !== String(id));
+        localStorage.setItem('maxapp_groups_' + userId, JSON.stringify(filtered));
+    },
+
+    getParticipants: async function() {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/participants', {
+                headers: this.getAuthHeaders()
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const storageKey = 'maxapp_participants_' + userId;
+        const local = localStorage.getItem(storageKey);
+        return local ? JSON.parse(local) : [];
+    },
+
+    deleteParticipant: async function(id) {
+        const userId = this.getUserId();
+        try {
+            await fetch('/api/participants/' + id, {
+                method: 'DELETE',
+                headers: this.getAuthHeaders()
+            });
+        } catch (e) {}
+
+        const participants = await this.getParticipants();
+        const filtered = participants.filter(p => String(p.id) !== String(id));
+        localStorage.setItem('maxapp_participants_' + userId, JSON.stringify(filtered));
+    },
+
+    combineParticipantsToGroup: async function(participantIds, groupId) {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/participants/batch-group', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({ participant_ids: participantIds, group_id: groupId })
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+    },
+
+    joinGroup: async function(uniqueId) {
+        let userName = 'Участник';
+        if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+            const u = window.WebApp.initDataUnsafe.user;
+            userName = [u.first_name, u.last_name].filter(Boolean).join(' ') || u.username;
+        }
+
+        try {
+            const res = await fetch('/api/join-group', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify({ unique_id: uniqueId, user_name: userName })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                this.showToast('Вы присоединились к группе: ' + data.group_name);
+            }
+        } catch (e) {}
+    },
+
+    saveReminder: async function(reminder) {
+        const userId = this.getUserId();
+        try {
+            const res = await fetch('/api/reminders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...this.getAuthHeaders()
+                },
+                body: JSON.stringify(reminder)
+            });
+            if (res.ok) {
+                return await res.json();
+            }
+        } catch (e) {}
+
+        const reminders = await this.getReminders();
+        reminder.id = Date.now();
+        reminders.unshift(reminder);
+        localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(reminders));
+        return reminder;
+    },
+
+    renderModalReplies: function() {
+        const list = document.getElementById('modal-replies-list');
+        if (!list) return;
+        list.innerHTML = '';
+        this.modalReplies.forEach((r, idx) => {
+            const card = document.createElement('div');
+            card.className = 'modal-reply-card';
+            card.innerHTML = `
+                <div class="modal-reply-content">
+                    <span class="modal-reply-q">${this.escapeHtml(r.question)}</span>
+                    <span class="modal-reply-a">${this.escapeHtml(r.answer)}</span>
+                </div>
+                <button type="button" class="modal-reply-del" data-idx="${idx}">
+                    <svg width="12" height="12" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            `;
+            list.appendChild(card);
+        });
+        list.querySelectorAll('.modal-reply-del').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const i = parseInt(btn.getAttribute('data-idx'), 10);
+                this.modalReplies.splice(i, 1);
+                this.renderModalReplies();
+            });
+        });
+    },
+
+    openCreateTemplateModal: function() {
+        const modal = document.getElementById('template-modal');
+        const titleInput = document.getElementById('modal-template-title');
+        const descInput = document.getElementById('modal-template-desc');
+        const qInput = document.getElementById('modal-reply-q');
+        const aInput = document.getElementById('modal-reply-a');
+        if (titleInput) titleInput.value = '';
+        if (descInput) descInput.value = '';
+        if (qInput) qInput.value = '';
+        if (aInput) aInput.value = '';
+        this.modalReplies = [];
+        this.renderModalReplies();
+        if (modal) modal.style.display = 'flex';
+    },
+
+    closeCreateTemplateModal: function() {
+        const modal = document.getElementById('template-modal');
+        if (modal) modal.style.display = 'none';
+    },
+
+    init: function() {
+        const appContainer = document.getElementById('app-container');
+        const browserGate = document.getElementById('browser-gate');
+
+        if (!this.isMaxApp()) {
+            if (appContainer) {
+                appContainer.style.display = 'none';
+            }
+            if (browserGate) {
+                browserGate.style.display = 'flex';
+            }
+            return;
+        }
+
+        if (browserGate) {
+            browserGate.style.display = 'none';
+        }
+        if (appContainer) {
+            appContainer.style.display = 'flex';
+        }
+
+        this.screens = {
+            home: document.getElementById('home-screen'),
+            templates: document.getElementById('templates-screen'),
+            create: document.getElementById('create-screen'),
+            recipients: document.getElementById('recipients-screen')
+        };
+
+        if (window.WebApp) {
+            if (typeof window.WebApp.ready === 'function') {
+                window.WebApp.ready();
+            }
+
+            if (window.WebApp.BackButton) {
+                window.WebApp.BackButton.onClick(() => {
+                    if (this.currentScreen === 'create' || this.currentScreen === 'templates' || this.currentScreen === 'recipients') {
+                        this.showScreen('home');
+                    }
+                });
+            }
+
+            if (window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
+                const user = window.WebApp.initDataUnsafe.user;
+                const fullName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username;
+                const currentUserName = document.getElementById('current-user-name');
+                if (currentUserName && fullName) {
+                    currentUserName.textContent = fullName;
+                }
+            }
+        }
+
+        let startParam = null;
+        if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.start_param) {
+            startParam = window.WebApp.initDataUnsafe.start_param;
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            startParam = urlParams.get('start') || urlParams.get('startapp');
+        }
+
+        if (startParam && startParam.startsWith('group_')) {
+            const uniqueId = startParam.replace('group_', 'g_');
+            this.joinGroup(uniqueId);
+        }
+
+        const showTemplatesBtn = document.getElementById('show-templates-btn');
+        if (showTemplatesBtn) {
+            showTemplatesBtn.addEventListener('click', () => {
+                this.showScreen('templates');
+            });
+        }
+
+        const backBtn = document.getElementById('back-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                this.showScreen('home');
+            });
+        }
+
+        const addReminderBtn = document.getElementById('add-reminder-btn');
+        if (addReminderBtn) {
+            addReminderBtn.addEventListener('click', () => {
+                this.selectedTemplate = null;
+                CreateScreen.populateForm(null);
+                this.showScreen('create');
+            });
+        }
+
+        const createBackBtn = document.getElementById('create-back-btn');
+        if (createBackBtn) {
+            createBackBtn.addEventListener('click', () => {
+                this.showScreen('home');
+            });
+        }
+
+        const modalCancelBtn = document.getElementById('modal-template-cancel');
+        if (modalCancelBtn) {
+            modalCancelBtn.addEventListener('click', () => {
+                this.closeCreateTemplateModal();
+            });
+        }
+
+        const modalReplyAddBtn = document.getElementById('modal-reply-add-btn');
+        if (modalReplyAddBtn) {
+            modalReplyAddBtn.addEventListener('click', () => {
+                const q = document.getElementById('modal-reply-q')?.value.trim();
+                const a = document.getElementById('modal-reply-a')?.value.trim();
+                if (!q || !a) {
+                    this.showToast('Заполните вопрос и ответ');
+                    return;
+                }
+                this.modalReplies.push({ question: q, answer: a });
+                document.getElementById('modal-reply-q').value = '';
+                document.getElementById('modal-reply-a').value = '';
+                this.renderModalReplies();
+            });
+        }
+
+        const modalSaveBtn = document.getElementById('modal-template-save');
+        if (modalSaveBtn) {
+            modalSaveBtn.addEventListener('click', async () => {
+                const titleInput = document.getElementById('modal-template-title');
+                const descInput = document.getElementById('modal-template-desc');
+                const title = titleInput.value.trim();
+                const description = descInput.value.trim();
+                if (!title) {
+                    this.showToast('Введите название шаблона');
+                    return;
+                }
+                if (!description) {
+                    this.showToast('Введите текст шаблона');
+                    return;
+                }
+
+                await this.saveTemplate({
+                    title,
+                    description,
+                    quick_replies: this.modalReplies
+                });
+
+                this.closeCreateTemplateModal();
+                this.showToast('Шаблон сохранён');
+                if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
+                    HomeScreen.loadData();
+                }
+                if (typeof TemplatesScreen !== 'undefined' && TemplatesScreen.loadTemplates) {
+                    TemplatesScreen.loadTemplates();
+                }
+            });
+        }
+
+        this.showScreen('home');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    App.init();
+});
