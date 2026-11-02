@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
-const { sendBroadcastMessage } = require('../bot');
+const { sendBroadcastMessage, deleteMaxMessage, editMaxMessage } = require('../bot');
+const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
 const router = express.Router();
@@ -47,6 +48,9 @@ function getTargetChatIds(userId, validRecipients) {
 async function sendImmediateReminder(reminderId, userId, recipients, text, quickReplies, images, repeatType, repeatTime) {
     const targetChatIds = getTargetChatIds(userId, recipients);
     const sendResult = await sendBroadcastMessage(reminderId, targetChatIds, text, quickReplies, images);
+
+    db.prepare('UPDATE reminders SET sent_at = ?, message_ids = ? WHERE id = ? AND user_id = ?')
+        .run(getMoscowDateTimeString(), JSON.stringify(sendResult.messageIds || {}), reminderId, userId);
 
     if (repeatType && repeatType !== 'Никогда') {
         const now = getMoscowDateTimeString();
@@ -171,8 +175,15 @@ router.delete('/:id', (req, res) => {
         if (isNaN(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
+        const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder) return res.json({ success: true });
+        const messageIds = safeJsonParse(reminder.message_ids, {});
+        let deletedMessages = 0;
+        for (const mid of Object.values(messageIds)) {
+            if (await deleteMaxMessage(BOT_TOKEN, mid)) deletedMessages++;
+        }
         db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
-        res.json({ success: true });
+        res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
         res.status(500).json({ error: 'Failed to delete reminder' });
     }
@@ -266,7 +277,7 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ error: 'Invalid id' });
         }
 
-        const existing = db.prepare('SELECT id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const existing = db.prepare('SELECT * FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!existing) {
             return res.status(404).json({ error: 'Reminder not found' });
         }
@@ -310,6 +321,80 @@ router.put('/:id', async (req, res) => {
         })).filter(r => r.question.length > 0) : [];
 
         const validImages = Array.isArray(images) ? images.slice(0, 11) : [];
+
+        if (existing.status === 'sent') {
+            const oldRecipients = safeJsonParse(existing.recipients, []);
+            const oldMessageIds = safeJsonParse(existing.message_ids, {});
+            const oldQuickReplies = safeJsonParse(existing.quick_replies, []);
+            const oldImages = safeJsonParse(existing.images, []);
+            const oldChatIds = getTargetChatIds(req.userId, oldRecipients);
+            const newChatIds = getTargetChatIds(req.userId, validRecipients);
+            const attachmentDataChanged = JSON.stringify(oldQuickReplies) !== JSON.stringify(validReplies)
+                || JSON.stringify(oldImages) !== JSON.stringify(validImages);
+            const updatedMessageIds = {};
+            const recipientsToSend = [];
+
+            for (const chatId of oldChatIds) {
+                const oldMid = oldMessageIds[chatId];
+                if (!newChatIds.includes(chatId)) {
+                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    continue;
+                }
+
+                if (attachmentDataChanged) {
+                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    recipientsToSend.push(chatId);
+                    continue;
+                }
+
+                if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\\n\\n' + cleanDesc : ''))) {
+                    updatedMessageIds[chatId] = oldMid;
+                } else {
+                    if (oldMid) await deleteMaxMessage(BOT_TOKEN, oldMid);
+                    recipientsToSend.push(chatId);
+                }
+            }
+
+            for (const chatId of newChatIds) {
+                if (!oldChatIds.includes(chatId)) recipientsToSend.push(chatId);
+            }
+
+            if (recipientsToSend.length > 0) {
+                const sendResult = await sendBroadcastMessage(
+                    id,
+                    recipientsToSend,
+                    cleanTitle + (cleanDesc ? '\\n\\n' + cleanDesc : ''),
+                    validReplies,
+                    validImages
+                );
+                Object.assign(updatedMessageIds, sendResult.messageIds || {});
+            }
+
+            db.prepare(`
+                UPDATE reminders
+                SET title = ?, description = ?, send_now = 1, scheduled_time = NULL,
+                    repeat_type = 'Никогда', repeat_time = NULL, recipients = ?,
+                    quick_replies = ?, images = ?, status = 'sent',
+                    message_ids = ?, pending_recipients = NULL
+                WHERE id = ? AND user_id = ?
+            `).run(
+                cleanTitle,
+                cleanDesc,
+                JSON.stringify(validRecipients),
+                JSON.stringify(validReplies),
+                JSON.stringify(validImages),
+                JSON.stringify(updatedMessageIds),
+                id,
+                req.userId
+            );
+
+            return res.json({
+                id,
+                status: 'sent',
+                updated: Object.keys(updatedMessageIds).length,
+                failed: recipientsToSend.filter(chatId => !updatedMessageIds[chatId]).length
+            });
+        }
 
         const stmt = db.prepare(`
             UPDATE reminders
