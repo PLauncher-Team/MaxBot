@@ -524,7 +524,11 @@ const CreateScreen = {
                     }
                     App.editingReminderId = null;
                     this.editingSentReminder = false;
-                    App.showToast('Напоминание обновлено');
+                    if (result && result.failed > 0) {
+                        App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                    } else {
+                        App.showToast('Напоминание обновлено');
+                    }
                 } else {
                     await App.saveReminder(payload);
                     App.showToast('Напоминание сохранено');
