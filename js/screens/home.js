@@ -23,14 +23,10 @@ const HomeScreen = {
                 card.className = 'template-card';
                 card.setAttribute('data-id', t.id);
                 card.innerHTML = `
-                    <span class="template-card-top">
-                        <span class="template-card-kicker">БЫСТРЫЙ СТАРТ</span>
-                        <span class="template-card-arrow" aria-hidden="true">↗</span>
-                    </span>
-                    <span class="template-card-content">
-                        <span class="template-title">${App.escapeHtml(t.title)}</span>
-                        <span class="template-badge">ВСТАВИТЬ ШАБЛОН</span>
-                    </span>
+                    <div class="template-card-content">
+                        <div class="template-title">${App.escapeHtml(t.title)}</div>
+                        <div class="template-badge">Шаблон</div>
+                    </div>
                 `;
                 card.addEventListener('click', () => {
                     App.selectedTemplate = t;
@@ -165,20 +161,18 @@ const HomeScreen = {
                         }
     
                         const el = document.createElement('div');
-                        el.className = 'reminder-item scheduled-reminder';
+                        el.className = 'reminder-item';
                         el.innerHTML = `
                             <div class="reminder-item-header">
-                                <span class="reminder-item-time"><span class="reminder-time-label">СЛЕДУЮЩАЯ ОТПРАВКА</span>${App.escapeHtml(displayTime)}</span>
-                                <span class="reminder-item-state">В ПЛАНЕ</span>
+                                <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
+                                <span class="reminder-item-time">${App.escapeHtml(displayTime)}</span>
                             </div>
-                            <div class="reminder-item-title">${App.escapeHtml(item.title)}</div>
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
-                            <div class="reminder-actions">
-                                <button class="reminder-action edit-reminder-btn" data-id="${item.id}">Изменить</button>
-                                <button class="reminder-action reminder-action--quiet cancel-reminder-btn" data-id="${item.id}">Отменить</button>
+                            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                <button class="group-share-btn edit-reminder-btn" style="background-color: #e5f2ff; color: #007aff;" data-id="${item.id}">Изменить</button>
+                                <button class="group-share-btn cancel-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;" data-id="${item.id}">Отменить</button>
                             </div>
                         `;
-
     
                         el.querySelector('.edit-reminder-btn').addEventListener('click', () => {
                             CreateScreen.populateForEdit(item);
@@ -211,23 +205,21 @@ const HomeScreen = {
                     sentList.style.display = 'flex';
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
-                        el.className = 'reminder-item sent-reminder';
+                        el.className = 'reminder-item';
                         const sentTime = this.formatSentTime(item);
                         const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
                         el.innerHTML = `
                             <div class="reminder-item-header">
-                                <span class="reminder-item-time"><span class="reminder-time-label">ОТПРАВЛЕНО</span>${App.escapeHtml(sentTime)}</span>
-                                <span class="reminder-item-state reminder-item-state--sent">ГОТОВО</span>
+                                <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
+                                <span class="reminder-item-time">${App.escapeHtml(sentTime)}</span>
                             </div>
-                            <div class="reminder-item-title">${App.escapeHtml(item.title)}</div>
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
-                            <div class="sent-reminder-meta"><strong>Получатели</strong><span>${App.escapeHtml(recipientsText || 'Не указаны')}</span></div>
-                            <div class="reminder-actions">
-                                <button class="reminder-action edit-sent-reminder-btn">Изменить</button>
-                                <button class="reminder-action reminder-action--quiet delete-sent-reminder-btn">Удалить</button>
+                            <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
+                            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
+                                <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
                             </div>
                         `;
-
                         el.querySelector('.edit-sent-reminder-btn').addEventListener('click', () => {
                             CreateScreen.populateForSentEdit(item);
                             App.showScreen('create');
