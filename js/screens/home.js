@@ -120,13 +120,37 @@ const HomeScreen = {
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
                         el.className = 'reminder-item';
+                        const sentDate = item.sent_at ? new Date(item.sent_at.replace(' ', 'T')) : null;
+                        const sentTime = sentDate && !Number.isNaN(sentDate.getTime())
+                            ? sentDate.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' МСК'
+                            : 'Дата не сохранена';
+                        const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
+                        const repliesHtml = Array.isArray(item.quick_replies) && item.quick_replies.length
+                            ? item.quick_replies.map(reply => `<div class="sent-reminder-reply"><strong>${App.escapeHtml(reply.question)}</strong><span>${App.escapeHtml(reply.answer)}</span></div>`).join('')
+                            : '<div class="sent-reminder-muted">Быстрых ответов нет</div>';
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
-                                <span class="reminder-item-time">Отправлено</span>
+                                <span class="reminder-item-time">${App.escapeHtml(sentTime)}</span>
                             </div>
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
+                            <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
+                            <div class="sent-reminder-replies"><strong>Быстрые ответы</strong>${repliesHtml}</div>
+                            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
+                                <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
+                            </div>
                         `;
+                        el.querySelector('.edit-sent-reminder-btn').addEventListener('click', () => {
+                            CreateScreen.populateForSentEdit(item);
+                            App.showScreen('create');
+                        });
+                        el.querySelector('.delete-sent-reminder-btn').addEventListener('click', async () => {
+                            if (!window.confirm('Удалить сообщение у получателей и убрать его из истории?')) return;
+                            await App.deleteReminder(item.id);
+                            App.showToast('Отправленное сообщение удалено');
+                            await this.refreshReminders();
+                        });
                         sentList.appendChild(el);
                     });
                 }
