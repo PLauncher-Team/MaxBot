@@ -180,17 +180,19 @@ const App = {
     },
 
     deleteReminder: async function(id) {
-        const userId = this.getUserId();
         try {
-            await fetch('/api/reminders/' + id, {
+            const res = await fetch('/api/reminders/' + id, {
                 method: 'DELETE',
                 headers: this.getAuthHeaders()
             });
-        } catch (e) {}
-
-        const reminders = await this.getReminders();
-        const filtered = reminders.filter(r => String(r.id) !== String(id));
-        localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(filtered));
+            const data = await res.json();
+            if (!res.ok) {
+                return { error: data.error || 'Не удалось удалить напоминание' };
+            }
+            return data;
+        } catch (e) {
+            return { error: 'Не удалось связаться с сервером' };
+        }
     },
 
     updateReminder: async function(id, reminder) {
