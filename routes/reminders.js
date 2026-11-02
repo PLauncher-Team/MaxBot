@@ -220,6 +220,7 @@ router.delete('/:id', async (req, res) => {
         db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
         res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
+        console.error('Failed to delete reminder:', e);
         res.status(500).json({ error: 'Failed to delete reminder' });
     }
 });
