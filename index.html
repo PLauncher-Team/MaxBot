@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="css/screens/home.css?v=12">
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css">
-    <link rel="stylesheet" href="css/redesign.css?v=1">
+    <link rel="stylesheet" href="css/redesign.css?v=2">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -29,22 +29,7 @@
 
 <div class="app-container" id="app-container" style="display: none;">
     <div class="screen active" id="home-screen">
-        <div class="header">Напоминания</div>
         <div class="content">
-            <div class="section-header">
-                <div class="section-header-left">
-                    Получатели
-                    <span class="badge" id="home-groups-count">0</span>
-                </div>
-                <div class="link-all" id="show-recipients-btn">Управление</div>
-            </div>
-            <div class="placeholder-box" style="min-height: 66px;">
-                <div class="placeholder-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                </div>
-                <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
-            </div>
-
             <div class="section-header">
                 <div class="section-header-left">
                     Запланированные
@@ -78,6 +63,20 @@
 
             <div class="section-header">
                 <div class="section-header-left">
+                    Получатели
+                    <span class="badge" id="home-groups-count">0</span>
+                </div>
+                <div class="link-all" id="show-recipients-btn">Управление</div>
+            </div>
+            <div class="placeholder-box recipients-placeholder">
+                <div class="placeholder-icon">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                </div>
+                <span>Настройте группы, чтобы быстро выбирать получателей при создании напоминания.</span>
+            </div>
+
+            <div class="section-header">
+                <div class="section-header-left">
                     Отправленные
                     <span class="count" id="sent-count">0</span>
                 </div>
@@ -97,7 +96,7 @@
 
     <div class="screen" id="recipients-screen">
         <div class="templates-header">
-            <button class="back-btn" id="recipients-back-btn" aria-label="Назад"></button>
+            <button class="back-btn" id="recipients-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="templates-title">Получатели</div>
         </div>
         <div class="recipients-tabs">
@@ -122,7 +121,7 @@
 
     <div class="screen" id="templates-screen">
         <div class="templates-header">
-            <button class="back-btn" id="back-btn" aria-label="Назад"></button>
+            <button class="back-btn" id="back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="templates-title">Шаблоны <span class="badge" id="templates-count">2</span></div>
             <button class="add-template-btn" id="templates-add-btn" aria-label="Добавить шаблон">
                 <svg width="20" height="20" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -142,7 +141,7 @@
 
     <div class="screen" id="create-screen">
         <div class="create-header">
-            <button class="back-btn" id="create-back-btn" aria-label="Назад"></button>
+            <button class="back-btn" id="create-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="create-title">Новое напоминание</div>
         </div>
         <div class="create-content">
