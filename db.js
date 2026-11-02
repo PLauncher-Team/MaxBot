@@ -73,3 +73,26 @@ db.exec(`
 `);
 
 module.exports = db;
+
+
+// Multiple groups per participant. Existing single-group assignments are migrated once.
+db.pragma('foreign_keys = ON');
+db.exec(`
+    CREATE TABLE IF NOT EXISTS participant_groups (
+        participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+        group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (participant_id, group_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_participant_groups_group_id
+        ON participant_groups(group_id);
+    CREATE INDEX IF NOT EXISTS idx_participant_groups_participant_id
+        ON participant_groups(participant_id);
+
+    INSERT OR IGNORE INTO participant_groups (participant_id, group_id)
+    SELECT p.id, p.group_id
+    FROM participants p
+    INNER JOIN groups g ON g.id = p.group_id
+    WHERE p.group_id IS NOT NULL;
+`);
