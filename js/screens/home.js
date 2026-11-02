@@ -359,8 +359,13 @@ const HomeScreen = {
                 });
 
                 card.querySelector('.group-delete-btn').addEventListener('click', async () => {
-                    await App.deleteGroup(g.id);
-                    this.loadRecipientsData();
+                    try {
+                        const result = await App.deleteGroup(g.id);
+                        App.showToast('Группа удалена. Участники сохранены без группы');
+                        await this.loadRecipientsData();
+                    } catch (error) {
+                        App.showToast(error.message || 'Не удалось удалить группу');
+                    }
                 });
 
                 groupsList.appendChild(card);
@@ -428,9 +433,14 @@ const HomeScreen = {
 
                 item.querySelector('.group-delete-btn').addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    await App.deleteParticipant(p.id);
-                    this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(p.id));
-                    this.loadRecipientsData();
+                    try {
+                        await App.deleteParticipant(p.id);
+                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(p.id));
+                        App.showToast('Участник удалён');
+                        await this.loadRecipientsData();
+                    } catch (error) {
+                        App.showToast(error.message || 'Не удалось удалить участника');
+                    }
                 });
 
                 participantsList.appendChild(item);
