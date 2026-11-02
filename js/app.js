@@ -79,6 +79,10 @@ const App = {
                 window.WebApp.BackButton.show();
             }
         }
+
+        if (screenName === 'home' && typeof HomeScreen !== 'undefined' && typeof HomeScreen.refreshReminders === 'function') {
+            HomeScreen.refreshReminders();
+        }
     },
 
     getTemplates: async function() {
