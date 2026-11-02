@@ -174,10 +174,18 @@ try {
 }
 
 async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images) {
+    const result = {
+        sentChatIds: [],
+        failedChatIds: []
+    };
+    const uniqueChatIds = [...new Set((Array.isArray(chatIds) ? chatIds : []).filter(Boolean).map(String))];
+
     if (!botInstance) {
+        result.failedChatIds = uniqueChatIds;
         console.error('sendBroadcastMessage failed: botInstance is null');
-        return;
+        return result;
     }
+
     try {
         const { Keyboard } = require('@maxhub/max-bot-api');
         let attachments = [];
@@ -268,20 +276,21 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
             attachments.push(Keyboard.inlineKeyboard(buttons));
         }
 
-        for (const chatId of chatIds) {
+        for (const chatId of uniqueChatIds) {
             let sentSuccess = false;
+            let lastError = null;
+
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
                     const resMsg = await botInstance.api.sendMessageToUser(chatId, text, { attachments });
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
-                    if (mid) {
-                        sentMessageMids[chatId + '_' + reminderId] = mid;
-                    }
+                    if (mid) sentMessageMids[chatId + '_' + reminderId] = mid;
                     sentSuccess = true;
                     break;
                 } catch (e) {
+                    lastError = e;
                     if (attempt < 3) {
-                        await new Promise(r => setTimeout(r, 1200 * attempt));
+                        await new Promise(resolve => setTimeout(resolve, 1200 * attempt));
                     }
                 }
             }
@@ -290,17 +299,27 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
                 try {
                     const resMsg = await botInstance.api.sendMessageToChat(chatId, text, { attachments });
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
-                    if (mid) {
-                        sentMessageMids[chatId + '_' + reminderId] = mid;
-                    }
-                } catch (e2) {}
+                    if (mid) sentMessageMids[chatId + '_' + reminderId] = mid;
+                    sentSuccess = true;
+                } catch (e) {
+                    lastError = e;
+                }
+            }
+
+            if (sentSuccess) {
+                result.sentChatIds.push(chatId);
+            } else {
+                result.failedChatIds.push(chatId);
+                console.error('Message delivery failed for chat', chatId, lastError);
             }
         }
     } catch (err) {
         console.error('BROADCAST FATAL ERROR:', err);
+        result.failedChatIds = uniqueChatIds.filter(chatId => !result.sentChatIds.includes(chatId));
     }
-}
 
+    return result;
+}
 module.exports = {
     botInstance,
     sendBroadcastMessage
