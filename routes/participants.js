@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
     try {
+        console.info('[API] GET /api/participants started');
         const rows = db.prepare(`
             SELECT p.*
             FROM participants p
@@ -20,7 +21,7 @@ router.get('/', (req, res) => {
             ORDER BY g.name COLLATE NOCASE
         `);
 
-        res.json(rows.map(participant => {
+        const result = rows.map(participant => {
             const groups = getGroups.all(participant.id, req.userId);
             return {
                 ...participant,
@@ -29,7 +30,9 @@ router.get('/', (req, res) => {
                 group_names: groups.map(group => group.name),
                 group_name: groups[0]?.name || null
             };
-        }));
+        });
+        console.info('[API] GET /api/participants completed:', result.length);
+        res.json(result);
     } catch (e) {
         console.error('Failed to fetch participants:', e);
         res.status(500).json({ error: 'Failed to fetch participants' });
