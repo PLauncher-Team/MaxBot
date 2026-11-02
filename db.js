@@ -21,6 +21,11 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS template_seed_state (
+        user_id TEXT PRIMARY KEY,
+        initialized_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS reminders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
@@ -62,6 +67,8 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 `);
+
+db.exec('INSERT OR IGNORE INTO template_seed_state (user_id) SELECT DISTINCT user_id FROM templates;');
 
 try {
     db.exec('ALTER TABLE reminders ADD COLUMN images TEXT;');
