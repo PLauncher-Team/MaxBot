@@ -520,3 +520,23 @@ body {
 :root[data-theme="dark"] .group-title {
     color: var(--text);
 }
+
+
+/* Home action bar: keep the fixed footer dark in dark theme too. */
+:root[data-theme="dark"] .bottom-button-container {
+    border-top: 1px solid rgba(76, 94, 120, .55);
+    background: rgba(17, 24, 39, .94);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+:root[data-theme="dark"] .bottom-button-container .bottom-button {
+    border: 1px solid #455a78;
+    background: #30425f;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .20);
+    color: #e7edf8;
+}
+
+:root[data-theme="dark"] .bottom-button-container .bottom-button:active {
+    background: #3a5072;
+}
