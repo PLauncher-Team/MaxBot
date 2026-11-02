@@ -182,8 +182,18 @@ router.delete('/:id', async (req, res) => {
             return res.status(409).json({ error: 'Для этого старого сообщения не сохранён ID в MAX, поэтому удалить его у получателей автоматически нельзя' });
         }
         let deletedMessages = 0;
-        for (const mid of Object.values(messageIds)) {
-            if (await deleteMaxMessage(BOT_TOKEN, mid)) deletedMessages++;
+        const remainingMessageIds = {};
+        for (const [chatId, mid] of Object.entries(messageIds)) {
+            if (await deleteMaxMessage(BOT_TOKEN, mid)) {
+                deletedMessages++;
+            } else {
+                remainingMessageIds[chatId] = mid;
+            }
+        }
+        if (Object.keys(remainingMessageIds).length > 0) {
+            db.prepare('UPDATE reminders SET message_ids = ? WHERE id = ? AND user_id = ?')
+                .run(JSON.stringify(remainingMessageIds), id, req.userId);
+            return res.status(502).json({ error: 'Не удалось удалить сообщение у всех получателей. Повторите попытку' });
         }
         db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
         res.json({ success: true, deleted_messages: deletedMessages });
