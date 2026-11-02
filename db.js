@@ -38,6 +38,10 @@ db.exec(`
         recipients TEXT,
         quick_replies TEXT,
         images TEXT,
+        pending_recipients TEXT,
+        sent_at TEXT,
+        message_ids TEXT,
+        reply_message_ids TEXT,
         status TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -67,31 +71,5 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 `);
-
-db.exec('INSERT OR IGNORE INTO template_seed_state (user_id) SELECT DISTINCT user_id FROM templates;');
-
-try {
-    db.exec('ALTER TABLE reminders ADD COLUMN images TEXT;');
-} catch (e) {}
-
-try {
-    db.exec('ALTER TABLE reminders ADD COLUMN pending_recipients TEXT;');
-} catch (e) {}
-
-try {
-    db.exec('ALTER TABLE reminders ADD COLUMN sent_at TEXT;');
-} catch (e) {}
-
-try {
-    db.exec('ALTER TABLE reminders ADD COLUMN message_ids TEXT;');
-} catch (e) {}
-
-try {
-    db.exec('ALTER TABLE reminders ADD COLUMN reply_message_ids TEXT;');
-} catch (e) {}
-
-try {
-    db.exec("UPDATE reminders SET repeat_type = 'Никогда', status = 'sent', pending_recipients = NULL WHERE repeat_type = 'Каждую минуту' AND status = 'scheduled';");
-} catch (e) {}
 
 module.exports = db;
