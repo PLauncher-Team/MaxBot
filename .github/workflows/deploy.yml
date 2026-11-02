@@ -1,0 +1,90 @@
+name: Deploy MaxBot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: maxbot-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY_HOST: 195.133.35.201
+      DEPLOY_PATH: /var/www/maxapp
+      DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+      SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Install SSH password client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+
+      - name: Validate deployment settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == refs/heads/* ]] || { echo "::error::Select a branch to deploy"; exit 1; }
+          test -n "$SSHPASS" || { echo "::error::Missing DEPLOY_SSH_PASSWORD"; exit 1; }
+          test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
+
+      - name: Check server
+        shell: bash
+        run: |
+          set -euo pipefail
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "test -d '$DEPLOY_PATH' && test -f '$DEPLOY_PATH/ecosystem.config.js' && command -v rsync && command -v npm && command -v pm2"
+
+      - name: Upload application files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.idea/' \
+            --exclude='.android-studio/' \
+            --exclude='node_modules/' \
+            --exclude='data/' \
+            --exclude='ecosystem.config.js' \
+            --exclude='package-lock.json' \
+            --exclude='.env' \
+            --exclude='.env.*' \
+            --exclude='logs/' \
+            --exclude='*.log' \
+            "$GITHUB_WORKSPACE/" "$DEPLOY_SSH_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Install production dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && npm install --omit=dev"
+
+      - name: Restart application
+        shell: bash
+        run: |
+          set -euo pipefail
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && pm2 startOrReload ecosystem.config.js --update-env && pm2 save && pm2 status"
+
+      - name: Deployment summary
+        shell: bash
+        run: |
+          {
+            echo "## MaxBot deployment completed"
+            echo ""
+            echo "- Branch: $GITHUB_REF_NAME"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- Server: $DEPLOY_HOST"
+            echo "- Path: $DEPLOY_PATH"
+          } >> "$GITHUB_STEP_SUMMARY"
