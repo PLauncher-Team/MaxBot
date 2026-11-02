@@ -274,128 +274,170 @@ const HomeScreen = {
         const groupsList = document.getElementById('groups-list');
         if (groupsList) {
             groupsList.innerHTML = '';
-            groups.forEach(g => {
-                const card = document.createElement('div');
-                card.className = 'group-card';
-                card.style.flexDirection = 'column';
-                card.style.alignItems = 'stretch';
-                card.style.gap = '8px';
 
-                const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
-                const isExpanded = Boolean(this.expandedGroupIds[g.id]);
-                const groupParticipants = participants.filter(p => Number(p.group_id) === Number(g.id));
+            if (groups.length === 0) {
+                groupsList.innerHTML = `
+                    <div class="recipient-empty-state">
+                        <div class="recipient-empty-icon">01</div>
+                        <strong>Пока нет ни одной группы</strong>
+                        <p>Введите название группы выше и нажмите «Создать». Затем откройте её и отправьте приглашение участникам.</p>
+                    </div>
+                `;
+            } else {
+                groups.forEach(g => {
+                    const card = document.createElement('div');
+                    card.className = 'group-card';
+                    card.style.flexDirection = 'column';
+                    card.style.alignItems = 'stretch';
+                    card.style.gap = '10px';
 
-                let participantsHtml = '';
-                if (isExpanded) {
-                    if (groupParticipants.length === 0) {
-                        participantsHtml = '<div style="font-size:12px; color:#8e8e93; padding:4px 0;">В группе пока нет участников</div>';
-                    } else {
-                        participantsHtml = '<div class="group-participants-container">';
-                        groupParticipants.forEach(gp => {
-                            participantsHtml += `
-                                <div class="group-participant-row">
-                                    <span>${App.escapeHtml(gp.name)}</span>
-                                    <button class="group-share-btn" data-remove-id="${gp.id}" style="background-color:#ffe5e5; color:#ff3b30;">Убрать</button>
+                    const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
+                    const isExpanded = Boolean(this.expandedGroupIds[g.id]);
+                    const groupParticipants = participants.filter(p => Number(p.group_id) === Number(g.id));
+                    const participantCount = Number(g.participant_count || groupParticipants.length) || 0;
+
+                    let participantsHtml = '';
+                    if (isExpanded) {
+                        if (groupParticipants.length === 0) {
+                            participantsHtml = `
+                                <div class="group-empty-members">
+                                    Пока нет участников. Отправьте ссылку-приглашение выше.
                                 </div>
                             `;
-                        });
-                        participantsHtml += '</div>';
+                        } else {
+                            participantsHtml = '<div class="group-participants-container">';
+                            groupParticipants.forEach(gp => {
+                                participantsHtml += `
+                                    <div class="group-participant-row">
+                                        <span class="group-participant-name">${App.escapeHtml(gp.name)}</span>
+                                        <button type="button" class="group-remove-member-btn" data-remove-id="${gp.id}">
+                                            Убрать из группы
+                                        </button>
+                                    </div>
+                                `;
+                            });
+                            participantsHtml += '</div>';
+                        }
                     }
-                }
 
-                card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" class="group-header-toggle" data-group-id="${g.id}">
-                        <div class="group-info">
-                            <div class="group-title">${App.escapeHtml(g.name)} ${isExpanded ? '▲' : '▼'}</div>
-                            <div class="group-sub">${g.participant_count || 0} участников</div>
+                    card.innerHTML = `
+                        <div class="group-header-toggle" data-group-id="${g.id}" role="button" tabindex="0"
+                             aria-expanded="${isExpanded}" aria-label="${isExpanded ? 'Скрыть' : 'Показать'} участников группы ${App.escapeHtml(g.name)}">
+                            <div class="group-info">
+                                <div class="group-title">${App.escapeHtml(g.name)}</div>
+                                <div class="group-sub">${participantCount} участников</div>
+                            </div>
+                            <span class="group-expand-indicator">
+                                ${isExpanded ? 'Скрыть состав' : 'Показать состав'}
+                                <span class="group-expand-chevron ${isExpanded ? 'expanded' : ''}"></span>
+                            </span>
                         </div>
+
                         <div class="group-actions">
-                            <button class="group-share-btn" data-url="${inviteUrl}">Ссылка</button>
-                            <button class="group-delete-btn" data-id="${g.id}">
+                            <button type="button" class="group-share-btn" data-url="${App.escapeHtml(inviteUrl)}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+                                <span>Отправить приглашение</span>
+                            </button>
+                            <button type="button" class="group-delete-btn" data-id="${g.id}"
+                                    aria-label="Удалить группу ${App.escapeHtml(g.name)}" title="Удалить группу">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         </div>
-                    </div>
-                    <div class="group-link-box">
-                        <input type="text" class="group-link-input" value="${App.escapeHtml(inviteUrl)}" readonly>
-                        <button class="group-copy-btn">Копировать</button>
-                    </div>
-                    ${participantsHtml}
-                `;
 
-                card.querySelector('.group-header-toggle').addEventListener('click', (e) => {
-                    if (e.target.closest('button') || e.target.closest('input')) return;
-                    this.expandedGroupIds[g.id] = !isExpanded;
-                    this.loadRecipientsData();
-                });
+                        <div class="group-invite-area">
+                            <div class="group-link-caption">Ссылка для приглашения</div>
+                            <div class="group-link-box">
+                                <input type="text" class="group-link-input" value="${App.escapeHtml(inviteUrl)}" readonly
+                                       aria-label="Пригласительная ссылка для группы ${App.escapeHtml(g.name)}">
+                                <button type="button" class="group-copy-btn">Копировать ссылку</button>
+                            </div>
+                        </div>
+                        ${participantsHtml}
+                    `;
 
-                card.querySelectorAll('[data-remove-id]').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        const pId = btn.getAttribute('data-remove-id');
-                        await App.combineParticipantsToGroup([pId], null);
+                    const groupHeader = card.querySelector('.group-header-toggle');
+                    const toggleGroup = () => {
+                        this.expandedGroupIds[g.id] = !this.expandedGroupIds[g.id];
                         this.loadRecipientsData();
-                    });
-                });
+                    };
 
-                card.querySelector('.group-copy-btn').addEventListener('click', () => {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(inviteUrl).then(() => {
-                            App.showToast('Ссылка скопирована!');
-                        }).catch(() => {
+                    groupHeader.addEventListener('click', toggleGroup);
+                    groupHeader.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleGroup();
+                        }
+                    });
+
+                    card.querySelectorAll('[data-remove-id]').forEach(btn => {
+                        btn.addEventListener('click', async event => {
+                            event.stopPropagation();
+                            const pId = btn.getAttribute('data-remove-id');
+                            await App.combineParticipantsToGroup([pId], null);
+                            App.showToast('Участник убран из группы');
+                            await this.loadRecipientsData();
+                        });
+                    });
+
+                    card.querySelector('.group-copy-btn').addEventListener('click', () => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(inviteUrl).then(() => {
+                                App.showToast('Ссылка скопирована');
+                            }).catch(() => {
+                                const linkInput = card.querySelector('.group-link-input');
+                                if (linkInput) {
+                                    linkInput.focus();
+                                    linkInput.select();
+                                }
+                                App.showToast('Ссылка выделена для копирования');
+                            });
+                        } else {
                             const linkInput = card.querySelector('.group-link-input');
                             if (linkInput) {
                                 linkInput.focus();
                                 linkInput.select();
                             }
                             App.showToast('Ссылка выделена для копирования');
-                        });
-                    } else {
-                        const linkInput = card.querySelector('.group-link-input');
-                        if (linkInput) {
-                            linkInput.focus();
-                            linkInput.select();
                         }
-                        App.showToast('Ссылка выделена для копирования');
-                    }
-                });
+                    });
 
-                card.querySelector('.group-share-btn').addEventListener('click', async () => {
-                    const shareText = 'Ссылка для присоединения к группе "' + g.name + '":';
-                    if (window.WebApp && typeof window.WebApp.shareMaxContent === 'function') {
+                    card.querySelector('.group-share-btn').addEventListener('click', async () => {
+                        const shareText = 'Приглашение в группу "' + g.name + '":';
+                        if (window.WebApp && typeof window.WebApp.shareMaxContent === 'function') {
+                            try {
+                                await window.WebApp.shareMaxContent({ text: shareText, link: inviteUrl });
+                            } catch (e) {}
+                        } else if (window.WebApp && typeof window.WebApp.openMaxLink === 'function') {
+                            window.WebApp.openMaxLink(inviteUrl);
+                        } else {
+                            const linkInput = card.querySelector('.group-link-input');
+                            if (linkInput) {
+                                linkInput.focus();
+                                linkInput.select();
+                            }
+                            App.showToast('Ссылка выделена для копирования');
+                        }
+                    });
+
+                    card.querySelector('.group-delete-btn').addEventListener('click', async () => {
                         try {
-                            await window.WebApp.shareMaxContent({ text: shareText, link: inviteUrl });
-                        } catch (e) {}
-                    } else if (window.WebApp && typeof window.WebApp.openMaxLink === 'function') {
-                        window.WebApp.openMaxLink(inviteUrl);
-                    } else {
-                        const linkInput = card.querySelector('.group-link-input');
-                        if (linkInput) {
-                            linkInput.focus();
-                            linkInput.select();
+                            await App.deleteGroup(g.id);
+                            App.showToast('Группа удалена. Участники остались в списке');
+                            await this.loadRecipientsData();
+                        } catch (error) {
+                            App.showToast(error.message || 'Не удалось удалить группу');
                         }
-                        App.showToast('Ссылка выделена для копирования');
-                    }
-                });
+                    });
 
-                card.querySelector('.group-delete-btn').addEventListener('click', async () => {
-                    try {
-                        const result = await App.deleteGroup(g.id);
-                        App.showToast('Группа удалена. Участники сохранены без группы');
-                        await this.loadRecipientsData();
-                    } catch (error) {
-                        App.showToast(error.message || 'Не удалось удалить группу');
-                    }
+                    groupsList.appendChild(card);
                 });
-
-                groupsList.appendChild(card);
-            });
+            }
         }
 
         const combineSelect = document.getElementById('combine-group-select');
         if (combineSelect) {
             const currentSelectedGroup = combineSelect.value;
-            combineSelect.innerHTML = '<option value="">Выбрать группу...</option>';
+            combineSelect.innerHTML = '<option value="">Сначала выберите группу...</option>';
             groups.forEach(g => {
                 const opt = document.createElement('option');
                 opt.value = g.id;
@@ -413,35 +455,77 @@ const HomeScreen = {
             participantsList.innerHTML = '';
 
             const selectedGroupId = combineSelect ? combineSelect.value : '';
+            const selectedCount = document.getElementById('selected-participants-count');
+            const submitButton = document.getElementById('combine-submit-btn');
+            const updateSelectionSummary = () => {
+                const count = this.selectedParticipantIds.length;
+                if (selectedCount) selectedCount.textContent = count;
+                if (submitButton) submitButton.disabled = !selectedGroupId || count === 0;
+            };
+
+            if (groups.length === 0) {
+                participantsList.innerHTML = `
+                    <div class="recipient-empty-state">
+                        <div class="recipient-empty-icon">01</div>
+                        <strong>Сначала создайте группу</strong>
+                        <p>Перейдите на вкладку «Группы», создайте группу и отправьте людям ссылку-приглашение. После присоединения они появятся здесь.</p>
+                    </div>
+                `;
+                updateSelectionSummary();
+                return;
+            }
+
+            if (participants.length === 0) {
+                participantsList.innerHTML = `
+                    <div class="recipient-empty-state">
+                        <div class="recipient-empty-icon">02</div>
+                        <strong>Участников пока нет</strong>
+                        <p>Откройте вкладку «Группы», выберите нужную группу и отправьте ссылку-приглашение. Когда человек присоединится, он появится в этом списке.</p>
+                    </div>
+                `;
+                updateSelectionSummary();
+                return;
+            }
+
             const filteredParticipants = participants.filter(p => {
                 if (!selectedGroupId) return true;
                 return Number(p.group_id) !== Number(selectedGroupId);
             });
 
             if (filteredParticipants.length === 0) {
-                participantsList.innerHTML = '<div style="text-align:center; color:#8e8e93; padding:20px; font-size:13px;">Все участники уже добавлены в эту группу</div>';
+                participantsList.innerHTML = `
+                    <div class="recipient-empty-state recipient-empty-state-compact">
+                        <strong>Все участники уже в этой группе</strong>
+                        <p>Выберите другую группу назначения или проверьте состав во вкладке «Группы».</p>
+                    </div>
+                `;
+                updateSelectionSummary();
                 return;
             }
 
             filteredParticipants.forEach(p => {
                 const isSelected = this.selectedParticipantIds.includes(String(p.id));
                 const item = document.createElement('div');
-                item.className = 'participant-item';
+                item.className = 'participant-item' + (isSelected ? ' selected' : '');
+                item.setAttribute('role', 'checkbox');
+                item.setAttribute('aria-checked', String(isSelected));
+                item.setAttribute('tabindex', '0');
                 item.innerHTML = `
                     <div class="recipient-check ${isSelected ? '' : 'unchecked'}">
                         <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
                     </div>
-                    <div class="contact-modal-info" style="flex:1;">
+                    <div class="contact-modal-info participant-main-info">
                         <div class="participant-name">${App.escapeHtml(p.name)}</div>
-                        <div class="participant-group">${p.group_name ? App.escapeHtml(p.group_name) : 'Без группы'}</div>
+                        <div class="participant-group">${p.group_name ? 'Сейчас в группе: ' + App.escapeHtml(p.group_name) : 'Пока без группы'}</div>
                     </div>
-                    <button class="group-delete-btn" data-id="${p.id}">
+                    <span class="participant-selection-label">${isSelected ? 'Выбран' : 'Выбрать'}</span>
+                    <button type="button" class="group-delete-btn" data-id="${p.id}"
+                            aria-label="Удалить участника ${App.escapeHtml(p.name)}" title="Удалить участника">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 `;
 
-                item.querySelector('.recipient-check').parentElement.addEventListener('click', (e) => {
-                    if (e.target.closest('.group-delete-btn')) return;
+                const toggleParticipant = () => {
                     const pIdStr = String(p.id);
                     if (this.selectedParticipantIds.includes(pIdStr)) {
                         this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== pIdStr);
@@ -449,10 +533,21 @@ const HomeScreen = {
                         this.selectedParticipantIds.push(pIdStr);
                     }
                     renderParticipantsList();
+                };
+
+                item.addEventListener('click', event => {
+                    if (event.target.closest('.group-delete-btn')) return;
+                    toggleParticipant();
+                });
+                item.addEventListener('keydown', event => {
+                    if ((event.key === 'Enter' || event.key === ' ') && event.target === item) {
+                        event.preventDefault();
+                        toggleParticipant();
+                    }
                 });
 
-                item.querySelector('.group-delete-btn').addEventListener('click', async (e) => {
-                    e.stopPropagation();
+                item.querySelector('.group-delete-btn').addEventListener('click', async event => {
+                    event.stopPropagation();
                     try {
                         await App.deleteParticipant(p.id);
                         this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(p.id));
@@ -465,12 +560,15 @@ const HomeScreen = {
 
                 participantsList.appendChild(item);
             });
+
+            updateSelectionSummary();
         };
 
         renderParticipantsList();
 
-        if (combineSelect && !combineSelect.onchange) {
+        if (combineSelect) {
             combineSelect.onchange = () => {
+                this.selectedParticipantIds = [];
                 renderParticipantsList();
             };
         }
@@ -543,6 +641,8 @@ const HomeScreen = {
             tabGroupsBtn.addEventListener('click', () => {
                 tabGroupsBtn.classList.add('active');
                 tabPeopleBtn.classList.remove('active');
+                tabGroupsBtn.setAttribute('aria-selected', 'true');
+                tabPeopleBtn.setAttribute('aria-selected', 'false');
                 tabGroupsContent.style.display = 'flex';
                 tabPeopleContent.style.display = 'none';
             });
@@ -550,6 +650,8 @@ const HomeScreen = {
             tabPeopleBtn.addEventListener('click', () => {
                 tabPeopleBtn.classList.add('active');
                 tabGroupsBtn.classList.remove('active');
+                tabPeopleBtn.setAttribute('aria-selected', 'true');
+                tabGroupsBtn.setAttribute('aria-selected', 'false');
                 tabPeopleContent.style.display = 'flex';
                 tabGroupsContent.style.display = 'none';
             });
@@ -577,17 +679,17 @@ const HomeScreen = {
             combineSubmitBtn.addEventListener('click', async () => {
                 const groupId = combineGroupSelect.value;
                 if (!groupId) {
-                    App.showToast('Выберите группу для добавления');
+                    App.showToast('Сначала выберите группу назначения');
                     return;
                 }
                 if (this.selectedParticipantIds.length === 0) {
-                    App.showToast('Выберите хотя бы одного человека');
+                    App.showToast('Отметьте хотя бы одного участника в списке');
                     return;
                 }
 
                 await App.combineParticipantsToGroup(this.selectedParticipantIds, groupId);
                 this.selectedParticipantIds = [];
-                App.showToast('Участники добавлены в группу');
+                App.showToast('Группа назначена выбранным участникам');
                 this.loadRecipientsData();
             });
         }
