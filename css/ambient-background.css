@@ -450,3 +450,73 @@ body {
         transition: none;
     }
 }
+
+
+:root[data-theme="dark"] .create-header {
+    padding-right: 20px;
+    padding-left: 20px;
+}
+
+:root[data-theme="dark"] .add-template-btn,
+:root[data-theme="dark"] .modal-save-btn {
+    border: 1px solid #465b79;
+    background: #3a4f6e;
+    box-shadow: none;
+    color: #e7eef9;
+}
+
+:root[data-theme="dark"] .add-template-btn:active,
+:root[data-theme="dark"] .modal-save-btn:active {
+    background: #455d80;
+}
+
+:root[data-theme="dark"] .reminder-item .edit-reminder-btn,
+:root[data-theme="dark"] .reminder-item .edit-sent-reminder-btn {
+    border: 1px solid #3d506c;
+    background: #2d405c !important;
+    color: #dce7f8 !important;
+}
+
+:root[data-theme="dark"] .reminder-item .cancel-reminder-btn,
+:root[data-theme="dark"] .reminder-item .delete-sent-reminder-btn {
+    border: 1px solid rgba(255, 145, 162, .16);
+    background: rgba(255, 120, 141, .12) !important;
+    color: #ff9aaa !important;
+}
+
+:root[data-theme="dark"] .link-all,
+:root[data-theme="dark"] .create-row-right {
+    color: #aebeff;
+}
+
+:root[data-theme="dark"] .link-all::after {
+    border-color: currentColor;
+}
+
+:root[data-theme="dark"] .search-input-wrapper {
+    border-color: var(--line);
+    background: #1b2638;
+}
+
+:root[data-theme="dark"] .template-item,
+:root[data-theme="dark"] .group-card,
+:root[data-theme="dark"] .participant-item,
+:root[data-theme="dark"] .groups-list > *,
+:root[data-theme="dark"] .participants-list > * {
+    border-color: var(--line);
+    background: var(--surface);
+}
+
+:root[data-theme="dark"] .modal-cancel-btn {
+    background: #2b3a51;
+    color: #cad5e7;
+}
+
+:root[data-theme="dark"] .modal-title,
+:root[data-theme="dark"] .modal-field-label,
+:root[data-theme="dark"] .template-item-title,
+:root[data-theme="dark"] .contact-modal-name,
+:root[data-theme="dark"] .participant-name,
+:root[data-theme="dark"] .group-title {
+    color: var(--text);
+}
