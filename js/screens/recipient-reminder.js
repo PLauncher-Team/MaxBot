@@ -91,16 +91,9 @@ const RecipientReminder = {
                     return null;
                 }
             }))).filter(Boolean);
-        const files = (await Promise.all(rawMedia
-            .filter(item => item && typeof item.url === 'string' && item.type === 'file')
-            .slice(0, 3)
-            .map(async item => {
-                try {
-                    return { ...item, objectUrl: await this.fetchMediaObjectUrl(item.url) };
-                } catch (error) {
-                    return null;
-                }
-            }))).filter(Boolean);
+        const files = rawMedia
+            .filter(item => item && typeof item.download_url === 'string' && item.type === 'file')
+            .slice(0, 3);
         if (media.length === 1) {
             const image = document.createElement('img');
             image.className = 'recipient-reminder-media-item';
@@ -163,9 +156,26 @@ const RecipientReminder = {
             files.forEach(item => {
                 const link = document.createElement('a');
                 link.className = 'recipient-reminder-document';
-                link.href = item.objectUrl;
+                link.href = item.download_url;
                 link.download = item.name || 'Файл';
                 link.rel = 'noopener';
+                link.addEventListener('click', event => {
+                    const platform = String(window.WebApp?.platform || '').toLowerCase();
+                    if (!['ios', 'android', 'desktop'].includes(platform)) return;
+                    event.preventDefault();
+                    if (typeof window.WebApp?.downloadFile !== 'function') {
+                        App.showToast('Не удалось запустить скачивание. Обновите приложение MAX');
+                        return;
+                    }
+                    try {
+                        const download = window.WebApp.downloadFile(item.download_url, item.name || 'Файл');
+                        Promise.resolve(download).then(result => {
+                            if (result?.status === 'cancelled') App.showToast('Скачивание отменено');
+                        }).catch(() => App.showToast('Не удалось скачать файл'));
+                    } catch (error) {
+                        App.showToast('Не удалось скачать файл');
+                    }
+                });
                 const icon = document.createElement('span');
                 icon.className = 'recipient-reminder-document-icon';
                 icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>';

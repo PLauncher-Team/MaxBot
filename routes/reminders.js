@@ -404,6 +404,76 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
+const RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS = 60 * 60;
+
+function createRecipientDownloadToken(reminderId, filename, userId) {
+    const payload = Buffer.from(JSON.stringify({
+        id: Number(reminderId),
+        filename,
+        userId: String(userId),
+        exp: Math.floor(Date.now() / 1000) + RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS
+    })).toString('base64url');
+    const signature = crypto.createHmac('sha256', BOT_TOKEN).update(payload).digest('hex');
+    return payload + '.' + signature;
+}
+
+function verifyRecipientDownloadToken(token) {
+    if (!BOT_TOKEN || typeof token !== 'string' || token.length > 2048) return null;
+    const match = /^([A-Za-z0-9_-]+)\.([a-f0-9]{64})$/i.exec(token);
+    if (!match) return null;
+
+    const expectedSignature = crypto.createHmac('sha256', BOT_TOKEN).update(match[1]).digest();
+    const suppliedSignature = Buffer.from(match[2], 'hex');
+    if (suppliedSignature.length !== expectedSignature.length || !crypto.timingSafeEqual(expectedSignature, suppliedSignature)) {
+        return null;
+    }
+
+    try {
+        const payload = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
+        const now = Math.floor(Date.now() / 1000);
+        if (!Number.isSafeInteger(payload.id) || payload.id <= 0) return null;
+        if (typeof payload.filename !== 'string' || !/^file_[a-f0-9]{32}\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(payload.filename)) return null;
+        if (typeof payload.userId !== 'string' || !/^[0-9]{1,32}$/.test(payload.userId)) return null;
+        if (!Number.isSafeInteger(payload.exp) || payload.exp <= now || payload.exp > now + RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS + 30) return null;
+        return payload;
+    } catch (error) {
+        return null;
+    }
+}
+
+async function handleRecipientMediaDownload(req, res) {
+    try {
+        const access = verifyRecipientDownloadToken(req.params.token);
+        if (!access) return res.status(404).json({ error: 'File not found' });
+
+        const reminder = db.prepare('SELECT user_id, images, message_ids FROM reminders WHERE id = ?').get(access.id);
+        const messageIds = safeJsonParse(reminder?.message_ids, {});
+        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, access.userId) : null;
+        if (!reminder || !chatId) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const savedMedia = safeJsonParse(reminder.images, []);
+        const validMedia = sanitizeUploadedMedia(savedMedia, reminder.user_id);
+        const media = Array.isArray(validMedia)
+            ? validMedia.find(item => item.filename === access.filename && item.type === 'file')
+            : null;
+        if (!media) return res.status(404).json({ error: 'File not found' });
+
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', access.filename);
+        const encodedName = encodeURIComponent(media.name).replace(/[!'()*]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
+        res.setHeader('Content-Type', media.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `attachment; filename="attachment.${path.extname(access.filename).slice(1)}"; filename*=UTF-8''${encodedName}`);
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.sendFile(filePath);
+    } catch (error) {
+        console.error('Failed to download recipient attachment:', error.message);
+        return res.status(500).json({ error: 'Failed to download attachment' });
+    }
+}
+
 router.get('/public/:id/media/:filename', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -468,6 +538,9 @@ router.get('/public/:id', async (req, res) => {
         const publicImages = Array.isArray(validImages)
             ? validImages.map(({ filename, type, name, size, mime_type, width, height }) => ({
                 url: '/api/reminders/public/' + id + '/media/' + encodeURIComponent(filename),
+                download_url: type === 'file'
+                    ? PUBLIC_BASE_URL + '/media-download/' + createRecipientDownloadToken(id, filename, req.userId)
+                    : null,
                 type,
                 name,
                 size,
@@ -994,5 +1067,7 @@ router.put('/:id', async (req, res) => {
         res.status(500).json({ error: 'Failed to update reminder' });
     }
 });
+
+router.handleRecipientMediaDownload = handleRecipientMediaDownload;
 
 module.exports = router;

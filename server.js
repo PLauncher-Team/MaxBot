@@ -126,6 +126,7 @@ app.use('/api/templates', templatesRouter);
 app.use('/api/groups', groupsRouter);
 app.use('/api/participants', participantsRouter);
 app.use('/api/reminders', remindersRouter);
+app.get('/media-download/:token', remindersRouter.handleRecipientMediaDownload);
 
 app.post('/api/join-group', (req, res) => {
     try {
