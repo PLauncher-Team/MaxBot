@@ -52,7 +52,7 @@ const RecipientReminder = {
                 label.textContent = 'От кого: ';
                 const link = document.createElement('a');
                 link.href = 'max://user/' + senderId;
-                link.textContent = (senderName || 'Учитель') + ' — ' + senderId;
+                link.textContent = senderName || 'Учитель';
                 sender.append(label, link);
                 sender.hidden = false;
             } else {

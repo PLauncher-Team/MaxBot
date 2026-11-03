@@ -460,8 +460,7 @@ const CreateScreen = {
         const user = window.WebApp?.initDataUnsafe?.user || {};
         const name = [user.first_name, user.last_name].filter(value => typeof value === 'string' && value.trim()).join(' ')
             || (typeof user.username === 'string' ? user.username : '');
-        const id = user.id === undefined || user.id === null ? '' : String(user.id);
-        preview.textContent = name ? name + (id ? ' — ' + id : '') : (id || 'Профиль MAX');
+        preview.textContent = name || 'Имя не указано';
     },
 
     populateForm: function(template) {
