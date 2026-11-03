@@ -433,8 +433,11 @@ function consumeRecipientDownloadToken(token) {
     if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) return null;
     const access = recipientDownloadTickets.get(token);
     if (!access) return null;
-    recipientDownloadTickets.delete(token);
-    return access.expiresAt > Date.now() ? access : null;
+    if (access.expiresAt <= Date.now()) {
+        recipientDownloadTickets.delete(token);
+        return null;
+    }
+    return access;
 }
 
 async function handleRecipientMediaDownload(req, res) {
