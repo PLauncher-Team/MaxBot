@@ -31,29 +31,34 @@ const HomeScreen = {
         const homeTemplatesCount = document.getElementById('home-templates-count');
         const addCard = document.getElementById('home-add-template-card');
 
-        const templates = await App.getTemplates();
-        if (homeTemplatesCount) {
-            homeTemplatesCount.textContent = templates.length;
-        }
+        try {
+            const templates = await App.getTemplates();
+            if (homeTemplatesCount) {
+                homeTemplatesCount.textContent = templates.length;
+            }
 
-        if (templatesScroll) {
-            templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
-            templates.forEach(t => {
-                const card = document.createElement('button');
-                card.type = 'button';
-                card.className = 'template-card';
-                card.setAttribute('data-id', t.id);
-                card.innerHTML = `
-                    <div class="template-card-content">
-                        <div class="template-title">${App.escapeHtml(t.title)}</div>
-                        <div class="template-badge">Шаблон</div>
-                    </div>
-                `;
-                card.addEventListener('click', () => {
-                    CreateScreen.startWizard(t);
+            if (templatesScroll) {
+                templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
+                templates.forEach(t => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'template-card';
+                    card.setAttribute('data-id', t.id);
+                    card.innerHTML = `
+                        <div class="template-card-content">
+                            <div class="template-title">${App.escapeHtml(t.title)}</div>
+                            <div class="template-badge">Шаблон</div>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => {
+                        CreateScreen.startWizard(t);
+                    });
+                    templatesScroll.insertBefore(card, addCard);
                 });
-                templatesScroll.insertBefore(card, addCard);
-            });
+            }
+        } catch (error) {
+            console.error('Failed to load templates:', error);
+            App.showToast(error.message || 'Не удалось загрузить шаблоны');
         }
 
         this.updateTemplateScrollControls();
