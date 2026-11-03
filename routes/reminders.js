@@ -404,47 +404,43 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
-const RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS = 60 * 60;
+const RECIPIENT_DOWNLOAD_TICKET_TTL_MS = 30 * 60 * 1000;
+const recipientDownloadTickets = new Map();
 
 function createRecipientDownloadToken(reminderId, filename, userId) {
-    const payload = Buffer.from(JSON.stringify({
+    const now = Date.now();
+    for (const [existingToken, access] of recipientDownloadTickets) {
+        if (access.expiresAt <= now || (
+            access.id === Number(reminderId) &&
+            access.filename === filename &&
+            access.userId === String(userId)
+        )) {
+            recipientDownloadTickets.delete(existingToken);
+        }
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    recipientDownloadTickets.set(token, {
         id: Number(reminderId),
         filename,
         userId: String(userId),
-        exp: Math.floor(Date.now() / 1000) + RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS
-    })).toString('base64url');
-    const signature = crypto.createHmac('sha256', BOT_TOKEN).update(payload).digest('hex');
-    return payload + '.' + signature;
+        expiresAt: now + RECIPIENT_DOWNLOAD_TICKET_TTL_MS
+    });
+    return token;
 }
 
-function verifyRecipientDownloadToken(token) {
-    if (!BOT_TOKEN || typeof token !== 'string' || token.length > 2048) return null;
-    const match = /^([A-Za-z0-9_-]+)\.([a-f0-9]{64})$/i.exec(token);
-    if (!match) return null;
-
-    const expectedSignature = crypto.createHmac('sha256', BOT_TOKEN).update(match[1]).digest();
-    const suppliedSignature = Buffer.from(match[2], 'hex');
-    if (suppliedSignature.length !== expectedSignature.length || !crypto.timingSafeEqual(expectedSignature, suppliedSignature)) {
-        return null;
-    }
-
-    try {
-        const payload = JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8'));
-        const now = Math.floor(Date.now() / 1000);
-        if (!Number.isSafeInteger(payload.id) || payload.id <= 0) return null;
-        if (typeof payload.filename !== 'string' || !/^file_[a-f0-9]{32}\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(payload.filename)) return null;
-        if (typeof payload.userId !== 'string' || !/^[0-9]{1,32}$/.test(payload.userId)) return null;
-        if (!Number.isSafeInteger(payload.exp) || payload.exp <= now || payload.exp > now + RECIPIENT_DOWNLOAD_TOKEN_TTL_SECONDS + 30) return null;
-        return payload;
-    } catch (error) {
-        return null;
-    }
+function consumeRecipientDownloadToken(token) {
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) return null;
+    const access = recipientDownloadTickets.get(token);
+    if (!access) return null;
+    recipientDownloadTickets.delete(token);
+    return access.expiresAt > Date.now() ? access : null;
 }
 
 async function handleRecipientMediaDownload(req, res) {
     try {
-        const access = verifyRecipientDownloadToken(req.params.token);
-        if (!access) return res.status(404).json({ error: 'File not found' });
+        const access = consumeRecipientDownloadToken(req.params.token);
+        if (!access) return res.status(404).json({ error: 'File not found or download link expired' });
 
         const reminder = db.prepare('SELECT user_id, images, message_ids FROM reminders WHERE id = ?').get(access.id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
@@ -467,6 +463,7 @@ async function handleRecipientMediaDownload(req, res) {
         res.setHeader('Cache-Control', 'private, no-store');
         res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
         res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Referrer-Policy', 'no-referrer');
         return res.sendFile(filePath);
     } catch (error) {
         console.error('Failed to download recipient attachment:', error.message);
