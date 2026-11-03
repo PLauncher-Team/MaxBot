@@ -9,6 +9,7 @@ const CreateScreen = {
     recipientLoadRequestId: 0,
     sendToSelf: true,
     wizardActive: false,
+    startedFromTemplate: false,
     wizardStep: 1,
     currentImages: [],
     editingSentReminder: false,
@@ -18,6 +19,7 @@ const CreateScreen = {
 
     startWizard: async function(template = null) {
         this.wizardActive = true;
+        this.startedFromTemplate = Boolean(template);
         this.editingSentReminder = false;
         App.editingReminderId = null;
         this.populateForm(template);
@@ -119,8 +121,9 @@ const CreateScreen = {
             return;
         }
         if (this.wizardStep === 2) {
-            if (this.editingSentReminder) {
+            if (this.editingSentReminder || this.startedFromTemplate) {
                 this.wizardActive = false;
+                this.startedFromTemplate = false;
                 this.editingSentReminder = false;
                 App.editingReminderId = null;
                 App.showScreen('home');
