@@ -81,7 +81,7 @@ function storeUploadedMedia(media) {
     fs.writeFileSync(filePath, media.buffer, { flag: 'wx', mode: 0o644 });
 
     return {
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
+        url: PUBLIC_BASE_URL + '/api/uploads/' + filename,
         type: media.kind,
         filename
     };
@@ -93,7 +93,7 @@ function sanitizeUploadedImages(images) {
 
     let publicOrigin;
     try {
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
+        const publicUrl = new URL(PUBLIC_BASE_URL);
         if (publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) return null;
         publicOrigin = publicUrl.origin;
     } catch (error) {
