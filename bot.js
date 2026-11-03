@@ -116,16 +116,22 @@ async function deleteMaxMessage(botToken, mid) {
     }
 }
 
-async function editMaxMessage(botToken, mid, text) {
+async function editMaxMessage(botToken, mid, text, sender = null) {
     if (!botToken || !mid) return false;
     try {
+        const senderId = String(sender?.id || '').replace(/[^0-9]/g, '');
+        const senderName = String(sender?.name || '').trim().replace(/[&<>"]/g, '');
+        const senderMarkup = senderId
+            ? '<blockquote>От кого: <a href="max://user/' + senderId + '">' + (senderName || 'Учитель') + ' — ' + senderId + '</a></blockquote>'
+            : '';
+        const safeText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const response = await fetch(`https://platform-api2.max.ru/messages?message_id=${encodeURIComponent(mid)}`, {
             method: 'PUT',
             headers: {
                 Authorization: botToken,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text: senderMarkup + safeText, format: 'html' })
         });
         return response.ok;
     } catch (e) {
@@ -440,9 +446,9 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
         const senderId = String(sender?.id || '').trim();
         const senderName = String(sender?.name || '').trim().replace(/[&<>"]/g, '');
         const senderMarkup = senderId
-            ? '<p>От кого: <a href="max://user/' + senderId.replace(/[^0-9]/g, '') + '">' + (senderName || 'Учитель') + ' — ' + senderId.replace(/[^0-9]/g, '') + '</a></p><br>'
+            ? '<blockquote>От кого: <a href="max://user/' + senderId.replace(/[^0-9]/g, '') + '">' + (senderName || 'Учитель') + ' — ' + senderId.replace(/[^0-9]/g, '') + '</a></blockquote>'
             : '';
-        const safeMessageText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const safeMessageText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const messageText = senderMarkup + safeMessageText;
         const messageOptions = { attachments, format: 'html' };
 

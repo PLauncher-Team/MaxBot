@@ -686,7 +686,7 @@ router.put('/:id', async (req, res) => {
                     continue;
                 }
 
-                if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''))) {
+                if (oldMid && await editMaxMessage(BOT_TOKEN, oldMid, cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''), { name: cleanSenderName, id: req.userId })) {
                     updatedMessageIds[chatId] = oldMid;
                 } else {
                     if (oldMid && !await deleteLinkedReplyMessages(id, chatId, oldMid)) {
