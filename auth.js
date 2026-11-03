@@ -103,6 +103,29 @@ function validateInitData(initData, token, nowMs = Date.now()) {
     }
 }
 
+function getMaxUserProfileFromInitData(initData, token, nowMs = Date.now()) {
+    const userId = validateInitData(initData, token, nowMs);
+    if (!userId) return null;
+
+    try {
+        const params = new URLSearchParams(initData);
+        const user = JSON.parse(params.get('user'));
+        if (!user || String(user.id) !== userId) return null;
+
+        const cleanValue = value => typeof value === 'string'
+            ? value.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 80)
+            : '';
+        const firstName = cleanValue(user.first_name);
+        const lastName = cleanValue(user.last_name);
+        const username = cleanValue(user.username);
+        const name = [firstName, lastName].filter(Boolean).join(' ') || username;
+
+        return { id: userId, name };
+    } catch (error) {
+        return null;
+    }
+}
+
 function authMiddleware(req, res, next) {
     if (!BOT_TOKEN) {
         return res.status(503).json({ error: 'API authentication is not configured' });
@@ -113,10 +136,11 @@ function authMiddleware(req, res, next) {
         return res.status(401).json({ error: 'MAX authentication data is required' });
     }
 
-    const userId = validateInitData(rawInitData, BOT_TOKEN);
-    if (!userId) {
+    const userProfile = getMaxUserProfileFromInitData(rawInitData, BOT_TOKEN);
+    if (!userProfile) {
         return res.status(401).json({ error: 'MAX authentication data is invalid or expired' });
     }
+    const userId = userProfile.id;
 
     if (BLOCKED_USER_IDS.has(userId)) {
         return res.status(403).json({ error: 'Access is disabled for this account' });
@@ -127,6 +151,7 @@ function authMiddleware(req, res, next) {
     }
 
     req.userId = userId;
+    req.userName = userProfile.name;
     next();
 }
 
@@ -211,6 +236,7 @@ module.exports = {
     uploadRateLimit,
     reminderWriteRateLimit,
     validateInitData,
+    getMaxUserProfileFromInitData,
     parseUserIdSet,
     isUserAllowed
 };

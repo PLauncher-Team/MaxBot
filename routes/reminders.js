@@ -488,8 +488,7 @@ router.post('/', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images,
-            sender_name
+            images
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -506,7 +505,7 @@ router.post('/', async (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
-        const cleanSenderName = typeof sender_name === 'string' ? sender_name.trim().slice(0, 80) : '';
+        const cleanSenderName = typeof req.userName === 'string' ? req.userName.trim().slice(0, 80) : '';
         const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         if (!validRepeatTypes.includes(repeat_type)) {
             return res.status(400).json({ error: 'Invalid repeat_type' });
@@ -598,8 +597,7 @@ router.put('/:id', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images,
-            sender_name
+            images
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
