@@ -4,6 +4,7 @@ const CreateScreen = {
     selectedPeople: [],
     recipientGroups: [],
     recipientPeople: [],
+    recipientFilter: 'all',
     recipientLoadError: null,
     recipientLoadRequestId: 0,
     sendToSelf: true,
@@ -239,13 +240,13 @@ const CreateScreen = {
             visibleCount++;
         };
 
-        this.recipientGroups.forEach(group => {
+        if (this.recipientFilter === 'all' || this.recipientFilter === 'groups') this.recipientGroups.forEach(group => {
             const name = String(group.name || '');
             if (!name.toLocaleLowerCase().includes(query)) return;
             addChoice(name, (group.participant_count || 0) + ' участников', this.selectedGroups.includes(name), 'group', group.id);
         });
 
-        this.recipientPeople.forEach(person => {
+        if (this.recipientFilter === 'all' || this.recipientFilter === 'people') this.recipientPeople.forEach(person => {
             const name = String(person.name || 'Участник');
             if (!name.toLocaleLowerCase().includes(query)) return;
             const groupNames = Array.isArray(person.groups) ? person.groups.map(group => group.name).filter(Boolean) : [];
@@ -262,9 +263,6 @@ const CreateScreen = {
     },
 
     renderSelectedRecipients: function() {
-        const sendToSelfToggle = document.getElementById('send-to-self-toggle');
-        if (sendToSelfToggle) sendToSelfToggle.classList.toggle('active', this.sendToSelf);
-
         const selfOption = document.getElementById('wizard-self-option');
         if (selfOption) {
             selfOption.classList.toggle('selected', this.sendToSelf);
@@ -272,8 +270,44 @@ const CreateScreen = {
         }
 
         this.renderRecipientChoices('wizard-recipients-list', 'wizard-recipient-search');
-        this.renderRecipientChoices('details-recipients-list', 'details-recipient-search');
+        this.renderRecipientSummary();
+        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
+            const active = button.getAttribute('data-recipient-filter') === this.recipientFilter;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
         this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
+    },
+
+    renderRecipientSummary: function() {
+        const summary = document.getElementById('details-recipients-summary');
+        if (!summary) return;
+        summary.innerHTML = '';
+
+        const addLine = (name, detail) => {
+            const item = document.createElement('div');
+            item.className = 'recipient-summary-item';
+            const title = document.createElement('strong');
+            title.textContent = name;
+            const subtitle = document.createElement('small');
+            subtitle.textContent = detail;
+            item.append(title, subtitle);
+            summary.appendChild(item);
+        };
+
+        if (this.sendToSelf) addLine('Себе', 'Личное сообщение');
+        this.selectedGroups.forEach(name => addLine(name, 'Группа'));
+        this.selectedPeople.forEach(id => {
+            const person = this.recipientPeople.find(item => String(item.id) === String(id));
+            addLine(person?.name || 'Участник', 'Отдельный участник');
+        });
+
+        if (!summary.children.length) {
+            const empty = document.createElement('div');
+            empty.className = 'recipient-summary-empty';
+            empty.textContent = 'Получатели не выбраны';
+            summary.appendChild(empty);
+        }
     },
 
     updateRecipientsBadge: function(count) {
@@ -336,7 +370,6 @@ const CreateScreen = {
         const repeatTimeRow = document.getElementById('repeat-time-picker-row');
         const repeatTypeText = document.getElementById('repeat-type-text');
         const repeatTimeInput = document.getElementById('repeat-time-input');
-        const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
         const sendNowSection = sendNowToggle?.closest('.create-section');
@@ -407,7 +440,7 @@ const CreateScreen = {
         if (sendNowToggle) sendNowToggle.classList.add('active');
         if (sendTimeRow) sendTimeRow.style.display = 'none';
         const headerTitle = document.querySelector('#create-screen .create-title');
-        if (headerTitle) headerTitle.textContent = 'Изменение отправленного сообщения';
+        if (headerTitle) headerTitle.textContent = 'Изменение сообщения';
         const saveBtn = document.getElementById('save-reminder-btn');
         if (saveBtn) saveBtn.childNodes[0].nodeValue = 'Сохранить изменения ';
     },
@@ -472,13 +505,23 @@ const CreateScreen = {
             repeatTimeRow.style.display = 'none';
         }
 
-        ['wizard-recipient-search', 'details-recipient-search'].forEach(id => {
+        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                this.recipientFilter = button.getAttribute('data-recipient-filter') || 'all';
+                this.renderSelectedRecipients();
+            });
+        });
+
+        ['wizard-recipient-search'].forEach(id => {
             const search = document.getElementById(id);
             if (search) search.value = '';
         });
 
         this.selectedGroups = [];
         this.selectedPeople = [];
+        this.recipientFilter = 'all';
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.value = '';
         this.renderQuickReplies();
         this.renderSelectedRecipients();
         this.renderImagesPreview();
@@ -537,13 +580,6 @@ const CreateScreen = {
                 if (!isActive && sendDateTimeInput) {
                     sendDateTimeInput.min = this.getMinDateTimeString();
                 }
-            });
-        }
-
-        if (sendToSelfToggle) {
-            sendToSelfToggle.addEventListener('click', () => {
-                this.sendToSelf = !this.sendToSelf;
-                this.renderSelectedRecipients();
             });
         }
 
