@@ -1886,29 +1886,34 @@ select:focus {
 
 
 /* Compact cards in the sent-reminders history. */
-.sent-reminder-item {
+.sent-reminder-item,
+.scheduled-reminder-item {
     gap: 6px;
     padding: 11px 13px;
     border-radius: 15px;
 }
 
-.sent-reminder-item .reminder-item-title {
+.sent-reminder-item .reminder-item-title,
+.scheduled-reminder-item .reminder-item-title {
     font-size: 14px;
     line-height: 1.3;
 }
 
-.sent-reminder-item .reminder-item-desc {
+.sent-reminder-item .reminder-item-desc,
+.scheduled-reminder-item .reminder-item-desc {
     font-size: 12px;
     line-height: 1.4;
 }
 
-.sent-reminder-item .sent-reminder-meta {
+.sent-reminder-item .sent-reminder-meta,
+.scheduled-reminder-item .sent-reminder-meta {
     margin-top: 1px;
     font-size: 11px;
     line-height: 1.4;
 }
 
-.sent-reminder-item button {
+.sent-reminder-item button,
+.scheduled-reminder-item button {
     min-height: 30px;
     padding: 5px 9px;
     font-size: 11px;
