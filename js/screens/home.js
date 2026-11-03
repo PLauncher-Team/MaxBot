@@ -149,14 +149,12 @@ const HomeScreen = {
             const scheduledCount = document.getElementById('scheduled-count');
             const sentList = document.getElementById('sent-list');
             const sentPlaceholder = document.getElementById('sent-placeholder');
-            const sentCount = document.getElementById('sent-count');
     
             const reminders = await App.getReminders();
             const scheduled = reminders.filter(r => r.status === 'scheduled');
             const sent = reminders.filter(r => r.status === 'sent');
     
             if (scheduledCount) scheduledCount.textContent = scheduled.length;
-            if (sentCount) sentCount.textContent = sent.length;
     
             if (scheduledList && scheduledPlaceholder) {
                 scheduledList.innerHTML = '';
