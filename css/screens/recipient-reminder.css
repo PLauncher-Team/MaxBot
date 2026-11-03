@@ -34,11 +34,68 @@
 }
 
 .recipient-reminder-media {
+    display: block;
+    padding: 10px;
+    background: var(--surface-muted, #f1f4f9);
+}
+
+.recipient-reminder-gallery {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 10px;
-    background: var(--surface-muted, #f1f4f9);
+}
+
+.recipient-reminder-gallery-viewport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--surface, #fff);
+}
+
+.recipient-reminder-gallery-image {
+    max-height: 68vh;
+}
+
+.recipient-reminder-gallery-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 28px;
+}
+
+.recipient-reminder-gallery-counter {
+    min-width: 36px;
+    color: var(--muted, #778196);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.recipient-reminder-gallery-arrow {
+    display: inline-flex;
+    width: 28px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    color: var(--text, #273247);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.recipient-reminder-gallery-arrow:disabled {
+    opacity: .3;
+    cursor: default;
 }
 
 .recipient-reminder-media-item {
@@ -99,10 +156,25 @@
 }
 
 .recipient-reminder-reply-answer {
-    padding: 12px 14px;
+    padding: 13px 15px;
+    border: 1px solid rgba(50, 145, 105, .22);
+    border-left: 4px solid #299b70;
     border-radius: 12px;
-    background: var(--surface-muted, #f1f4f9);
+    background: rgba(50, 145, 105, .08);
     color: var(--text, #273247);
+    white-space: normal;
+}
+
+.recipient-reminder-reply-answer-label {
+    margin-bottom: 5px;
+    color: #21865f;
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.recipient-reminder-reply-answer-text {
     font-size: 14px;
     line-height: 1.5;
     white-space: pre-wrap;

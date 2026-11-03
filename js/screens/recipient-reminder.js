@@ -46,17 +46,77 @@ const RecipientReminder = {
         description.style.display = reminder.description ? 'block' : 'none';
         mediaContainer.replaceChildren();
 
-        const media = Array.isArray(reminder.images) ? reminder.images : [];
-        media.forEach(item => {
-            if (!item || typeof item.url !== 'string') return;
-            const element = document.createElement('img');
-            element.className = 'recipient-reminder-media-item';
-            element.src = item.url;
-            element.alt = reminder.title || 'Изображение';
-            element.loading = 'lazy';
-            mediaContainer.appendChild(element);
-        });
-        mediaContainer.style.display = mediaContainer.childElementCount > 0 ? 'grid' : 'none';
+        const media = (Array.isArray(reminder.images) ? reminder.images : [])
+            .filter(item => item && typeof item.url === 'string')
+            .slice(0, 3);
+
+        if (media.length === 1) {
+            const image = document.createElement('img');
+            image.className = 'recipient-reminder-media-item';
+            image.src = media[0].url;
+            image.alt = reminder.title || 'Изображение';
+            image.loading = 'lazy';
+            mediaContainer.appendChild(image);
+        } else if (media.length > 1) {
+            let activeIndex = 0;
+            const gallery = document.createElement('div');
+            gallery.className = 'recipient-reminder-gallery';
+
+            const viewport = document.createElement('div');
+            viewport.className = 'recipient-reminder-gallery-viewport';
+
+            const image = document.createElement('img');
+            image.className = 'recipient-reminder-media-item recipient-reminder-gallery-image';
+            image.alt = reminder.title || 'Изображение';
+            image.loading = 'lazy';
+
+            const controls = document.createElement('div');
+            controls.className = 'recipient-reminder-gallery-controls';
+
+            const previous = document.createElement('button');
+            previous.type = 'button';
+            previous.className = 'recipient-reminder-gallery-arrow';
+            previous.textContent = '‹';
+            previous.setAttribute('aria-label', 'Предыдущее фото');
+
+            const counter = document.createElement('span');
+            counter.className = 'recipient-reminder-gallery-counter';
+
+            const next = document.createElement('button');
+            next.type = 'button';
+            next.className = 'recipient-reminder-gallery-arrow';
+            next.textContent = '›';
+            next.setAttribute('aria-label', 'Следующее фото');
+
+            const showImage = () => {
+                image.src = media[activeIndex].url;
+                counter.textContent = (activeIndex + 1) + '/' + media.length;
+                previous.disabled = activeIndex === 0;
+                next.disabled = activeIndex === media.length - 1;
+            };
+
+            previous.addEventListener('click', () => {
+                if (activeIndex > 0) {
+                    activeIndex -= 1;
+                    showImage();
+                }
+            });
+
+            next.addEventListener('click', () => {
+                if (activeIndex < media.length - 1) {
+                    activeIndex += 1;
+                    showImage();
+                }
+            });
+
+            viewport.appendChild(image);
+            controls.append(previous, counter, next);
+            gallery.append(viewport, controls);
+            mediaContainer.appendChild(gallery);
+            showImage();
+        }
+
+        mediaContainer.style.display = media.length > 0 ? 'block' : 'none';
 
         repliesList.replaceChildren();
         const quickReplies = Array.isArray(reminder.quick_replies) ? reminder.quick_replies : [];
@@ -68,7 +128,13 @@ const RecipientReminder = {
             button.textContent = reply.question;
             const answer = document.createElement('div');
             answer.className = 'recipient-reminder-reply-answer';
-            answer.textContent = reply.answer || '';
+            const answerLabel = document.createElement('div');
+            answerLabel.className = 'recipient-reminder-reply-answer-label';
+            answerLabel.textContent = 'Ответ';
+            const answerText = document.createElement('div');
+            answerText.className = 'recipient-reminder-reply-answer-text';
+            answerText.textContent = reply.answer || '';
+            answer.append(answerLabel, answerText);
             answer.hidden = true;
             button.setAttribute('aria-expanded', 'false');
             button.addEventListener('click', () => {
