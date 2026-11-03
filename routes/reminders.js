@@ -87,6 +87,16 @@ function storeUploadedMedia(media) {
     };
 }
 
+function getRecipientChatId(reminder, messageIds, userId) {
+    const directChatId = String(userId);
+    if (messageIds[directChatId]) return directChatId;
+
+    const participant = db.prepare('SELECT chat_id FROM participants WHERE teacher_id = ? AND user_id = ?')
+        .get(reminder.user_id, directChatId);
+    const mappedChatId = participant?.chat_id ? String(participant.chat_id) : null;
+    return mappedChatId && messageIds[mappedChatId] ? mappedChatId : null;
+}
+
 function sanitizeUploadedImages(images) {
     if (images === undefined || images === null) return [];
     if (!Array.isArray(images) || images.length > 11) return null;
@@ -264,9 +274,9 @@ router.get('/public/:id', (req, res) => {
             return res.status(400).json({ error: 'Invalid reminder id' });
         }
 
-        const reminder = db.prepare('SELECT title, description, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, title, description, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
-        if (!reminder || !messageIds[String(req.userId)]) {
+        if (!reminder || !getRecipientChatId(reminder, messageIds, req.userId)) {
             return res.status(404).json({ error: 'Reminder not found' });
         }
 
@@ -306,9 +316,10 @@ router.post('/public/:id/replies/:replyIndex', async (req, res) => {
             return res.status(400).json({ error: 'Invalid quick reply' });
         }
 
-        const reminder = db.prepare('SELECT quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
-        if (!reminder || !messageIds[String(req.userId)]) {
+        const chatId = reminder ? getRecipientChatId(reminder, messageIds, req.userId) : null;
+        if (!reminder || !chatId) {
             return res.status(404).json({ error: 'Reminder not found' });
         }
 
@@ -319,7 +330,7 @@ router.post('/public/:id/replies/:replyIndex', async (req, res) => {
             return res.status(404).json({ error: 'Quick reply not found' });
         }
 
-        const sent = await sendQuickReplyMessage(id, String(req.userId), answer);
+        const sent = await sendQuickReplyMessage(id, chatId, String(req.userId), answer);
         if (!sent) {
             return res.status(502).json({ error: 'Не удалось отправить ответ в MAX. Попробуйте ещё раз.' });
         }

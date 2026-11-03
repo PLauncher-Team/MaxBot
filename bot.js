@@ -148,12 +148,16 @@ async function handleBotStart(ctx) {
         }
 
         let senderId = null;
+        let senderUserId = null;
         let senderName = 'Участник';
 
         if (update.chat_id) {
             senderId = String(update.chat_id);
         }
         if (update.user) {
+            if (update.user.user_id) {
+                senderUserId = String(update.user.user_id);
+            }
             if (!senderId && update.user.user_id) {
                 senderId = String(update.user.user_id);
             }
@@ -162,7 +166,10 @@ async function handleBotStart(ctx) {
 
         if (!senderId && ctx.user) {
             senderId = String(ctx.user.user_id || ctx.user.id || '');
+            senderUserId = String(ctx.user.user_id || ctx.user.id || '');
             senderName = ctx.user.name || [ctx.user.first_name, ctx.user.last_name].filter(Boolean).join(' ') || ('Участник ' + senderId);
+        } else if (!senderUserId && ctx.user) {
+            senderUserId = String(ctx.user.user_id || ctx.user.id || '');
         }
 
         if (!senderId) return;
@@ -177,15 +184,15 @@ async function handleBotStart(ctx) {
             const group = db.prepare('SELECT * FROM groups WHERE unique_id = ?').get(uniqueId);
             if (group) {
                 const joinGroup = db.transaction(() => {
-                    const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, senderId);
+                    const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?)').get(group.user_id, senderId, senderUserId || senderId);
                     let participantId;
                     if (existing) {
                         participantId = existing.id;
-                        db.prepare('UPDATE participants SET name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
-                            .run(senderName, group.id, participantId);
+                        db.prepare('UPDATE participants SET chat_id = ?, user_id = COALESCE(user_id, ?), name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
+                            .run(senderId, senderUserId || senderId, senderName, group.id, participantId);
                     } else {
-                        const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)')
-                            .run(group.user_id, group.id, senderId, senderName);
+                        const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, user_id, name) VALUES (?, ?, ?, ?, ?)')
+                            .run(group.user_id, group.id, senderId, senderUserId || senderId, senderName);
                         participantId = created.lastInsertRowid;
                     }
                     db.prepare('INSERT OR IGNORE INTO participant_groups (participant_id, group_id) VALUES (?, ?)')
@@ -300,7 +307,7 @@ async function getMiniAppBotUsername() {
     }
 }
 
-async function sendQuickReplyMessage(reminderId, chatId, answerText) {
+async function sendQuickReplyMessage(reminderId, chatId, userId, answerText) {
     if (!botInstance || typeof answerText !== 'string' || !answerText.trim()) return false;
 
     const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(reminderId);
@@ -310,9 +317,14 @@ async function sendQuickReplyMessage(reminderId, chatId, answerText) {
 
     if (!await deleteLinkedReplyMessages(reminderId, chatId, parentMid)) return false;
 
-    const sentReply = await botInstance.api.sendMessageToUser(chatId, answerText.trim().slice(0, 500), {
-        link: { type: 'reply', mid: String(parentMid) }
-    });
+    const replyText = answerText.trim().slice(0, 500);
+    const replyOptions = { link: { type: 'reply', mid: String(parentMid) } };
+    let sentReply;
+    try {
+        sentReply = await botInstance.api.sendMessageToUser(userId, replyText, replyOptions);
+    } catch (error) {
+        sentReply = await botInstance.api.sendMessageToChat(chatId, replyText, replyOptions);
+    }
     const replyMid = sentReply?.message?.body?.mid
         || sentReply?.body?.mid
         || sentReply?.mid

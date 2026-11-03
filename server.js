@@ -123,16 +123,16 @@ app.post('/api/join-group', (req, res) => {
             : 'Участник ' + req.userId;
 
         const joinGroup = db.transaction(() => {
-            const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?')
-                .get(group.user_id, req.userId);
+            const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?)')
+                .get(group.user_id, req.userId, req.userId);
             let participantId;
             if (existing) {
                 participantId = existing.id;
-                db.prepare('UPDATE participants SET name = ?, group_id = COALESCE(group_id, ?) WHERE id = ? AND teacher_id = ?')
-                    .run(cleanName, group.id, participantId, group.user_id);
+                db.prepare('UPDATE participants SET user_id = COALESCE(user_id, ?), name = ?, group_id = COALESCE(group_id, ?) WHERE id = ? AND teacher_id = ?')
+                    .run(req.userId, cleanName, group.id, participantId, group.user_id);
             } else {
-                const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)')
-                    .run(group.user_id, group.id, req.userId, cleanName);
+                const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, user_id, name) VALUES (?, ?, ?, ?, ?)')
+                    .run(group.user_id, group.id, req.userId, req.userId, cleanName);
                 participantId = created.lastInsertRowid;
             }
             db.prepare('INSERT OR IGNORE INTO participant_groups (participant_id, group_id) VALUES (?, ?)')

@@ -59,6 +59,7 @@ db.exec(`
         teacher_id TEXT NOT NULL,
         group_id INTEGER,
         chat_id TEXT NOT NULL,
+        user_id TEXT,
         name TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -72,6 +73,14 @@ db.exec(`
     );
 `);
 
+
+const participantColumns = new Set(
+    db.prepare('PRAGMA table_info(participants)').all().map(column => column.name)
+);
+if (!participantColumns.has('user_id')) {
+    db.exec('ALTER TABLE participants ADD COLUMN user_id TEXT');
+}
+db.exec('CREATE INDEX IF NOT EXISTS idx_participants_teacher_user_id ON participants(teacher_id, user_id)');
 
 const reminderColumns = new Set(
     db.prepare('PRAGMA table_info(reminders)').all().map(column => column.name)
