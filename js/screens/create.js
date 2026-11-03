@@ -506,9 +506,11 @@ const CreateScreen = {
         if (descInput) descInput.value = reminder.description || '';
         this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
-        this.currentImages = Array.isArray(reminder.images)
-            ? reminder.images.filter(image => image && (image.type === 'image' || image.type === 'file') && typeof image.url === 'string').slice(0, 3)
-            : [];
+        const savedMedia = Array.isArray(reminder.images) ? reminder.images : [];
+        this.currentImages = [
+            ...savedMedia.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3),
+            ...savedMedia.filter(image => image && image.type === 'file' && typeof image.url === 'string').slice(0, 3)
+        ];
 
         if (sendNowToggle) {
             sendNowToggle.classList.remove('active');
@@ -789,9 +791,10 @@ const CreateScreen = {
 
         const bindAttachmentPicker = (button, input, type) => {
             if (!button || !input) return;
+            const getCount = () => this.currentImages.filter(item => item.type === type || (!item.type && type === 'file')).length;
             button.addEventListener('click', () => {
-                if (this.currentImages.length >= 3) {
-                    App.showToast('Можно прикрепить максимум 3 вложения');
+                if (getCount() >= 3) {
+                    App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
                     return;
                 }
                 input.click();
@@ -799,8 +802,8 @@ const CreateScreen = {
             input.addEventListener('change', event => {
                 const files = Array.from(event.target.files || []);
                 if (!files.length) return;
-                const availableSlots = 3 - this.currentImages.length;
-                if (files.length > availableSlots) App.showToast('Можно прикрепить максимум 3 вложения');
+                const availableSlots = 3 - getCount();
+                if (files.length > availableSlots) App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
                 files.slice(0, availableSlots).forEach(file => {
                     const pending = {
                         pending: true,

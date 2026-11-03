@@ -207,7 +207,10 @@ async function getRecipientChatId(reminder, messageIds, userId) {
 
 function sanitizeUploadedMedia(images, userId) {
     if (images === undefined || images === null) return [];
-    if (!Array.isArray(images) || images.length > 3) return null;
+    if (!Array.isArray(images) || images.length > 6) return null;
+    const imageCount = images.filter(item => item?.type === 'image').length;
+    const fileCount = images.filter(item => item?.type === 'file').length;
+    if (imageCount > 3 || fileCount > 3 || imageCount + fileCount !== images.length) return null;
     let publicOrigin;
     try {
         const publicUrl = new URL(PUBLIC_BASE_URL);
@@ -401,6 +404,42 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
+router.get('/public/:id/media/:filename', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const filename = String(req.params.filename || '');
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^(?:img_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(?:png|jpg|gif|webp)|file_[a-f0-9]{32}\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip))$/i.test(filename)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const reminder = db.prepare('SELECT user_id, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const messageIds = safeJsonParse(reminder?.message_ids, {});
+        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
+        if (!reminder || !chatId) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const savedMedia = safeJsonParse(reminder.images, []);
+        const validMedia = sanitizeUploadedMedia(savedMedia, reminder.user_id);
+        const media = Array.isArray(validMedia) ? validMedia.find(item => item.filename === filename) : null;
+        if (!media) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        res.setHeader('Content-Type', media.mime_type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', media.type === 'file'
+            ? `attachment; filename="attachment"; filename*=UTF-8''${encodeURIComponent(media.name)}`
+            : 'inline');
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        return res.sendFile(filePath);
+    } catch (error) {
+        console.error('Failed to fetch recipient attachment:', error.message);
+        return res.status(500).json({ error: 'Failed to fetch attachment' });
+    }
+});
+
 router.get('/public/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -427,7 +466,15 @@ router.get('/public/:id', async (req, res) => {
         const savedImages = safeJsonParse(reminder.images, []);
         const validImages = sanitizeUploadedMedia(savedImages, reminder.user_id);
         const publicImages = Array.isArray(validImages)
-            ? validImages.map(({ url, type, name, size, mime_type, width, height }) => ({ url, type, name, size, mime_type, width, height }))
+            ? validImages.map(({ filename, type, name, size, mime_type, width, height }) => ({
+                url: '/api/reminders/public/' + id + '/media/' + encodeURIComponent(filename),
+                type,
+                name,
+                size,
+                mime_type,
+                width,
+                height
+            }))
             : [];
 
         res.setHeader('Cache-Control', 'no-store');
@@ -687,7 +734,7 @@ router.post('/', async (req, res) => {
 
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
-            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 файла по 10 МБ' });
+            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
         }
 
         const stmt = db.prepare(`

@@ -1,7 +1,22 @@
 const RecipientReminder = {
     reminderId: null,
+    mediaObjectUrls: [],
+
+    revokeMediaObjectUrls: function() {
+        this.mediaObjectUrls.forEach(url => URL.revokeObjectURL(url));
+        this.mediaObjectUrls = [];
+    },
+
+    fetchMediaObjectUrl: async function(url) {
+        const response = await fetch(url, { headers: App.getAuthHeaders() });
+        if (!response.ok) throw new Error('Не удалось загрузить вложение');
+        const objectUrl = URL.createObjectURL(await response.blob());
+        this.mediaObjectUrls.push(objectUrl);
+        return objectUrl;
+    },
 
     setState: function(message, isError = false) {
+        this.revokeMediaObjectUrls();
         const state = document.getElementById('reminder-view-state');
         const card = document.getElementById('reminder-view-card');
         const replies = document.getElementById('reminder-view-replies');
@@ -26,13 +41,13 @@ const RecipientReminder = {
             if (!response.ok) {
                 throw new Error(data?.error || 'Не удалось загрузить напоминание');
             }
-            this.render(data);
+            await this.render(data);
         } catch (error) {
             this.setState(error.message || 'Не удалось загрузить напоминание', true);
         }
     },
 
-    render: function(reminder) {
+    render: async function(reminder) {
         const state = document.getElementById('reminder-view-state');
         const card = document.getElementById('reminder-view-card');
         const mediaContainer = document.getElementById('reminder-view-media');
@@ -65,16 +80,31 @@ const RecipientReminder = {
         mediaContainer.replaceChildren();
         if (filesContainer) filesContainer.replaceChildren();
 
-        const media = (Array.isArray(reminder.images) ? reminder.images : [])
+        const rawMedia = Array.isArray(reminder.images) ? reminder.images : [];
+        const media = (await Promise.all(rawMedia
             .filter(item => item && typeof item.url === 'string' && item.type === 'image')
-            .slice(0, 3);
-        const files = (Array.isArray(reminder.images) ? reminder.images : [])
+            .slice(0, 3)
+            .map(async item => {
+                try {
+                    return { ...item, objectUrl: await this.fetchMediaObjectUrl(item.url) };
+                } catch (error) {
+                    return null;
+                }
+            }))).filter(Boolean);
+        const files = (await Promise.all(rawMedia
             .filter(item => item && typeof item.url === 'string' && item.type === 'file')
-            .slice(0, 3);
+            .slice(0, 3)
+            .map(async item => {
+                try {
+                    return { ...item, objectUrl: await this.fetchMediaObjectUrl(item.url) };
+                } catch (error) {
+                    return null;
+                }
+            }))).filter(Boolean);
         if (media.length === 1) {
             const image = document.createElement('img');
             image.className = 'recipient-reminder-media-item';
-            image.src = media[0].url;
+            image.src = media[0].objectUrl;
             image.alt = media[0].name || reminder.title || 'Изображение';
             image.loading = 'lazy';
             mediaContainer.appendChild(image);
@@ -103,7 +133,7 @@ const RecipientReminder = {
             next.textContent = '›';
             next.setAttribute('aria-label', 'Следующее фото');
             const showImage = () => {
-                image.src = media[activeIndex].url;
+                image.src = media[activeIndex].objectUrl;
                 counter.textContent = (activeIndex + 1) + '/' + media.length;
                 previous.disabled = activeIndex === 0;
                 next.disabled = activeIndex === media.length - 1;
@@ -133,7 +163,7 @@ const RecipientReminder = {
             files.forEach(item => {
                 const link = document.createElement('a');
                 link.className = 'recipient-reminder-document';
-                link.href = item.url;
+                link.href = item.objectUrl;
                 link.download = item.name || 'Файл';
                 link.rel = 'noopener';
                 const icon = document.createElement('span');

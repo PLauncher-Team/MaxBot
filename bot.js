@@ -359,100 +359,47 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
         const { Keyboard } = require('@maxhub/max-bot-api');
         const botUsername = await getMiniAppBotUsername();
         let attachments = [];
+        const chatImages = Array.isArray(images)
+            ? images.filter(item => item && item.type === 'image').slice(0, 3)
+            : [];
 
-        if (Array.isArray(images) && images.length > 0) {
-            for (const img of images.slice(0, 3)) {
-                if (!img) continue;
+        for (const img of chatImages) {
+            if (typeof img === 'object' && typeof img.toJson === 'function') {
+                attachments.push(img.toJson());
+                continue;
+            }
 
-                if (typeof img === 'object' && typeof img.toJson === 'function') {
-                    attachments.push(img.toJson());
-                    continue;
-                }
+            if (typeof img === 'object' && img.payload && img.type === 'image') {
+                attachments.push(img);
+                continue;
+            }
 
-                if (typeof img === 'object' && img.payload && (img.type === 'image' || img.type === 'video' || img.type === 'file')) {
-                    attachments.push(img);
-                    continue;
-                }
+            const urlStr = typeof img === 'string' ? img : (img.url || '');
+            if (!urlStr) continue;
 
-                const urlStr = typeof img === 'string' ? img : (img.url || '');
-                if (urlStr) {
-                    const match = urlStr.match(/\/api\/uploads\/([^/?#]+)(?:[?#]|$)/);
-                    if (match && match[1]) {
-                        const filename = match[1];
-                        const filePath = path.join(__dirname, 'data', 'uploads', filename);
-                        if (fs.existsSync(filePath)) {
-                            const isVid = filename.startsWith('vid_') || /\.(mp4|mov|webm|avi|mkv)$/i.test(filename);
-                            const isFile = filename.startsWith('file_');
-                            try {
-                                if (isFile) {
-                                    if (typeof botInstance.api?.uploadFile !== 'function') {
-                                        throw new Error('MAX file uploads are unavailable');
-                                    }
-                                    const uploadedFile = await botInstance.api.uploadFile({ source: filePath });
-                                    if (uploadedFile && typeof uploadedFile.toJson === 'function') {
-                                        attachments.push(uploadedFile.toJson());
-                                    } else if (uploadedFile && uploadedFile.payload) {
-                                        attachments.push({ type: 'file', payload: uploadedFile.payload });
-                                    } else {
-                                        throw new Error('MAX did not return a file attachment');
-                                    }
-                                    continue;
-                                }
-                                if (isVid && typeof botInstance.api?.uploadVideo === 'function') {
-                                    const uploadedVid = await botInstance.api.uploadVideo({ source: filePath });
-                                    if (uploadedVid && typeof uploadedVid.toJson === 'function') {
-                                        attachments.push(uploadedVid.toJson());
-                                    } else if (uploadedVid && uploadedVid.payload) {
-                                        attachments.push({ type: 'video', payload: uploadedVid.payload });
-                                    }
-                                    continue;
-                                } else if (!isVid && typeof botInstance.api?.uploadImage === 'function') {
-                                    const uploadedImg = await botInstance.api.uploadImage({ source: filePath });
-                                    if (uploadedImg && typeof uploadedImg.toJson === 'function') {
-                                        attachments.push(uploadedImg.toJson());
-                                    } else if (uploadedImg && uploadedImg.payload) {
-                                        attachments.push({ type: 'image', payload: uploadedImg.payload });
-                                    }
-                                    continue;
-                                }
-                            } catch (uploadErr) {
-                                console.error('Upload to MAX failed for', filename, ':', uploadErr.message || uploadErr);
-                            }
-                            if (isFile) throw new Error('Upload to MAX failed for ' + filename);
+            const match = urlStr.match(/\/api\/uploads\/([^/?#]+)(?:[?#]|$)/);
+            if (match && match[1]) {
+                const filename = match[1];
+                const filePath = path.join(__dirname, 'data', 'uploads', filename);
+                if (fs.existsSync(filePath) && typeof botInstance.api?.uploadImage === 'function') {
+                    try {
+                        const uploadedImage = await botInstance.api.uploadImage({ source: filePath });
+                        if (uploadedImage && typeof uploadedImage.toJson === 'function') {
+                            attachments.push(uploadedImage.toJson());
+                        } else if (uploadedImage && uploadedImage.payload) {
+                            attachments.push({ type: 'image', payload: uploadedImage.payload });
+                        } else {
+                            throw new Error('MAX did not return an image attachment');
                         }
-                    }
-                }
-
-                if (typeof img === 'string') {
-                    if (/^https?:\/\//i.test(img)) {
-                        const isVid = /\.(mp4|mov|webm|avi|mkv)$/i.test(img);
-                        attachments.push({
-                            type: isVid ? 'video' : 'image',
-                            payload: { url: img }
-                        });
-                    }
-                } else if (typeof img === 'object') {
-                    const isVid = img.type === 'video' || (img.url && /\.(mp4|mov|webm|avi|mkv)$/i.test(img.url));
-                    const attType = isVid ? 'video' : 'image';
-
-                    if (img.photos) {
-                        attachments.push({
-                            type: 'image',
-                            payload: { photos: img.photos }
-                        });
-                    } else if (img.token) {
-                        attachments.push({
-                            type: attType,
-                            payload: { token: img.token }
-                        });
-                    } else if (img.url) {
-                        attachments.push({
-                            type: attType,
-                            payload: { url: img.url }
-                        });
+                        continue;
+                    } catch (uploadError) {
+                        console.error('Image upload to MAX failed for', filename, ':', uploadError.message || uploadError);
+                        throw uploadError;
                     }
                 }
             }
+
+            attachments.push({ type: 'image', payload: { url: urlStr } });
         }
 
         attachments.push(Keyboard.inlineKeyboard([

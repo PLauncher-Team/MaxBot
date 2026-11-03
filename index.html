@@ -284,6 +284,21 @@
 
             <section class="reminder-wizard-panel" id="reminder-step-details" style="display: none;">
             <div class="create-section">
+                <div class="create-section-title">Фото</div>
+                <div class="images-preview-grid" id="photo-preview-grid"></div>
+                <input type="file" id="create-photo-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-photo-btn" style="margin-top: 10px;">Добавить фото</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Максимум 3 фото. Каждое — до 10 МБ и 7680 × 7680 пикселей.</div>
+            </div>
+            <div class="create-section">
+                <div class="create-section-title">Документы</div>
+                <div class="images-preview-grid" id="document-preview-grid"></div>
+                <input type="file" id="create-document-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-document-btn" style="margin-top: 10px;">Добавить документы</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Максимум 3 документа. Каждый — до 10 МБ.</div>
+            </div>
+
+            <div class="create-section">
                 <div class="create-section-title">Содержание</div>
                 <input type="text" class="create-input" id="create-title-input" placeholder="Название напоминания">
                 <div style="height: 14px;"></div>
@@ -296,20 +311,7 @@
                 <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Имя и ID берутся из вашего профиля MAX автоматически.</div>
             </div>
 
-            <div class="create-section">
-                <div class="create-section-title">Фото</div>
-                <div class="images-preview-grid" id="photo-preview-grid"></div>
-                <input type="file" id="create-photo-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-photo-btn" style="margin-top: 10px;">Добавить фото</button>
-                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">До 3 вложений суммарно. Фото — до 10 МБ и 7680 × 7680 пикселей каждое.</div>
-            </div>
-            <div class="create-section">
-                <div class="create-section-title">Документы</div>
-                <div class="images-preview-grid" id="document-preview-grid"></div>
-                <input type="file" id="create-document-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-document-btn" style="margin-top: 10px;">Добавить документы</button>
-                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Документы — до 10 МБ каждый. Максимум 3 фото и документа вместе.</div>
-            </div>
+
 
             <div class="create-section">
                 <div class="create-section-title">Получатели</div>
@@ -432,9 +434,9 @@
 </div>
 
 <script src="js/app.js?v=19"></script>
-<script src="js/screens/recipient-reminder.js?v=6"></script>
+<script src="js/screens/recipient-reminder.js?v=7"></script>
 <script src="js/screens/home.js?v=28"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=24"></script>
+<script src="js/screens/create.js?v=25"></script>
 </body>
 </html>
