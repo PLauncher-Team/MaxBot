@@ -87,12 +87,26 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS recipient_download_tickets (
+        token_hash TEXT PRIMARY KEY,
+        reminder_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE INDEX IF NOT EXISTS idx_participants_teacher_user_id
         ON participants(teacher_id, user_id);
     CREATE INDEX IF NOT EXISTS idx_participant_groups_group_id
         ON participant_groups(group_id);
     CREATE INDEX IF NOT EXISTS idx_participant_groups_participant_id
         ON participant_groups(participant_id);
+
+    CREATE INDEX IF NOT EXISTS idx_recipient_download_tickets_lookup
+        ON recipient_download_tickets(reminder_id, filename, user_id);
+    CREATE INDEX IF NOT EXISTS idx_recipient_download_tickets_expires_at
+        ON recipient_download_tickets(expires_at);
 `);
 
 module.exports = db;

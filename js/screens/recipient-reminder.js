@@ -171,9 +171,15 @@ const RecipientReminder = {
                         const download = window.WebApp.downloadFile(item.download_url, item.name || 'Файл');
                         Promise.resolve(download).then(result => {
                             if (result?.status === 'cancelled') App.showToast('Скачивание отменено');
-                        }).catch(() => App.showToast('Не удалось скачать файл'));
+                        }).catch(error => {
+                            const code = error?.error?.code || error?.code || 'unknown';
+                            console.error('MAX file download failed:', code, error);
+                            App.showToast('MAX не смог скачать файл: ' + code);
+                        });
                     } catch (error) {
-                        App.showToast('Не удалось скачать файл');
+                        const code = error?.error?.code || error?.code || 'unknown';
+                        console.error('MAX file download failed:', code, error);
+                        App.showToast('MAX не смог скачать файл: ' + code);
                     }
                 });
                 const icon = document.createElement('span');

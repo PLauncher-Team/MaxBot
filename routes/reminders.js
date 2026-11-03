@@ -404,37 +404,28 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
-const RECIPIENT_DOWNLOAD_TICKET_TTL_MS = 30 * 60 * 1000;
-const recipientDownloadTickets = new Map();
+const RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS = 30 * 60;
 
 function createRecipientDownloadToken(reminderId, filename, userId) {
-    const now = Date.now();
-    for (const [existingToken, access] of recipientDownloadTickets) {
-        if (access.expiresAt <= now || (
-            access.id === Number(reminderId) &&
-            access.filename === filename &&
-            access.userId === String(userId)
-        )) {
-            recipientDownloadTickets.delete(existingToken);
-        }
-    }
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare('DELETE FROM recipient_download_tickets WHERE expires_at <= ? OR (reminder_id = ? AND filename = ? AND user_id = ?)')
+        .run(now, Number(reminderId), filename, String(userId));
 
     const token = crypto.randomBytes(32).toString('hex');
-    recipientDownloadTickets.set(token, {
-        id: Number(reminderId),
-        filename,
-        userId: String(userId),
-        expiresAt: now + RECIPIENT_DOWNLOAD_TICKET_TTL_MS
-    });
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    db.prepare('INSERT INTO recipient_download_tickets (token_hash, reminder_id, filename, user_id, expires_at) VALUES (?, ?, ?, ?, ?)')
+        .run(tokenHash, Number(reminderId), filename, String(userId), now + RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS);
     return token;
 }
 
-function consumeRecipientDownloadToken(token) {
+function getRecipientDownloadTicket(token) {
     if (typeof token !== 'string' || !/^[a-f0-9]{64}$/i.test(token)) return null;
-    const access = recipientDownloadTickets.get(token);
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const access = db.prepare('SELECT reminder_id AS id, filename, user_id AS userId, expires_at AS expiresAt FROM recipient_download_tickets WHERE token_hash = ?')
+        .get(tokenHash);
     if (!access) return null;
-    if (access.expiresAt <= Date.now()) {
-        recipientDownloadTickets.delete(token);
+    if (access.expiresAt <= Math.floor(Date.now() / 1000)) {
+        db.prepare('DELETE FROM recipient_download_tickets WHERE token_hash = ?').run(tokenHash);
         return null;
     }
     return access;
@@ -442,13 +433,8 @@ function consumeRecipientDownloadToken(token) {
 
 async function handleRecipientMediaDownload(req, res) {
     try {
-        const access = req.method === 'HEAD'
-            ? recipientDownloadTickets.get(req.params.token)
-            : consumeRecipientDownloadToken(req.params.token);
-        if (!access || access.expiresAt <= Date.now()) {
-            if (req.method === 'HEAD') recipientDownloadTickets.delete(req.params.token);
-            return res.status(404).json({ error: 'File not found or download link expired' });
-        }
+        const access = getRecipientDownloadTicket(req.params.token);
+        if (!access) return res.status(404).json({ error: 'File not found or download link expired' });
 
         const reminder = db.prepare('SELECT user_id, images, message_ids FROM reminders WHERE id = ?').get(access.id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
@@ -465,13 +451,11 @@ async function handleRecipientMediaDownload(req, res) {
         if (!media) return res.status(404).json({ error: 'File not found' });
 
         const filePath = path.join(__dirname, '..', 'data', 'uploads', access.filename);
-        const encodedName = encodeURIComponent(media.name).replace(/[!'()*]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
-        res.setHeader('Content-Type', media.mime_type || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `attachment; filename="attachment.${path.extname(access.filename).slice(1)}"; filename*=UTF-8''${encodedName}`);
         res.setHeader('Cache-Control', 'private, no-store');
-        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('Referrer-Policy', 'no-referrer');
+        res.type(media.mime_type || 'application/octet-stream');
+        res.attachment(media.name);
         return res.sendFile(filePath);
     } catch (error) {
         console.error('Failed to download recipient attachment:', error.message);
