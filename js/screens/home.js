@@ -238,7 +238,7 @@ const HomeScreen = {
     
             if (sentList && sentPlaceholder) {
                 sentList.innerHTML = '';
-                const recentSent = sent.slice(0, 3);
+                const recentSent = sent.slice(0, 5);
                 if (recentSent.length === 0) {
                     sentPlaceholder.style.display = 'flex';
                     sentList.style.display = 'none';
@@ -247,7 +247,7 @@ const HomeScreen = {
                     sentList.style.display = 'flex';
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
-                        el.className = 'reminder-item';
+                        el.className = 'reminder-item sent-reminder-item';
                         const sentTime = this.formatSentTime(item);
                         const recipientsText = this.formatSentRecipients(item.recipients);
                         el.innerHTML = `
