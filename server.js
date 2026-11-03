@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const db = require('./db');
-const { authMiddleware, apiRateLimit } = require('./auth');
+const { authMiddleware, apiRateLimit, uploadRateLimit, reminderWriteRateLimit } = require('./auth');
 const { botInstance } = require('./bot');
 const { startScheduler } = require('./scheduler');
 
@@ -86,6 +86,14 @@ app.get('/api/uploads/:filename', (req, res) => {
 // Authenticate before parsing request bodies so unauthenticated clients cannot make the
 // JSON parser process large payloads. No client-supplied user ID is trusted.
 app.use('/api', authMiddleware, apiRateLimit);
+app.use('/api/reminders/upload-media', uploadRateLimit);
+app.use('/api/reminders/upload-image', uploadRateLimit);
+app.use('/api/reminders', (req, res, next) => {
+    if ((req.method === 'POST' && (req.path === '/' || req.path === '')) || req.method === 'PUT') {
+        return reminderWriteRateLimit(req, res, next);
+    }
+    return next();
+});
 app.use(express.json({ limit: '20mb', strict: true }));
 
 app.use('/api/templates', templatesRouter);
