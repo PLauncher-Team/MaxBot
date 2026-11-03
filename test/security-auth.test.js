@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHmac } = require('node:crypto');
-const { validateInitData } = require('../auth');
+const { validateInitData, parseUserIdSet, isUserAllowed } = require('../auth');
 
 const BOT_TOKEN = 'test-only-max-bot-token';
 const NOW_MS = Date.UTC(2026, 10, 3, 12, 0, 0);
@@ -25,29 +25,24 @@ function createSignedInitData({ userId = '123456789', authDate = NOW_SECONDS, ex
 }
 
 test('accepts valid and fresh MAX launch data', () => {
-    const initData = createSignedInitData();
-    assert.equal(validateInitData(initData, BOT_TOKEN, NOW_MS), '123456789');
+    assert.equal(validateInitData(createSignedInitData(), BOT_TOKEN, NOW_MS), '123456789');
 });
 
 test('rejects a signature made with another bot token', () => {
-    const initData = createSignedInitData();
-    assert.equal(validateInitData(initData, 'another-token', NOW_MS), null);
+    assert.equal(validateInitData(createSignedInitData(), 'another-token', NOW_MS), null);
 });
 
 test('rejects tampered launch data', () => {
-    const initData = createSignedInitData().replace('Test', 'Changed');
-    assert.equal(validateInitData(initData, BOT_TOKEN, NOW_MS), null);
+    assert.equal(validateInitData(createSignedInitData().replace('Test', 'Changed'), BOT_TOKEN, NOW_MS), null);
 });
 
 test('rejects launch data older than the configured default lifetime', () => {
     const authDate = NOW_SECONDS - (24 * 60 * 60) - 1;
-    const initData = createSignedInitData({ authDate });
-    assert.equal(validateInitData(initData, BOT_TOKEN, NOW_MS), null);
+    assert.equal(validateInitData(createSignedInitData({ authDate }), BOT_TOKEN, NOW_MS), null);
 });
 
 test('rejects launch data too far in the future', () => {
-    const initData = createSignedInitData({ authDate: NOW_SECONDS + 61 });
-    assert.equal(validateInitData(initData, BOT_TOKEN, NOW_MS), null);
+    assert.equal(validateInitData(createSignedInitData({ authDate: NOW_SECONDS + 61 }), BOT_TOKEN, NOW_MS), null);
 });
 
 test('rejects duplicate parameters', () => {
@@ -56,8 +51,7 @@ test('rejects duplicate parameters', () => {
 });
 
 test('rejects non-numeric user identifiers', () => {
-    const initData = createSignedInitData({ userId: 'user_local' });
-    assert.equal(validateInitData(initData, BOT_TOKEN, NOW_MS), null);
+    assert.equal(validateInitData(createSignedInitData({ userId: 'user_local' }), BOT_TOKEN, NOW_MS), null);
 });
 
 test('rejects malformed hashes and oversized input', () => {
@@ -65,4 +59,16 @@ test('rejects malformed hashes and oversized input', () => {
     const malformed = valid.replace(/hash=[^&]+/, 'hash=not-a-hash');
     assert.equal(validateInitData(malformed, BOT_TOKEN, NOW_MS), null);
     assert.equal(validateInitData('a'.repeat(16 * 1024 + 1), BOT_TOKEN, NOW_MS), null);
+});
+
+test('enforces a configured allowlist and denies all users when it is explicitly empty', () => {
+    const allowlist = parseUserIdSet('123456789,987654321', 'MAX_ALLOWED_USER_IDS');
+    assert.equal(isUserAllowed('123456789', true, allowlist), true);
+    assert.equal(isUserAllowed('111111111', true, allowlist), false);
+    assert.equal(isUserAllowed('111111111', true, new Set()), false);
+    assert.equal(isUserAllowed('111111111', false, new Set()), true);
+});
+
+test('rejects malformed allowlist entries instead of silently disabling the allowlist', () => {
+    assert.throws(() => parseUserIdSet('123456789,not-a-user', 'MAX_ALLOWED_USER_IDS'));
 });
