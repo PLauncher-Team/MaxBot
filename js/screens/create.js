@@ -128,7 +128,7 @@ const CreateScreen = {
     loadRecipientOptions: async function() {
         this.recipientLoadRequestId = (Number(this.recipientLoadRequestId) || 0) + 1;
         const requestId = this.recipientLoadRequestId;
-        const listIds = ['wizard-recipients-list', 'details-recipients-list'];
+        const listIds = ['wizard-recipients-list'];
         listIds.forEach(id => {
             const list = document.getElementById(id);
             if (list) list.textContent = 'Загружаем получателей...';
@@ -185,9 +185,7 @@ const CreateScreen = {
             timeoutIds.forEach(clearTimeout);
             if (requestId === this.recipientLoadRequestId) {
                 const wizardList = document.getElementById('wizard-recipients-list');
-                const detailsList = document.getElementById('details-recipients-list');
-                if (wizardList?.textContent === 'Загружаем получателей...' ||
-                    detailsList?.textContent === 'Загружаем получателей...') {
+                if (wizardList?.textContent === 'Загружаем получателей...') {
                     this.recipientLoadError = this.recipientLoadError || 'Не удалось отобразить список получателей. Попробуйте открыть шаг ещё раз';
                     this.renderSelectedRecipients();
                 }
@@ -502,11 +500,6 @@ const CreateScreen = {
         if (repeatTimeRow) {
             repeatTimeRow.style.display = 'none';
         }
-
-        ['wizard-recipient-search'].forEach(id => {
-            const search = document.getElementById(id);
-            if (search) search.value = '';
-        });
 
         this.selectedGroups = [];
         this.selectedPeople = [];
