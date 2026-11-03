@@ -363,7 +363,6 @@ const CreateScreen = {
         App.editingReminderId = reminder.id;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
-        const senderNameInput = document.getElementById('create-sender-name-input');
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendTimeRow = document.getElementById('send-time-picker-row');
         const sendDateTime = document.getElementById('send-datetime-input');
@@ -384,7 +383,7 @@ const CreateScreen = {
 
         if (titleInput) titleInput.value = reminder.title || '';
         if (descInput) descInput.value = reminder.description || '';
-        if (senderNameInput) senderNameInput.value = reminder.sender_name || '';
+        this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
         this.currentImages = Array.isArray(reminder.images)
             ? reminder.images.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3)
@@ -455,12 +454,21 @@ const CreateScreen = {
         if (saveBtn) saveBtn.childNodes[0].nodeValue = 'Сохранить изменения ';
     },
 
+    renderSenderProfile: function() {
+        const preview = document.getElementById('create-sender-profile');
+        if (!preview) return;
+        const user = window.WebApp?.initDataUnsafe?.user || {};
+        const name = [user.first_name, user.last_name].filter(value => typeof value === 'string' && value.trim()).join(' ')
+            || (typeof user.username === 'string' ? user.username : '');
+        const id = user.id === undefined || user.id === null ? '' : String(user.id);
+        preview.textContent = name ? name + (id ? ' — ' + id : '') : (id || 'Профиль MAX');
+    },
+
     populateForm: function(template) {
         this.editingSentReminder = false;
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
-        const senderNameInput = document.getElementById('create-sender-name-input');
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendTimeRow = document.getElementById('send-time-picker-row');
         const sendDateTime = document.getElementById('send-datetime-input');
@@ -480,16 +488,15 @@ const CreateScreen = {
 
         if (template) {
             if (titleInput) titleInput.value = template.title || '';
-            if (descInput) descInput.value = template.description || '';
-            if (senderNameInput) senderNameInput.value = '';
+            if (descInput) descInput.value = '';
             this.currentQuickReplies = Array.isArray(template.quick_replies) ? [...template.quick_replies] : [];
         } else {
             if (titleInput) titleInput.value = '';
             if (descInput) descInput.value = '';
-            if (senderNameInput) senderNameInput.value = '';
             this.currentQuickReplies = [];
         }
 
+        this.renderSenderProfile();
         this.currentImages = [];
 
         if (sendNowToggle) {
@@ -703,7 +710,6 @@ const CreateScreen = {
             saveReminderBtn.addEventListener('click', async () => {
                 const title = document.getElementById('create-title-input')?.value.trim();
                 const description = document.getElementById('create-desc-input')?.value.trim();
-                const senderName = document.getElementById('create-sender-name-input')?.value.trim() || '';
                 if (!title) {
                     App.showToast('Введите название напоминания');
                     return;
@@ -738,7 +744,6 @@ const CreateScreen = {
                 const payload = {
                     title,
                     description,
-                    sender_name: senderName,
                     send_now: sendNow,
                     scheduled_time: scheduledTime,
                     repeat_type: repeatType,

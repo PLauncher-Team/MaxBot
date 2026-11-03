@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createHmac } = require('node:crypto');
-const { validateInitData, parseUserIdSet, isUserAllowed } = require('../auth');
+const { validateInitData, getMaxUserProfileFromInitData, parseUserIdSet, isUserAllowed } = require('../auth');
 
 const BOT_TOKEN = 'test-only-max-bot-token';
 const NOW_MS = Date.UTC(2026, 10, 3, 12, 0, 0);
@@ -11,7 +11,7 @@ function createSignedInitData({ userId = '123456789', authDate = NOW_SECONDS, ex
     const params = new URLSearchParams();
     params.append('auth_date', String(authDate));
     params.append('query_id', 'test-query-id');
-    params.append('user', JSON.stringify({ id: userId, first_name: 'Test' }));
+    params.append('user', JSON.stringify({ id: userId, first_name: 'Test', last_name: 'Teacher', username: 'test.teacher' }));
     for (const [key, value] of extra) params.append(key, value);
 
     const dataCheckString = [...params.entries()]
@@ -26,6 +26,30 @@ function createSignedInitData({ userId = '123456789', authDate = NOW_SECONDS, ex
 
 test('accepts valid and fresh MAX launch data', () => {
     assert.equal(validateInitData(createSignedInitData(), BOT_TOKEN, NOW_MS), '123456789');
+});
+
+test('returns the account name from verified MAX launch data', () => {
+    assert.deepEqual(
+        getMaxUserProfileFromInitData(createSignedInitData(), BOT_TOKEN, NOW_MS),
+        { id: '123456789', name: 'Test Teacher' }
+    );
+});
+
+test('uses the MAX username when the account has no first or last name', () => {
+    const params = new URLSearchParams();
+    params.append('auth_date', String(NOW_SECONDS));
+    params.append('query_id', 'test-query-id');
+    params.append('user', JSON.stringify({ id: '123456789', username: 'test.teacher' }));
+    const dataCheckString = [...params.entries()]
+        .sort(([left], [right]) => left < right ? -1 : (left > right ? 1 : 0))
+        .map(([key, value]) => key + '=' + value)
+        .join('\n');
+    const secretKey = createHmac('sha256', 'WebAppData').update(BOT_TOKEN).digest();
+    params.append('hash', createHmac('sha256', secretKey).update(dataCheckString).digest('hex'));
+    assert.deepEqual(
+        getMaxUserProfileFromInitData(params.toString(), BOT_TOKEN, NOW_MS),
+        { id: '123456789', name: 'test.teacher' }
+    );
 });
 
 test('rejects a signature made with another bot token', () => {
