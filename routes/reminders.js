@@ -271,8 +271,8 @@ router.post('/upload-image', (req, res) => {
 
 router.delete('/:id', async (req, res) => {
     try {
-        const id = parseInt(req.params.id, 10);
-        if (isNaN(id) || id <= 0) {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
         const reminder = db.prepare('SELECT status, message_ids FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
@@ -323,7 +323,11 @@ router.post('/', async (req, res) => {
             recipients,
             quick_replies,
             images
-        } = req.body;
+        } = req.body || {};
+
+        if (typeof send_now !== 'boolean') {
+            return res.status(400).json({ error: 'send_now must be a boolean' });
+        }
 
         if (!title || typeof title !== 'string') {
             return res.status(400).json({ error: 'Title required' });
@@ -394,8 +398,8 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
     try {
-        const id = parseInt(req.params.id, 10);
-        if (isNaN(id) || id <= 0) {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
 
@@ -414,7 +418,11 @@ router.put('/:id', async (req, res) => {
             recipients,
             quick_replies,
             images
-        } = req.body;
+        } = req.body || {};
+
+        if (typeof send_now !== 'boolean') {
+            return res.status(400).json({ error: 'send_now must be a boolean' });
+        }
 
         if (!title || typeof title !== 'string') {
             return res.status(400).json({ error: 'Title required' });
