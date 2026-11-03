@@ -19,20 +19,15 @@ const App = {
     },
 
     getAuthHeaders: function() {
-        const headers = {
-            'X-User-Id': this.getUserId()
-        };
-        if (window.WebApp && typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0) {
-            headers['X-Webapp-Init-Data'] = window.WebApp.initData;
-        }
-        return headers;
+        const initData = window.WebApp && typeof window.WebApp.initData === 'string'
+            ? window.WebApp.initData
+            : '';
+        return initData ? { 'X-Webapp-Init-Data': initData } : {};
     },
 
     getUserId: function() {
-        if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
-            return String(window.WebApp.initDataUnsafe.user.id);
-        }
-        return 'user_local';
+        const userId = window.WebApp?.initDataUnsafe?.user?.id;
+        return userId === undefined || userId === null ? null : String(userId);
     },
 
     isMaxApp: function() {
@@ -87,67 +82,33 @@ const App = {
     },
 
     getTemplates: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/templates', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_templates_' + userId;
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            return JSON.parse(local);
+        const res = await fetch('/api/templates', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить шаблоны');
         }
-
-        const defaults = [
-            {
-                id: 1,
-                title: 'Для соревнования',
-                description: 'Соревнование по [дисциплина].\nЗаявки принимаются с [дата/время] до [дата/время].\nПроводится с [дата/время] до [дата/время].',
-                quick_replies: [
-                    { question: 'Где?', answer: 'В спортивном комплексе школы' },
-                    { question: 'Когда?', answer: 'В субботу в 10:00' }
-                ]
-            },
-            {
-                id: 2,
-                title: 'Для справки об отсутствии',
-                description: 'Уважаемые родители, напоминаем о необходимости предоставить медицинскую справку или заявление об отсутствии ученика с указанием периода и причины.',
-                quick_replies: [
-                    { question: 'Какую именно справку надо?', answer: 'Справка от врача-педиатра с допуском к занятиям' },
-                    { question: 'Куда приносить?', answer: 'Классному руководителю или медпункт' }
-                ]
-            }
-        ];
-        localStorage.setItem(storageKey, JSON.stringify(defaults));
-        return defaults;
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список шаблонов');
+        }
+        return data;
     },
 
     saveTemplate: async function(template) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/templates', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(template)
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const templates = await this.getTemplates();
-        template.id = Date.now();
-        templates.push(template);
-        localStorage.setItem('maxapp_templates_' + userId, JSON.stringify(templates));
-        return template;
+        const res = await fetch('/api/templates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(template)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось сохранить шаблон');
+        }
+        return data;
     },
 
     deleteTemplate: async function(id) {
@@ -160,30 +121,21 @@ const App = {
             throw new Error(data?.error || 'Не удалось удалить шаблон');
         }
 
-        const storageKey = 'maxapp_templates_' + this.getUserId();
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            const templates = JSON.parse(local).filter(template => String(template.id) !== String(id));
-            localStorage.setItem(storageKey, JSON.stringify(templates));
-        }
-
         return data;
     },
 
     getReminders: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/reminders', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_reminders_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+        const res = await fetch('/api/reminders', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить напоминания');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список напоминаний');
+        }
+        return data;
     },
 
     deleteReminder: async function(id) {
@@ -376,26 +328,19 @@ const App = {
     },
 
     saveReminder: async function(reminder) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/reminders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(reminder)
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const reminders = await this.getReminders();
-        reminder.id = Date.now();
-        reminders.unshift(reminder);
-        localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(reminders));
-        return reminder;
+        const res = await fetch('/api/reminders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(reminder)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось сохранить напоминание');
+        }
+        return data;
     },
 
     renderModalReplies: function() {
