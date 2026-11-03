@@ -439,8 +439,13 @@ function consumeRecipientDownloadToken(token) {
 
 async function handleRecipientMediaDownload(req, res) {
     try {
-        const access = consumeRecipientDownloadToken(req.params.token);
-        if (!access) return res.status(404).json({ error: 'File not found or download link expired' });
+        const access = req.method === 'HEAD'
+            ? recipientDownloadTickets.get(req.params.token)
+            : consumeRecipientDownloadToken(req.params.token);
+        if (!access || access.expiresAt <= Date.now()) {
+            if (req.method === 'HEAD') recipientDownloadTickets.delete(req.params.token);
+            return res.status(404).json({ error: 'File not found or download link expired' });
+        }
 
         const reminder = db.prepare('SELECT user_id, images, message_ids FROM reminders WHERE id = ?').get(access.id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
