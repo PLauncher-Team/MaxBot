@@ -9,7 +9,7 @@ const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../sche
 
 const router = express.Router();
 
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\\/+$/, '');
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
 const MAX_UPLOAD_BYTES = 14 * 1024 * 1024;
 const MEDIA_TYPES = {
     'image/png': { kind: 'image', ext: 'png' },
@@ -48,7 +48,7 @@ function hasValidMediaSignature(buffer, mimeType) {
 function decodeUploadedMedia(data, imagesOnly = false) {
     if (typeof data !== 'string' || data.length === 0) return null;
 
-    const match = /^data:(image|video)\\/([a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
+    const match = /^data:(image|video)\/([a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
     if (!match) return null;
 
     const mimeType = (match[1] + '/' + match[2]).toLowerCase();
@@ -81,7 +81,7 @@ function storeUploadedMedia(media) {
     fs.writeFileSync(filePath, media.buffer, { flag: 'wx', mode: 0o644 });
 
     return {
-        url: PUBLIC_BASE_URL + '/api/uploads/' + filename,
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
         type: media.kind,
         filename
     };
@@ -93,7 +93,7 @@ function sanitizeUploadedImages(images) {
 
     let publicOrigin;
     try {
-        const publicUrl = new URL(PUBLIC_BASE_URL);
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
         if (publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) return null;
         publicOrigin = publicUrl.origin;
     } catch (error) {
@@ -108,7 +108,7 @@ function sanitizeUploadedImages(images) {
         if (typeof item.filename !== 'string' || typeof item.url !== 'string') return null;
         if (item.type !== 'image' && item.type !== 'video') return null;
 
-        const match = /^(img|vid)_([a-f0-9]{16}|[a-f0-9]{32})\\.(png|jpg|gif|webp|mp4|mov|webm)$/i.exec(item.filename);
+        const match = /^(img|vid)_([a-f0-9]{16}|[a-f0-9]{32})\.(png|jpg|gif|webp|mp4|mov|webm)$/i.exec(item.filename);
         if (!match) return null;
 
         const isVideoExtension = ['mp4', 'mov', 'webm'].includes(match[3].toLowerCase());
@@ -164,7 +164,7 @@ function sanitizeQuickReplies(quickReplies) {
 
 function isValidScheduledTime(value) {
     if (typeof value !== 'string') return false;
-    const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/.exec(value);
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
     if (!match) return false;
 
     const [, year, month, day, hours, minutes] = match.map(Number);
