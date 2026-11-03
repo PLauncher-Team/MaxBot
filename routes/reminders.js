@@ -434,7 +434,7 @@ router.post('/', async (req, res) => {
         }
         const cleanRepeatType = repeat_type;
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
-        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(cleanRepeatTime || '')) {
+        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(cleanRepeatTime || '')) {
             return res.status(400).json({ error: 'repeat_time must use HH:mm format' });
         }
         if (!send_now && (!isValidScheduledTime(scheduled_time) || scheduled_time <= getMoscowDateTimeString())) {
@@ -541,7 +541,7 @@ router.put('/:id', async (req, res) => {
         }
         const cleanRepeatType = repeat_type;
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
-        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(cleanRepeatTime || '')) {
+        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(cleanRepeatTime || '')) {
             return res.status(400).json({ error: 'repeat_time must use HH:mm format' });
         }
         if (!send_now && (!isValidScheduledTime(scheduled_time) || scheduled_time <= getMoscowDateTimeString())) {
