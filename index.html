@@ -267,7 +267,12 @@
                 <div class="create-section wizard-intro-section">
                     <div class="create-section-title">Кому отправить напоминание?</div>
                     <p class="wizard-step-description">Выберите группы, отдельных участников или отправку себе.</p>
-                    <input type="search" class="recipient-search-input" id="wizard-recipient-search" placeholder="Поиск групп и участников" autocomplete="off">
+                    <div class="recipient-filter-tabs" role="group" aria-label="Фильтр получателей">
+                        <button type="button" data-recipient-filter="all" class="active" aria-pressed="true">Все</button>
+                        <button type="button" data-recipient-filter="groups" aria-pressed="false">Группы</button>
+                        <button type="button" data-recipient-filter="people" aria-pressed="false">Люди</button>
+                    </div>
+                    <input type="search" class="recipient-search-input" id="wizard-recipient-search" placeholder="Поиск по названию" autocomplete="off">
                     <button type="button" class="wizard-self-option" id="wizard-self-option" aria-pressed="true">
                         <span class="wizard-recipient-check"></span>
                         <span class="wizard-recipient-option-copy"><strong>Себе</strong><small>Личное сообщение</small></span>
@@ -295,13 +300,8 @@
 
             <div class="create-section">
                 <div class="create-section-title">Получатели</div>
-                <p class="wizard-step-description">Здесь можно изменить выбор групп и отдельных участников.</p>
-                <div class="create-row" style="margin-top: 12px;">
-                    <div class="create-row-left">Отправить копию себе</div>
-                    <div class="toggle-switch active" id="send-to-self-toggle" role="switch" aria-label="Отправить копию себе"></div>
-                </div>
-                <input type="search" class="recipient-search-input details-recipient-search" id="details-recipient-search" placeholder="Найти группу или участника" autocomplete="off">
-                <div class="wizard-recipient-list details-recipient-list" id="details-recipients-list"></div>
+                <p class="wizard-step-description">Проверьте выбранных получателей. Чтобы изменить список, вернитесь на предыдущий этап.</p>
+                <div class="recipient-summary-list" id="details-recipients-summary"></div>
             </div>
 
             <div class="create-section">
@@ -403,6 +403,6 @@
 <script src="js/app.js?v=16"></script>
 <script src="js/screens/home.js?v=21"></script>
 <script src="js/screens/templates.js?v=10"></script>
-<script src="js/screens/create.js?v=16"></script>
+<script src="js/screens/create.js?v=17"></script>
 </body>
 </html>
