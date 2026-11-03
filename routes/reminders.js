@@ -87,6 +87,95 @@ function storeUploadedMedia(media) {
     };
 }
 
+function sanitizeUploadedImages(images) {
+    if (images === undefined || images === null) return [];
+    if (!Array.isArray(images) || images.length > 11) return null;
+
+    let publicOrigin;
+    try {
+        const publicUrl = new URL(PUBLIC_BASE_URL);
+        if (publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash) return null;
+        publicOrigin = publicUrl.origin;
+    } catch (error) {
+        return null;
+    }
+
+    const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+    const result = [];
+
+    for (const item of images) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+        if (typeof item.filename !== 'string' || typeof item.url !== 'string') return null;
+        if (item.type !== 'image' && item.type !== 'video') return null;
+
+        const match = /^(img|vid)_([a-f0-9]{16}|[a-f0-9]{32})\\.(png|jpg|gif|webp|mp4|mov|webm)$/i.exec(item.filename);
+        if (!match) return null;
+
+        const isVideoExtension = ['mp4', 'mov', 'webm'].includes(match[3].toLowerCase());
+        if ((item.type === 'video') !== isVideoExtension || (match[1].toLowerCase() === 'vid') !== isVideoExtension) {
+            return null;
+        }
+
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(item.url);
+        } catch (error) {
+            return null;
+        }
+
+        if (
+            parsedUrl.origin !== publicOrigin ||
+            parsedUrl.pathname !== '/api/uploads/' + item.filename ||
+            parsedUrl.search ||
+            parsedUrl.hash
+        ) {
+            return null;
+        }
+
+        const filePath = path.join(uploadsDir, item.filename);
+        try {
+            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+        } catch (error) {
+            return null;
+        }
+
+        result.push({
+            url: parsedUrl.toString(),
+            type: item.type,
+            filename: item.filename
+        });
+    }
+
+    return result;
+}
+
+function sanitizeQuickReplies(quickReplies) {
+    if (quickReplies === undefined || quickReplies === null) return [];
+    if (!Array.isArray(quickReplies) || quickReplies.length > 20) return null;
+
+    return quickReplies
+        .filter(reply => reply && typeof reply === 'object' && !Array.isArray(reply))
+        .map(reply => ({
+            question: typeof reply.question === 'string' ? reply.question.trim().slice(0, 150) : '',
+            answer: typeof reply.answer === 'string' ? reply.answer.trim().slice(0, 500) : ''
+        }))
+        .filter(reply => reply.question.length > 0);
+}
+
+function isValidScheduledTime(value) {
+    if (typeof value !== 'string') return false;
+    const match = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})$/.exec(value);
+    if (!match) return false;
+
+    const [, year, month, day, hours, minutes] = match.map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day, hours, minutes));
+    return parsed.getUTCFullYear() === year &&
+        parsed.getUTCMonth() === month - 1 &&
+        parsed.getUTCDate() === day &&
+        parsed.getUTCHours() === hours &&
+        parsed.getUTCMinutes() === minutes;
+}
+
 
 function safeJsonParse(data, fallback = []) {
     if (!data || typeof data !== 'string') return fallback;
@@ -340,8 +429,17 @@ router.post('/', async (req, res) => {
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
         const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
-        const cleanRepeatType = validRepeatTypes.includes(repeat_type) ? repeat_type : 'Никогда';
+        if (!validRepeatTypes.includes(repeat_type)) {
+            return res.status(400).json({ error: 'Invalid repeat_type' });
+        }
+        const cleanRepeatType = repeat_type;
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
+        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(cleanRepeatTime || '')) {
+            return res.status(400).json({ error: 'repeat_time must use HH:mm format' });
+        }
+        if (!send_now && (!isValidScheduledTime(scheduled_time) || scheduled_time <= getMoscowDateTimeString())) {
+            return res.status(400).json({ error: 'scheduled_time must be a valid future date and time' });
+        }
         const cleanScheduledTime = send_now && cleanRepeatType !== 'Никогда' ? getMoscowDateTimeString() : (typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null);
         const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
 
@@ -350,12 +448,15 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'At least one recipient required' });
         }
 
-        const validReplies = Array.isArray(quick_replies) ? quick_replies.slice(0, 20).map(r => ({
-            question: String(r.question || '').trim().slice(0, 150),
-            answer: String(r.answer || '').trim().slice(0, 500)
-        })).filter(r => r.question.length > 0) : [];
+        const validReplies = sanitizeQuickReplies(quick_replies);
+        if (!validReplies) {
+            return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
+        }
 
-        const validImages = Array.isArray(images) ? images.slice(0, 11) : [];
+        const validImages = sanitizeUploadedImages(images);
+        if (!validImages) {
+            return res.status(400).json({ error: 'Images must be uploaded through this application' });
+        }
 
         const stmt = db.prepare(`
             INSERT INTO reminders (
@@ -435,8 +536,17 @@ router.put('/:id', async (req, res) => {
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
         const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
-        const cleanRepeatType = validRepeatTypes.includes(repeat_type) ? repeat_type : 'Никогда';
+        if (!validRepeatTypes.includes(repeat_type)) {
+            return res.status(400).json({ error: 'Invalid repeat_type' });
+        }
+        const cleanRepeatType = repeat_type;
         const cleanRepeatTime = typeof repeat_time === 'string' ? repeat_time.slice(0, 10) : null;
+        if (cleanRepeatType !== 'Никогда' && !/^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(cleanRepeatTime || '')) {
+            return res.status(400).json({ error: 'repeat_time must use HH:mm format' });
+        }
+        if (!send_now && (!isValidScheduledTime(scheduled_time) || scheduled_time <= getMoscowDateTimeString())) {
+            return res.status(400).json({ error: 'scheduled_time must be a valid future date and time' });
+        }
         const cleanScheduledTime = send_now && cleanRepeatType !== 'Никогда' ? getMoscowDateTimeString() : (typeof scheduled_time === 'string' ? scheduled_time.slice(0, 30) : null);
         const status = send_now && cleanRepeatType === 'Никогда' ? 'sent' : 'scheduled';
 
@@ -445,12 +555,15 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ error: 'At least one recipient required' });
         }
 
-        const validReplies = Array.isArray(quick_replies) ? quick_replies.slice(0, 20).map(r => ({
-            question: String(r.question || '').trim().slice(0, 150),
-            answer: String(r.answer || '').trim().slice(0, 500)
-        })).filter(r => r.question.length > 0) : [];
+        const validReplies = sanitizeQuickReplies(quick_replies);
+        if (!validReplies) {
+            return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
+        }
 
-        const validImages = Array.isArray(images) ? images.slice(0, 11) : [];
+        const validImages = sanitizeUploadedImages(images);
+        if (!validImages) {
+            return res.status(400).json({ error: 'Images must be uploaded through this application' });
+        }
 
         if (existing.status === 'sent') {
             const oldRecipients = safeJsonParse(existing.recipients, []);
