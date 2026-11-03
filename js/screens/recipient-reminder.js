@@ -49,19 +49,11 @@ const RecipientReminder = {
         const media = Array.isArray(reminder.images) ? reminder.images : [];
         media.forEach(item => {
             if (!item || typeof item.url !== 'string') return;
-            const element = item.type === 'video'
-                ? document.createElement('video')
-                : document.createElement('img');
+            const element = document.createElement('img');
             element.className = 'recipient-reminder-media-item';
             element.src = item.url;
-            if (element.tagName === 'VIDEO') {
-                element.controls = true;
-                element.preload = 'metadata';
-                element.playsInline = true;
-            } else {
-                element.alt = reminder.title || 'Изображение';
-                element.loading = 'lazy';
-            }
+            element.alt = reminder.title || 'Изображение';
+            element.loading = 'lazy';
             mediaContainer.appendChild(element);
         });
         mediaContainer.style.display = mediaContainer.childElementCount > 0 ? 'grid' : 'none';
@@ -74,8 +66,21 @@ const RecipientReminder = {
             button.type = 'button';
             button.className = 'recipient-reminder-reply-button';
             button.textContent = reply.question;
-            button.addEventListener('click', () => this.sendReply(reply.index, button));
-            repliesList.appendChild(button);
+            const answer = document.createElement('div');
+            answer.className = 'recipient-reminder-reply-answer';
+            answer.textContent = reply.answer || '';
+            answer.hidden = true;
+            button.setAttribute('aria-expanded', 'false');
+            button.addEventListener('click', () => {
+                const expanded = answer.hidden;
+                answer.hidden = !expanded;
+                button.setAttribute('aria-expanded', String(expanded));
+                button.classList.toggle('is-expanded', expanded);
+            });
+            const item = document.createElement('div');
+            item.className = 'recipient-reminder-reply-item';
+            item.append(button, answer);
+            repliesList.appendChild(item);
         });
 
         repliesSection.style.display = repliesList.childElementCount > 0 ? 'block' : 'none';
@@ -83,29 +88,4 @@ const RecipientReminder = {
         card.style.display = 'block';
     },
 
-    sendReply: async function(replyIndex, button) {
-        if (button.disabled || !Number.isSafeInteger(replyIndex)) return;
-        button.disabled = true;
-
-        try {
-            const response = await fetch(
-                '/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/replies/' + encodeURIComponent(replyIndex),
-                {
-                    method: 'POST',
-                    headers: App.getAuthHeaders()
-                }
-            );
-            const data = await response.json().catch(() => null);
-            if (!response.ok) {
-                throw new Error(data?.error || 'Не удалось отправить ответ');
-            }
-
-            button.classList.add('is-sent');
-            button.textContent = button.textContent + ' ✓';
-            App.showToast('Ответ отправлен в чат');
-        } catch (error) {
-            button.disabled = false;
-            App.showToast(error.message || 'Не удалось отправить ответ');
-        }
-    }
 };

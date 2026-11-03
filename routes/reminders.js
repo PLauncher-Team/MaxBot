@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
-const { sendBroadcastMessage, sendQuickReplyMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
+const { sendBroadcastMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
 const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
@@ -124,7 +124,7 @@ async function getRecipientChatId(reminder, messageIds, userId) {
 
 function sanitizeUploadedImages(images) {
     if (images === undefined || images === null) return [];
-    if (!Array.isArray(images) || images.length > 11) return null;
+    if (!Array.isArray(images) || images.length > 3) return null;
 
     let publicOrigin;
     try {
@@ -141,15 +141,10 @@ function sanitizeUploadedImages(images) {
     for (const item of images) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
         if (typeof item.filename !== 'string' || typeof item.url !== 'string') return null;
-        if (item.type !== 'image' && item.type !== 'video') return null;
+        if (item.type !== 'image') return null;
 
-        const match = /^(img|vid)_([a-f0-9]{16}|[a-f0-9]{32})\.(png|jpg|gif|webp|mp4|mov|webm)$/i.exec(item.filename);
+        const match = /^img_([a-f0-9]{16}|[a-f0-9]{32})\.(png|jpg|gif|webp)$/i.exec(item.filename);
         if (!match) return null;
-
-        const isVideoExtension = ['mp4', 'mov', 'webm'].includes(match[3].toLowerCase());
-        if ((item.type === 'video') !== isVideoExtension || (match[1].toLowerCase() === 'vid') !== isVideoExtension) {
-            return null;
-        }
 
         let parsedUrl;
         try {
@@ -313,7 +308,7 @@ router.get('/public/:id', async (req, res) => {
                 question: typeof reply?.question === 'string' ? reply.question.trim().slice(0, 150) : '',
                 answer: typeof reply?.answer === 'string' ? reply.answer.trim().slice(0, 500) : ''
             })).filter(reply => reply.question && reply.answer)
-                .map(({ index, question }) => ({ index, question }))
+                .map(({ index, question, answer }) => ({ index, question, answer }))
             : [];
         const savedImages = safeJsonParse(reminder.images, []);
         const validImages = sanitizeUploadedImages(savedImages);
@@ -331,40 +326,6 @@ router.get('/public/:id', async (req, res) => {
     } catch (error) {
         console.error('Failed to fetch recipient reminder:', error.message);
         return res.status(500).json({ error: 'Failed to fetch reminder' });
-    }
-});
-
-router.post('/public/:id/replies/:replyIndex', async (req, res) => {
-    try {
-        const id = Number(req.params.id);
-        const replyIndex = Number(req.params.replyIndex);
-        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(replyIndex) || replyIndex < 0) {
-            return res.status(400).json({ error: 'Invalid quick reply' });
-        }
-
-        const reminder = db.prepare('SELECT user_id, quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
-        const messageIds = safeJsonParse(reminder?.message_ids, {});
-        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
-        if (!reminder || !chatId) {
-            return res.status(404).json({ error: 'Reminder not found' });
-        }
-
-        const quickReplies = safeJsonParse(reminder.quick_replies, []);
-        const selectedReply = Array.isArray(quickReplies) ? quickReplies[replyIndex] : null;
-        const answer = typeof selectedReply?.answer === 'string' ? selectedReply.answer.trim().slice(0, 500) : '';
-        if (!answer) {
-            return res.status(404).json({ error: 'Quick reply not found' });
-        }
-
-        const sent = await sendQuickReplyMessage(id, chatId, String(req.userId), answer);
-        if (!sent) {
-            return res.status(502).json({ error: 'Не удалось отправить ответ в MAX. Попробуйте ещё раз.' });
-        }
-
-        return res.json({ success: true });
-    } catch (error) {
-        console.error('Failed to send recipient quick reply:', error.message);
-        return res.status(500).json({ error: 'Failed to send quick reply' });
     }
 });
 
@@ -443,7 +404,7 @@ router.get('/', (req, res) => {
 
 router.post('/upload-media', (req, res) => {
     try {
-        const media = decodeUploadedMedia(req.body?.media_data, false);
+        const media = decodeUploadedMedia(req.body?.media_data, true);
         if (!media) {
             return res.status(400).json({ error: 'Unsupported or invalid media file. Use PNG, JPEG, GIF, WEBP, MP4, MOV or WEBM.' });
         }

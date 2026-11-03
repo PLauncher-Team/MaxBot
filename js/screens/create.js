@@ -344,19 +344,10 @@ const CreateScreen = {
             const thumb = document.createElement('div');
             thumb.className = 'image-preview-thumb';
             const imgUrl = typeof imgObj === 'string' ? imgObj : (imgObj.url || '');
-            const isVideo = (typeof imgObj === 'object' && imgObj.type === 'video') || /\.(mp4|mov|webm|avi|mkv)$/i.test(imgUrl);
-
-            if (isVideo) {
-                thumb.innerHTML = `
-                    <video src="${App.escapeHtml(imgUrl)}" style="width: 100%; height: 100%; object-fit: cover;"></video>
-                    <button type="button" class="image-preview-del" data-index="${index}">✕</button>
-                `;
-            } else {
-                thumb.innerHTML = `
-                    <img src="${App.escapeHtml(imgUrl)}" alt="preview">
-                    <button type="button" class="image-preview-del" data-index="${index}">✕</button>
-                `;
-            }
+            thumb.innerHTML = `
+                <img src="${App.escapeHtml(imgUrl)}" alt="preview">
+                <button type="button" class="image-preview-del" data-index="${index}">✕</button>
+            `;
 
             thumb.querySelector('.image-preview-del').addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -662,8 +653,8 @@ const CreateScreen = {
 
         if (addMediaBtn && createMediaInput) {
             addMediaBtn.addEventListener('click', () => {
-                if (this.currentImages.length >= 11) {
-                    App.showToast('Максимум 11 файлов');
+                if (this.currentImages.length >= 3) {
+                    App.showToast('Можно прикрепить максимум 3 фото');
                     return;
                 }
                 createMediaInput.click();
@@ -673,21 +664,26 @@ const CreateScreen = {
                 const files = Array.from(e.target.files || []);
                 if (files.length === 0) return;
 
-                const availableSlots = 11 - this.currentImages.length;
+                const imageFiles = files.filter(file => file.type.startsWith('image/'));
+                if (imageFiles.length !== files.length) App.showToast('Можно прикреплять только фотографии');
+                const availableSlots = 3 - this.currentImages.length;
                 if (availableSlots <= 0) {
-                    App.showToast('Максимум 11 файлов');
+                    App.showToast('Можно прикрепить максимум 3 фото');
+                    createMediaInput.value = '';
                     return;
                 }
 
-                const processFiles = files.slice(0, availableSlots);
+                const processFiles = imageFiles.slice(0, availableSlots);
+                if (imageFiles.length > availableSlots) App.showToast('Можно прикрепить максимум 3 фото');
                 for (const file of processFiles) {
                     const reader = new FileReader();
                     reader.onload = async (event) => {
-                        const base64 = event.target.result;
-                        const uploaded = await App.uploadMedia(base64);
+                        const uploaded = await App.uploadImage(event.target.result);
                         if (uploaded && uploaded.url) {
-                            this.currentImages.push({ url: uploaded.url, type: uploaded.type, filename: uploaded.filename });
+                            this.currentImages.push({ url: uploaded.url, type: 'image', filename: uploaded.filename });
                             this.renderImagesPreview();
+                        } else {
+                            App.showToast('Не удалось загрузить фото');
                         }
                     };
                     reader.readAsDataURL(file);

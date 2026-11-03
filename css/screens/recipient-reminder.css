@@ -34,24 +34,23 @@
 }
 
 .recipient-reminder-media {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 3px;
-    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: var(--surface-muted, #f1f4f9);
 }
 
 .recipient-reminder-media-item {
     display: block;
     width: 100%;
+    height: auto;
+    max-height: 68vh;
     min-width: 0;
-    aspect-ratio: 1 / 1;
     border: 0;
-    background: var(--surface-muted, #f1f4f9);
-    object-fit: cover;
-}
-
-.recipient-reminder-media-item:only-child {
-    aspect-ratio: 16 / 10;
+    border-radius: 12px;
+    background: var(--surface, #fff);
+    object-fit: contain;
 }
 
 .recipient-reminder-copy {
@@ -90,7 +89,32 @@
 .recipient-reminder-replies-list {
     display: flex;
     flex-direction: column;
-    gap: 9px;
+    gap: 10px;
+}
+
+.recipient-reminder-reply-item {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.recipient-reminder-reply-answer {
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--text, #273247);
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-reply-answer[hidden] {
+    display: none;
+}
+
+.recipient-reminder-reply-button.is-expanded {
+    border-color: var(--accent, #667eea);
 }
 
 .recipient-reminder-reply-button {
