@@ -120,7 +120,7 @@ async function editMaxMessage(botToken, mid, text, sender = null) {
     if (!botToken || !mid) return false;
     try {
         const senderId = String(sender?.id || '').replace(/[^0-9]/g, '');
-        const senderName = String(sender?.name || '').trim().replace(/[&<>"]/g, '');
+        const senderName = String(sender?.name || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const senderMarkup = senderId
             ? '<blockquote>От кого: <a href="max://user/' + senderId + '">' + (senderName || 'Учитель') + ' — ' + senderId + '</a></blockquote>'
             : '';
@@ -444,7 +444,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
         ]));
 
         const senderId = String(sender?.id || '').trim();
-        const senderName = String(sender?.name || '').trim().replace(/[&<>"]/g, '');
+        const senderName = String(sender?.name || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const senderMarkup = senderId
             ? '<blockquote>От кого: <a href="max://user/' + senderId.replace(/[^0-9]/g, '') + '">' + (senderName || 'Учитель') + ' — ' + senderId.replace(/[^0-9]/g, '') + '</a></blockquote>'
             : '';
