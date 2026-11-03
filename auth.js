@@ -20,17 +20,25 @@ const INIT_DATA_TTL_SECONDS = parsePositiveInteger(
     DEFAULT_INIT_DATA_TTL_SECONDS
 );
 
-function parseUserIdSet(value) {
-    return new Set(
-        String(value || '')
-            .split(',')
-            .map(id => id.trim())
-            .filter(id => /^[0-9]{1,32}$/.test(id) && !/^0+$/.test(id))
-    );
+function parseUserIdSet(value, variableName) {
+    const raw = String(value ?? '');
+    if (!raw.trim()) return new Set();
+
+    const values = raw.split(',').map(id => id.trim());
+    if (values.some(id => !/^[0-9]{1,32}$/.test(id) || /^0+$/.test(id))) {
+        throw new Error(variableName + ' must contain comma-separated numeric MAX user IDs');
+    }
+
+    return new Set(values);
 }
 
-const ALLOWED_USER_IDS = parseUserIdSet(process.env.MAX_ALLOWED_USER_IDS);
-const BLOCKED_USER_IDS = parseUserIdSet(process.env.MAX_BLOCKED_USER_IDS);
+const ALLOWLIST_ENABLED = Object.prototype.hasOwnProperty.call(process.env, 'MAX_ALLOWED_USER_IDS');
+const ALLOWED_USER_IDS = parseUserIdSet(process.env.MAX_ALLOWED_USER_IDS, 'MAX_ALLOWED_USER_IDS');
+const BLOCKED_USER_IDS = parseUserIdSet(process.env.MAX_BLOCKED_USER_IDS, 'MAX_BLOCKED_USER_IDS');
+
+function isUserAllowed(userId, allowlistEnabled = ALLOWLIST_ENABLED, allowedUserIds = ALLOWED_USER_IDS) {
+    return !allowlistEnabled || allowedUserIds.has(String(userId));
+}
 
 function validateInitData(initData, token, nowMs = Date.now()) {
     if (
@@ -46,10 +54,8 @@ function validateInitData(initData, token, nowMs = Date.now()) {
     try {
         const params = new URLSearchParams(initData);
         const entries = [...params.entries()];
-
         if (entries.length < 3) return null;
 
-        // MAX requires every launch parameter to appear exactly once.
         const seenKeys = new Set();
         for (const [key] of entries) {
             if (!key || seenKeys.has(key)) return null;
@@ -59,9 +65,7 @@ function validateInitData(initData, token, nowMs = Date.now()) {
         const hashes = params.getAll('hash');
         const authDates = params.getAll('auth_date');
         const users = params.getAll('user');
-        if (hashes.length !== 1 || authDates.length !== 1 || users.length !== 1) {
-            return null;
-        }
+        if (hashes.length !== 1 || authDates.length !== 1 || users.length !== 1) return null;
 
         const receivedHash = hashes[0];
         if (!/^[a-f0-9]{64}$/i.test(receivedHash)) return null;
@@ -71,43 +75,25 @@ function validateInitData(initData, token, nowMs = Date.now()) {
 
         const nowSeconds = Math.floor(nowMs / 1000);
         const ageSeconds = nowSeconds - authDate;
-        if (
-            ageSeconds > INIT_DATA_TTL_SECONDS ||
-            ageSeconds < -MAX_FUTURE_CLOCK_SKEW_SECONDS
-        ) {
-            return null;
-        }
+        if (ageSeconds > INIT_DATA_TTL_SECONDS || ageSeconds < -MAX_FUTURE_CLOCK_SKEW_SECONDS) return null;
 
         const user = JSON.parse(users[0]);
-        if (!user || typeof user !== 'object' || Array.isArray(user) || user.id === undefined || user.id === null) {
-            return null;
-        }
+        if (!user || typeof user !== 'object' || Array.isArray(user) || user.id === undefined || user.id === null) return null;
 
         const userId = String(user.id);
-        if (!/^[0-9]{1,32}$/.test(userId) || /^0+$/.test(userId)) {
-            return null;
-        }
+        if (!/^[0-9]{1,32}$/.test(userId) || /^0+$/.test(userId)) return null;
 
         const dataCheckString = entries
             .filter(([key]) => key !== 'hash')
-            .sort(([leftKey], [rightKey]) => (
-                leftKey < rightKey ? -1 : (leftKey > rightKey ? 1 : 0)
-            ))
+            .sort(([leftKey], [rightKey]) => leftKey < rightKey ? -1 : (leftKey > rightKey ? 1 : 0))
             .map(([key, value]) => `${key}=${value}`)
             .join('\n');
 
-        // MAX WebAppData signature: HMAC-SHA256("WebAppData", bot token),
-        // then HMAC-SHA256(secret key, sorted launch parameters).
         const secretKey = crypto.createHmac('sha256', 'WebAppData').update(token).digest();
-        const calculatedHash = crypto.createHmac('sha256', secretKey)
-            .update(dataCheckString)
-            .digest();
-
+        const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest();
         const suppliedHash = Buffer.from(receivedHash, 'hex');
-        if (
-            suppliedHash.length !== calculatedHash.length ||
-            !crypto.timingSafeEqual(calculatedHash, suppliedHash)
-        ) {
+
+        if (suppliedHash.length !== calculatedHash.length || !crypto.timingSafeEqual(calculatedHash, suppliedHash)) {
             return null;
         }
 
@@ -136,8 +122,7 @@ function authMiddleware(req, res, next) {
         return res.status(403).json({ error: 'Access is disabled for this account' });
     }
 
-    // When MAX_ALLOWED_USER_IDS is configured, it becomes an explicit allowlist.
-    if (ALLOWED_USER_IDS.size > 0 && !ALLOWED_USER_IDS.has(userId)) {
+    if (!isUserAllowed(userId)) {
         return res.status(403).json({ error: 'This account is not on the access list' });
     }
 
@@ -201,5 +186,7 @@ module.exports = {
     apiRateLimit,
     uploadRateLimit,
     reminderWriteRateLimit,
-    validateInitData
+    validateInitData,
+    parseUserIdSet,
+    isUserAllowed
 };
