@@ -530,22 +530,11 @@ const HomeScreen = {
                 if (submitButton) submitButton.disabled = this.selectedGroupIds.length === 0 || count === 0;
             };
 
-            if (groups.length === 0) {
-                participantsList.innerHTML = `
-                    <div class="recipient-empty-state">
-                        <strong>Сначала создайте группу</strong>
-                        <p>Перейдите на вкладку «Группы», создайте её и отправьте людям ссылку-приглашение. После присоединения они появятся здесь.</p>
-                    </div>
-                `;
-                updateSelectionSummary();
-                return;
-            }
-
             if (participants.length === 0) {
                 participantsList.innerHTML = `
                     <div class="recipient-empty-state">
-                        <strong>Участников пока нет</strong>
-                        <p>Отправьте ссылку-приглашение из карточки группы. Когда человек присоединится, он появится в этом списке.</p>
+                        <strong>Пока нет контактов</strong>
+                        <p>Поделитесь ссылкой-приглашением любой группы. Каждый, кто перейдёт по ней, появится здесь — даже если позже группа будет удалена.</p>
                     </div>
                 `;
                 updateSelectionSummary();
