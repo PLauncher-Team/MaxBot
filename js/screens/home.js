@@ -177,7 +177,13 @@ const HomeScreen = {
             const sentPlaceholder = document.getElementById('sent-placeholder');
     
             const reminders = await App.getReminders();
-            const scheduled = reminders.filter(r => r.status === 'scheduled');
+            const scheduled = reminders
+                .filter(r => r.status === 'scheduled')
+                .sort((a, b) => {
+                    const aTime = a.scheduled_time ? (Date.parse(String(a.scheduled_time).replace(' ', 'T')) || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+                    const bTime = b.scheduled_time ? (Date.parse(String(b.scheduled_time).replace(' ', 'T')) || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+                    return aTime - bTime || Number(a.id) - Number(b.id);
+                });
             const sent = reminders
                 .filter(r => r.status === 'sent')
                 .sort((a, b) => {
@@ -196,7 +202,8 @@ const HomeScreen = {
                 } else {
                     scheduledPlaceholder.style.display = 'none';
                     scheduledList.style.display = 'flex';
-                    scheduled.forEach(item => {
+                    const recentScheduled = scheduled.slice(0, 5);
+                    recentScheduled.forEach(item => {
                         let displayTime = 'Запланировано';
                         if (item.scheduled_time) {
                             const parts = item.scheduled_time.split('T');
@@ -209,7 +216,7 @@ const HomeScreen = {
                         }
     
                         const el = document.createElement('div');
-                        el.className = 'reminder-item';
+                        el.className = 'reminder-item scheduled-reminder-item';
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
