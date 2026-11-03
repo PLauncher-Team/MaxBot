@@ -36,6 +36,7 @@ const RecipientReminder = {
         const state = document.getElementById('reminder-view-state');
         const card = document.getElementById('reminder-view-card');
         const mediaContainer = document.getElementById('reminder-view-media');
+        const filesContainer = document.getElementById('reminder-view-files');
         const title = document.getElementById('reminder-view-title');
         const description = document.getElementById('reminder-view-description');
         const sender = document.getElementById('reminder-view-sender');
@@ -62,47 +63,22 @@ const RecipientReminder = {
         description.textContent = reminder.description || '';
         description.style.display = reminder.description ? 'block' : 'none';
         mediaContainer.replaceChildren();
+        if (filesContainer) filesContainer.replaceChildren();
 
         const media = (Array.isArray(reminder.images) ? reminder.images : [])
-            .filter(item => item && typeof item.url === 'string' && (item.type === 'image' || item.type === 'file'))
+            .filter(item => item && typeof item.url === 'string' && item.type === 'image')
             .slice(0, 3);
-        const createMediaElement = item => {
-            if (item.type === 'image') {
-                const image = document.createElement('img');
-                image.className = 'recipient-reminder-media-item';
-                image.src = item.url;
-                image.alt = item.name || reminder.title || 'Изображение';
-                image.loading = 'lazy';
-                return image;
-            }
-            const link = document.createElement('a');
-            link.className = 'recipient-reminder-file';
-            link.href = item.url;
-            link.download = item.name || 'Файл';
-            link.rel = 'noopener';
-            const icon = document.createElement('span');
-            icon.className = 'recipient-reminder-file-icon';
-            icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>';
-            const copy = document.createElement('span');
-            copy.className = 'recipient-reminder-file-copy';
-            const name = document.createElement('span');
-            name.className = 'recipient-reminder-file-name';
-            name.textContent = item.name || 'Файл';
-            const details = document.createElement('span');
-            details.className = 'recipient-reminder-file-details';
-            const size = Number(item.size) || 0;
-            details.textContent = size ? (size >= 1048576 ? (size / 1048576).toFixed(1).replace('.', ',') + ' МБ' : Math.max(1, Math.round(size / 1024)) + ' КБ') : 'Файл';
-            copy.append(name, details);
-            const download = document.createElement('span');
-            download.className = 'recipient-reminder-file-download';
-            download.textContent = 'Скачать';
-            link.append(icon, copy, download);
-            return link;
-        };
-
+        const files = (Array.isArray(reminder.images) ? reminder.images : [])
+            .filter(item => item && typeof item.url === 'string' && item.type === 'file')
+            .slice(0, 3);
         if (media.length === 1) {
-            mediaContainer.appendChild(createMediaElement(media[0]));
-        } else if (media.length > 1 && media.every(item => item.type === 'image')) {
+            const image = document.createElement('img');
+            image.className = 'recipient-reminder-media-item';
+            image.src = media[0].url;
+            image.alt = media[0].name || reminder.title || 'Изображение';
+            image.loading = 'lazy';
+            mediaContainer.appendChild(image);
+        } else if (media.length > 1) {
             let activeIndex = 0;
             const gallery = document.createElement('div');
             gallery.className = 'recipient-reminder-gallery';
@@ -149,14 +125,28 @@ const RecipientReminder = {
             gallery.append(viewport, controls);
             mediaContainer.appendChild(gallery);
             showImage();
-        } else if (media.length > 1) {
-            const attachmentList = document.createElement('div');
-            attachmentList.className = 'recipient-reminder-attachments';
-            media.forEach(item => attachmentList.appendChild(createMediaElement(item)));
-            mediaContainer.appendChild(attachmentList);
         }
-
         mediaContainer.style.display = media.length > 0 ? 'block' : 'none';
+
+        if (filesContainer) {
+            filesContainer.classList.add('recipient-reminder-documents');
+            files.forEach(item => {
+                const link = document.createElement('a');
+                link.className = 'recipient-reminder-document';
+                link.href = item.url;
+                link.download = item.name || 'Файл';
+                link.rel = 'noopener';
+                const icon = document.createElement('span');
+                icon.className = 'recipient-reminder-document-icon';
+                icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>';
+                const name = document.createElement('span');
+                name.className = 'recipient-reminder-document-name';
+                name.textContent = item.name || 'Файл';
+                link.append(icon, name);
+                filesContainer.appendChild(link);
+            });
+            filesContainer.style.display = files.length ? 'grid' : 'none';
+        }
 
         repliesList.replaceChildren();
         const quickReplies = Array.isArray(reminder.quick_replies) ? reminder.quick_replies : [];

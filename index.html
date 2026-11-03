@@ -55,7 +55,7 @@
     <link rel="stylesheet" href="css/screens/create.css?v=2">
     <link rel="stylesheet" href="css/redesign.css?v=10">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
-    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=4">
+    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=5">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -297,11 +297,18 @@
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Фото и файлы</div>
-                <div class="images-preview-grid" id="media-preview-grid"></div>
-                <input type="file" id="create-media-input" accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-media-btn" style="margin-top: 10px;">Добавить фото или файл</button>
-                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">До 3 вложений. Каждое — не больше 10 МБ. Размер фото — до 7680 × 7680 пикселей.</div>
+                <div class="create-section-title">Фото</div>
+                <div class="images-preview-grid" id="photo-preview-grid"></div>
+                <input type="file" id="create-photo-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-photo-btn" style="margin-top: 10px;">Добавить фото</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">До 3 вложений суммарно. Фото — до 10 МБ и 7680 × 7680 пикселей каждое.</div>
+            </div>
+            <div class="create-section">
+                <div class="create-section-title">Документы</div>
+                <div class="images-preview-grid" id="document-preview-grid"></div>
+                <input type="file" id="create-document-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-document-btn" style="margin-top: 10px;">Добавить документы</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Документы — до 10 МБ каждый. Максимум 3 фото и документа вместе.</div>
             </div>
 
             <div class="create-section">
@@ -363,6 +370,7 @@
                     <div class="recipient-reminder-sender" id="reminder-view-sender" hidden></div>
                     <h1 id="reminder-view-title"></h1>
                     <p id="reminder-view-description"></p>
+                    <div class="recipient-reminder-documents" id="reminder-view-files" style="display: none;"></div>
                 </div>
             </article>
             <section class="recipient-reminder-replies" id="reminder-view-replies" style="display: none;">
@@ -424,9 +432,9 @@
 </div>
 
 <script src="js/app.js?v=19"></script>
-<script src="js/screens/recipient-reminder.js?v=5"></script>
+<script src="js/screens/recipient-reminder.js?v=6"></script>
 <script src="js/screens/home.js?v=28"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=23"></script>
+<script src="js/screens/create.js?v=24"></script>
 </body>
 </html>

@@ -300,3 +300,52 @@
     background: rgba(23, 160, 102, .09);
     color: #16845a;
 }
+
+.recipient-reminder-documents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+.recipient-reminder-document {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    color: var(--text, #172033);
+    text-align: center;
+    text-decoration: none;
+}
+.recipient-reminder-document-icon {
+    display: flex;
+    width: 54px;
+    height: 54px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 50%;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--accent, #536dfe);
+}
+.recipient-reminder-document-icon svg {
+    width: 25px;
+    height: 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.recipient-reminder-document-name {
+    display: -webkit-box;
+    width: 100%;
+    overflow: hidden;
+    color: var(--text, #172033);
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}

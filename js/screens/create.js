@@ -386,6 +386,7 @@ const CreateScreen = {
                 }
                 if (dimensions.width < 1 || dimensions.height < 1) throw new Error('Не удалось определить размер изображения');
             }
+            pendingItem.type = isImage ? 'image' : 'file';
             const uploaded = await App.uploadAttachment(file, progress => {
                 pendingItem.progress = progress;
                 this.renderImagesPreview();
@@ -412,65 +413,69 @@ const CreateScreen = {
     },
 
     renderImagesPreview: function() {
-        const grid = document.getElementById('media-preview-grid') || document.getElementById('images-preview-grid');
-        if (!grid) return;
-        grid.replaceChildren();
-
-        this.currentImages.forEach((item, index) => {
-            const thumb = document.createElement('div');
-            thumb.className = 'image-preview-thumb attachment-preview-thumb';
-
-            if (item.pending) {
-                thumb.classList.add('attachment-upload-thumb');
-                const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
-                thumb.innerHTML = `
-                    <div class="attachment-upload-progress">
-                        <svg viewBox="0 0 48 48" aria-hidden="true">
-                            <circle class="attachment-upload-track" cx="24" cy="24" r="20"></circle>
-                            <circle class="attachment-upload-value" cx="24" cy="24" r="20" style="stroke-dashoffset: ${125.66 * (1 - progress / 100)}"></circle>
-                        </svg>
-                        <span>${progress}%</span>
-                    </div>
-                    <div class="attachment-preview-name">${App.escapeHtml(item.name)}</div>
-                    <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
-                `;
-            } else if (item.type === 'image') {
-                const image = document.createElement('img');
-                image.src = item.url || '';
-                image.alt = item.name || 'Фото';
-                image.loading = 'lazy';
-                thumb.appendChild(image);
-                const name = document.createElement('div');
-                name.className = 'attachment-preview-name';
-                name.textContent = item.name || 'Фото';
-                thumb.appendChild(name);
-            } else {
-                thumb.classList.add('attachment-file-thumb');
-                thumb.innerHTML = `
-                    <div class="attachment-file-icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>
-                    </div>
-                    <div class="attachment-preview-name">${App.escapeHtml(item.name || 'Файл')}</div>
-                    <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
-                `;
-            }
-
-            const removeButton = document.createElement('button');
-            removeButton.type = 'button';
-            removeButton.className = 'image-preview-del';
-            removeButton.setAttribute('aria-label', 'Удалить вложение');
-            removeButton.textContent = '✕';
-            removeButton.addEventListener('click', event => {
-                event.stopPropagation();
-                const removed = this.currentImages[index];
-                this.currentImages.splice(index, 1);
-                this.renderImagesPreview();
-                if (removed && removed.isNew && removed.filename) {
-                    App.deleteUploadedMedia(removed.filename).catch(error => App.showToast(error.message));
+        const grids = [
+            { id: 'photo-preview-grid', type: 'image' },
+            { id: 'document-preview-grid', type: 'file' }
+        ];
+        grids.forEach(({ id, type }) => {
+            const grid = document.getElementById(id);
+            if (!grid) return;
+            grid.replaceChildren();
+            this.currentImages.forEach((item, index) => {
+                if ((item.type || 'file') !== type) return;
+                const thumb = document.createElement('div');
+                thumb.className = 'image-preview-thumb attachment-preview-thumb';
+                if (item.pending) {
+                    thumb.classList.add('attachment-upload-thumb');
+                    const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
+                    thumb.innerHTML = `
+                        <div class="attachment-upload-progress">
+                            <svg viewBox="0 0 48 48" aria-hidden="true">
+                                <circle class="attachment-upload-track" cx="24" cy="24" r="20"></circle>
+                                <circle class="attachment-upload-value" cx="24" cy="24" r="20" style="stroke-dashoffset: ${125.66 * (1 - progress / 100)}"></circle>
+                            </svg>
+                            <span>${progress}%</span>
+                        </div>
+                        <div class="attachment-preview-name">${App.escapeHtml(item.name)}</div>
+                        <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                    `;
+                } else if (type === 'image') {
+                    const image = document.createElement('img');
+                    image.src = item.url || '';
+                    image.alt = item.name || 'Фото';
+                    image.loading = 'lazy';
+                    thumb.appendChild(image);
+                    const name = document.createElement('div');
+                    name.className = 'attachment-preview-name';
+                    name.textContent = item.name || 'Фото';
+                    thumb.appendChild(name);
+                } else {
+                    thumb.classList.add('attachment-file-thumb');
+                    thumb.innerHTML = `
+                        <div class="attachment-file-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>
+                        </div>
+                        <div class="attachment-preview-name">${App.escapeHtml(item.name || 'Файл')}</div>
+                        <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                    `;
                 }
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'image-preview-del';
+                removeButton.setAttribute('aria-label', 'Удалить вложение');
+                removeButton.textContent = '✕';
+                removeButton.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const removed = this.currentImages[index];
+                    this.currentImages.splice(index, 1);
+                    this.renderImagesPreview();
+                    if (removed && removed.isNew && removed.filename) {
+                        App.deleteUploadedMedia(removed.filename).catch(error => App.showToast(error.message));
+                    }
+                });
+                thumb.appendChild(removeButton);
+                grid.appendChild(thumb);
             });
-            thumb.appendChild(removeButton);
-            grid.appendChild(thumb);
         });
     },
 
@@ -689,8 +694,10 @@ const CreateScreen = {
         const aInput = document.getElementById('quick-reply-a-input');
         const addReplyBtn = document.getElementById('quick-reply-add-btn');
         const saveReminderBtn = document.getElementById('save-reminder-btn');
-        const addMediaBtn = document.getElementById('add-media-btn') || document.getElementById('add-image-btn');
-        const createMediaInput = document.getElementById('create-media-input') || document.getElementById('create-image-input');
+        const addPhotoBtn = document.getElementById('add-photo-btn');
+        const photoInput = document.getElementById('create-photo-input');
+        const addDocumentBtn = document.getElementById('add-document-btn');
+        const documentInput = document.getElementById('create-document-input');
 
         if (sendNowToggle) {
             sendNowToggle.addEventListener('click', () => {
@@ -780,34 +787,37 @@ const CreateScreen = {
             });
         }
 
-        if (addMediaBtn && createMediaInput) {
-            addMediaBtn.addEventListener('click', () => {
+        const bindAttachmentPicker = (button, input, type) => {
+            if (!button || !input) return;
+            button.addEventListener('click', () => {
                 if (this.currentImages.length >= 3) {
                     App.showToast('Можно прикрепить максимум 3 вложения');
                     return;
                 }
-                createMediaInput.click();
+                input.click();
             });
-
-            createMediaInput.addEventListener('change', event => {
+            input.addEventListener('change', event => {
                 const files = Array.from(event.target.files || []);
-                if (files.length === 0) return;
+                if (!files.length) return;
                 const availableSlots = 3 - this.currentImages.length;
                 if (files.length > availableSlots) App.showToast('Можно прикрепить максимум 3 вложения');
                 files.slice(0, availableSlots).forEach(file => {
                     const pending = {
                         pending: true,
+                        type,
                         progress: 0,
-                        name: file.name || 'Файл',
+                        name: file.name || (type === 'image' ? 'Фото' : 'Файл'),
                         size: file.size || 0
                     };
                     this.currentImages.push(pending);
                     this.renderImagesPreview();
                     this.uploadAttachmentFile(file, pending);
                 });
-                createMediaInput.value = '';
+                input.value = '';
             });
-        }
+        };
+        bindAttachmentPicker(addPhotoBtn, photoInput, 'image');
+        bindAttachmentPicker(addDocumentBtn, documentInput, 'file');
 
         if (saveReminderBtn) {
             saveReminderBtn.addEventListener('click', async () => {
