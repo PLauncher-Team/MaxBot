@@ -91,12 +91,17 @@ router.delete('/:id', (req, res) => {
         }
 
         const removeParticipant = db.transaction(() => {
+            const participant = db.prepare('SELECT id FROM participants WHERE id = ? AND teacher_id = ?')
+                .get(id, req.userId);
+            if (!participant) return false;
+
             db.prepare('DELETE FROM participant_groups WHERE participant_id = ?').run(id);
-            return db.prepare('DELETE FROM participants WHERE id = ? AND teacher_id = ?').run(id, req.userId);
+            db.prepare('DELETE FROM participants WHERE id = ? AND teacher_id = ?').run(id, req.userId);
+            return true;
         });
 
-        const result = removeParticipant();
-        if (result.changes === 0) {
+        const removed = removeParticipant();
+        if (!removed) {
             return res.status(404).json({ error: 'Participant not found' });
         }
         res.json({ success: true });
