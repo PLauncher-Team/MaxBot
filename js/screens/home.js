@@ -2,6 +2,8 @@ const HomeScreen = {
     selectedParticipantIds: [],
     selectedGroupIds: [],
     expandedGroupIds: {},
+    recipientGroups: [],
+    recipientParticipants: [],
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
@@ -55,9 +57,33 @@ const HomeScreen = {
         }
 
         this.updateTemplateScrollControls();
-        await this.refreshReminders();
 
-        this.loadRecipientsData();
+        try {
+            await this.loadRecipientsData();
+        } catch (error) {
+            console.error('Failed to load recipient names:', error);
+        }
+        await this.refreshReminders();
+    },
+
+    formatSentRecipients: function(recipients) {
+        if (!Array.isArray(recipients)) return '';
+
+        return recipients.map(value => {
+            if (value === 'Себе') return 'Себе';
+
+            const personMatch = /^person:([0-9]+)$/.exec(String(value));
+            if (personMatch) {
+                const participant = this.recipientParticipants.find(item =>
+                    String(item.id) === personMatch[1]
+                );
+                return participant && participant.name
+                    ? participant.name
+                    : 'Отдельный участник';
+            }
+
+            return String(value);
+        }).join(', ');
     },
 
     formatSentTime: function(item) {
@@ -223,7 +249,7 @@ const HomeScreen = {
                         const el = document.createElement('div');
                         el.className = 'reminder-item';
                         const sentTime = this.formatSentTime(item);
-                        const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
+                        const recipientsText = this.formatSentRecipients(item.recipients);
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
@@ -259,6 +285,8 @@ const HomeScreen = {
     loadRecipientsData: async function() {
         const groups = await App.getGroups();
         const participants = await App.getParticipants();
+        this.recipientGroups = groups;
+        this.recipientParticipants = participants;
 
         const homeGroupsCount = document.getElementById('home-groups-count');
         const tabGroupsCount = document.getElementById('tab-groups-count');
