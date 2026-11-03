@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - ui-redesign
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Create dependency lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Run tests
+        run: npm test
+      - name: Check JavaScript syntax
+        run: |
+          set -euo pipefail
+          for file in auth.js server.js bot.js scheduler.js routes/*.js js/*.js js/screens/*.js; do
+            node --check "$file"
+          done
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
