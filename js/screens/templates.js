@@ -5,7 +5,16 @@ const TemplatesScreen = {
         const searchInput = document.getElementById('search-input');
         const emptySearch = document.getElementById('empty-search');
 
-        const templates = await App.getTemplates();
+        let templates;
+        try {
+            templates = await App.getTemplates();
+        } catch (error) {
+            if (list) list.textContent = error.message || 'Не удалось загрузить шаблоны';
+            if (count) count.textContent = '—';
+            App.showToast(error.message || 'Не удалось загрузить шаблоны');
+            return;
+        }
+
         if (count) {
             count.textContent = templates.length;
         }
