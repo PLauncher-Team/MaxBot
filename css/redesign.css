@@ -346,6 +346,18 @@ button {
     overflow-wrap: anywhere;
 }
 
+.template-description {
+    display: -webkit-box;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.4;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+}
+
 .template-badge,
 .template-item-badge {
     display: inline-flex;
@@ -641,6 +653,15 @@ button {
     color: var(--text);
     font-size: 14px;
     font-weight: 750;
+}
+
+.template-item-description {
+    margin-top: 9px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 .template-item-right {
@@ -1763,6 +1784,8 @@ select:focus {
     color: var(--muted);
     font-size: 11px;
     line-height: 1.4;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
 }
 
 .wizard-template-loading {

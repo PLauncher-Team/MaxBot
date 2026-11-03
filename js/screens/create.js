@@ -65,7 +65,7 @@ const CreateScreen = {
         try {
             const templates = await App.getTemplates();
             loading.remove();
-            templates.forEach(template => addOption(template.title || 'Без названия', '', template));
+            templates.forEach(template => addOption(template.title || 'Без названия', template.description || '', template));
         } catch (error) {
             loading.textContent = 'Не удалось загрузить шаблоны';
         }
@@ -487,7 +487,7 @@ const CreateScreen = {
 
         if (template) {
             if (titleInput) titleInput.value = template.title || '';
-            if (descInput) descInput.value = '';
+            if (descInput) descInput.value = template.description || '';
             this.currentQuickReplies = Array.isArray(template.quick_replies) ? [...template.quick_replies] : [];
         } else {
             if (titleInput) titleInput.value = '';

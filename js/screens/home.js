@@ -47,6 +47,7 @@ const HomeScreen = {
                     card.innerHTML = `
                         <div class="template-card-content">
                             <div class="template-title">${App.escapeHtml(t.title)}</div>
+                            <div class="template-description">${App.escapeHtml(t.description || '')}</div>
                             <div class="template-badge">Шаблон</div>
                         </div>
                     `;

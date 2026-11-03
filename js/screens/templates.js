@@ -27,6 +27,7 @@ const TemplatesScreen = {
             item.className = 'template-item';
             item.setAttribute('data-id', t.id);
             item.setAttribute('data-title', t.title);
+            item.setAttribute('data-description', t.description || '');
             item.innerHTML = `
                 <div class="template-item-top">
                     <div class="template-item-title">${App.escapeHtml(t.title)}</div>
@@ -38,6 +39,10 @@ const TemplatesScreen = {
                     </div>
                 </div>
             `;
+            const description = document.createElement('div');
+            description.className = 'template-item-description';
+            description.textContent = t.description || '';
+            if (description.textContent) item.appendChild(description);
 
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.template-delete-btn')) {
@@ -81,7 +86,8 @@ const TemplatesScreen = {
 
         items.forEach(item => {
             const title = (item.getAttribute('data-title') || '').toLowerCase();
-            if (title.includes(q)) {
+            const description = (item.getAttribute('data-description') || '').toLowerCase();
+            if (title.includes(q) || description.includes(q)) {
                 item.classList.remove('hidden');
                 visibleCount++;
             } else {
