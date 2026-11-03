@@ -67,6 +67,7 @@ body {
         radial-gradient(ellipse 540px 430px at 0% 0%, var(--ambient-glow-one), transparent 72%),
         radial-gradient(ellipse 460px 390px at 100% 38%, var(--ambient-glow-two), transparent 72%),
         var(--ambient-outside);
+    background-attachment: fixed;
 }
 
 .app-container,
@@ -79,6 +80,7 @@ body {
     background-size: auto, auto, 28px 28px;
     background-position: top left, right 22%, 0 0;
     background-repeat: no-repeat, no-repeat, repeat;
+    background-attachment: fixed;
 }
 
 .screen {
@@ -184,6 +186,7 @@ body {
         radial-gradient(ellipse 540px 430px at 0% 0%, var(--ambient-glow-one), transparent 72%),
         radial-gradient(ellipse 460px 390px at 100% 38%, var(--ambient-glow-two), transparent 72%),
         var(--ambient-outside);
+    background-attachment: fixed;
 }
 
 :root[data-theme="dark"] .app-container,
@@ -196,6 +199,7 @@ body {
     background-size: auto, auto, 28px 28px;
     background-position: top left, right 22%, 0 0;
     background-repeat: no-repeat, no-repeat, repeat;
+    background-attachment: fixed;
 }
 
 :root[data-theme="light"] body,
