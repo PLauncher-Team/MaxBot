@@ -99,7 +99,7 @@ router.get('/', (req, res) => {
                 WHERE reminder_id IN (
                     SELECT id FROM reminders
                     WHERE user_id = ? AND status = 'sent'
-                    ORDER BY id DESC
+                    ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC
                     LIMIT -1 OFFSET 5
                 )
             `).run(userId);
@@ -110,7 +110,7 @@ router.get('/', (req, res) => {
                   AND id NOT IN (
                       SELECT id FROM reminders
                       WHERE user_id = ? AND status = 'sent'
-                      ORDER BY id DESC
+                      ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC
                       LIMIT 5
                   )
             `).run(userId, userId);
