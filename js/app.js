@@ -31,18 +31,11 @@ const App = {
     },
 
     isMaxApp: function() {
-        if (!window.WebApp) {
-            return false;
-        }
-        const hasInitData = typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0;
-        const hasPlatform = typeof window.WebApp.platform === 'string' && window.WebApp.platform.length > 0;
-        const hasVersion = typeof window.WebApp.version === 'string' && window.WebApp.version.length > 0;
-        const hasInitDataUnsafe = Boolean(window.WebApp.initDataUnsafe && Object.keys(window.WebApp.initDataUnsafe).length > 0);
-        const hasWebViewHandler = typeof window.WebViewHandler !== 'undefined';
-        const hasHashData = location.hash.includes('WebAppData') || location.hash.includes('WebAppPlatform');
-        const hasSessionData = Boolean(sessionStorage.getItem('WebAppData') || sessionStorage.getItem('WebAppPlatform'));
-
-        return Boolean(hasInitData || hasPlatform || hasVersion || hasInitDataUnsafe || hasWebViewHandler || hasHashData || hasSessionData);
+        return Boolean(
+            window.WebApp &&
+            typeof window.WebApp.initData === 'string' &&
+            window.WebApp.initData.trim().length > 0
+        );
     },
 
     showToast: function(message) {
