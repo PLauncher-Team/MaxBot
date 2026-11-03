@@ -30,7 +30,22 @@ const publicMediaTypes = {
     webp: 'image/webp',
     mp4: 'video/mp4',
     mov: 'video/quicktime',
-    webm: 'video/webm'
+    webm: 'video/webm',
+    pdf: 'application/octet-stream',
+    doc: 'application/octet-stream',
+    docx: 'application/octet-stream',
+    xls: 'application/octet-stream',
+    xlsx: 'application/octet-stream',
+    ppt: 'application/octet-stream',
+    pptx: 'application/octet-stream',
+    txt: 'application/octet-stream',
+    csv: 'application/octet-stream',
+    rtf: 'application/octet-stream',
+    md: 'application/octet-stream',
+    odt: 'application/octet-stream',
+    ods: 'application/octet-stream',
+    odp: 'application/octet-stream',
+    zip: 'application/octet-stream'
 };
 
 app.disable('x-powered-by');
@@ -59,7 +74,7 @@ app.use((req, res, next) => {
 // Only generated image/video filenames are served; active formats such as SVG/HTML are forbidden.
 app.get('/api/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
-    const match = /^(img|vid)_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(png|jpg|gif|webp|mp4|mov|webm)$/i.exec(filename || '');
+    const match = /^(img|vid|file)_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(png|jpg|gif|webp|mp4|mov|webm|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename || '');
     if (!match) {
         return res.status(404).json({ error: 'File not found' });
     }
@@ -71,8 +86,13 @@ app.get('/api/uploads/:filename', (req, res) => {
             return res.status(404).json({ error: 'File not found' });
         }
 
-        res.setHeader('Content-Type', publicMediaTypes[extension]);
-        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        const isFile = match[1].toLowerCase() === 'file';
+        const requestedName = String(req.query.name || filename).replace(/[\r\n"\\]/g, '_').slice(0, 120);
+        const encodedName = encodeURIComponent(requestedName).replace(/[!'()*]/g, character => '%' + character.charCodeAt(0).toString(16).toUpperCase());
+        res.setHeader('Content-Type', publicMediaTypes[extension] || 'application/octet-stream');
+        res.setHeader('Content-Disposition', isFile
+            ? `attachment; filename="attachment.${extension}"; filename*=UTF-8''${encodedName}`
+            : `inline; filename="${filename}"`);
         res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
         res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
@@ -93,6 +113,7 @@ app.use('/api', (req, res, next) => {
 });
 app.use('/api/reminders/upload-media', uploadRateLimit);
 app.use('/api/reminders/upload-image', uploadRateLimit);
+app.use('/api/reminders/upload-file', uploadRateLimit);
 app.use('/api/reminders', (req, res, next) => {
     if ((req.method === 'POST' && (req.path === '/' || req.path === '' || req.path.startsWith('/public/'))) || req.method === 'PUT') {
         return reminderWriteRateLimit(req, res, next);

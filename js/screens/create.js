@@ -1,3 +1,7 @@
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 7680;
+const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'md', 'odt', 'ods', 'odp', 'zip']);
+
 const CreateScreen = {
     currentQuickReplies: [],
     selectedGroups: [],
@@ -111,8 +115,16 @@ const CreateScreen = {
         if (step === 3) this.renderSelectedRecipients();
     },
 
+    discardNewAttachments: function() {
+        const newFiles = this.currentImages.filter(item => item && item.isNew && item.filename);
+        this.currentImages = [];
+        newFiles.forEach(item => App.deleteUploadedMedia(item.filename).catch(() => {}));
+        this.renderImagesPreview();
+    },
+
     backWizard: function() {
         if (!this.wizardActive) {
+            this.discardNewAttachments();
             App.showScreen('home');
             return;
         }
@@ -126,12 +138,14 @@ const CreateScreen = {
                 this.startedFromTemplate = false;
                 this.editingSentReminder = false;
                 App.editingReminderId = null;
+                this.discardNewAttachments();
                 App.showScreen('home');
                 return;
             }
             this.showWizardStep(1);
             return;
         }
+        this.discardNewAttachments();
         App.showScreen('home');
     },
 
@@ -335,25 +349,127 @@ const CreateScreen = {
         return `${year}-${month}-${day}T${hours}:${mins}`;
     },
 
+    getImageDimensions: async function(file) {
+        if (typeof createImageBitmap === 'function') {
+            const bitmap = await createImageBitmap(file);
+            const dimensions = { width: bitmap.width, height: bitmap.height };
+            bitmap.close();
+            return dimensions;
+        }
+        return new Promise((resolve, reject) => {
+            const objectUrl = URL.createObjectURL(file);
+            const image = new Image();
+            image.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve({ width: image.naturalWidth, height: image.naturalHeight });
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Не удалось прочитать изображение'));
+            };
+            image.src = objectUrl;
+        });
+    },
+
+    uploadAttachmentFile: async function(file, pendingItem) {
+        try {
+            if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('Каждый файл должен быть не больше 10 МБ');
+            const extension = String(file.name || '').split('.').pop().toLowerCase();
+            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
+            if (!isImage && !SUPPORTED_DOCUMENT_EXTENSIONS.has(extension)) {
+                throw new Error('Этот формат файла не поддерживается');
+            }
+            if (isImage) {
+                const dimensions = await this.getImageDimensions(file);
+                if (dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) {
+                    throw new Error('Размер фото не должен превышать 7680 × 7680 пикселей');
+                }
+                if (dimensions.width < 1 || dimensions.height < 1) throw new Error('Не удалось определить размер изображения');
+            }
+            const uploaded = await App.uploadAttachment(file, progress => {
+                pendingItem.progress = progress;
+                this.renderImagesPreview();
+            });
+            const index = this.currentImages.indexOf(pendingItem);
+            if (index === -1) {
+                if (uploaded.filename) await App.deleteUploadedMedia(uploaded.filename).catch(() => {});
+                return;
+            }
+            this.currentImages.splice(index, 1, { ...uploaded, isNew: true });
+            this.renderImagesPreview();
+        } catch (error) {
+            const index = this.currentImages.indexOf(pendingItem);
+            if (index !== -1) this.currentImages.splice(index, 1);
+            this.renderImagesPreview();
+            App.showToast(error.message || 'Не удалось загрузить файл');
+        }
+    },
+
+    formatAttachmentSize: function(bytes) {
+        const size = Number(bytes) || 0;
+        if (size >= 1024 * 1024) return (size / (1024 * 1024)).toFixed(1).replace('.', ',') + ' МБ';
+        return Math.max(1, Math.round(size / 1024)) + ' КБ';
+    },
+
     renderImagesPreview: function() {
         const grid = document.getElementById('media-preview-grid') || document.getElementById('images-preview-grid');
         if (!grid) return;
-        grid.innerHTML = '';
+        grid.replaceChildren();
 
-        this.currentImages.forEach((imgObj, index) => {
+        this.currentImages.forEach((item, index) => {
             const thumb = document.createElement('div');
-            thumb.className = 'image-preview-thumb';
-            const imgUrl = typeof imgObj === 'string' ? imgObj : (imgObj.url || '');
-            thumb.innerHTML = `
-                <img src="${App.escapeHtml(imgUrl)}" alt="preview">
-                <button type="button" class="image-preview-del" data-index="${index}">✕</button>
-            `;
+            thumb.className = 'image-preview-thumb attachment-preview-thumb';
 
-            thumb.querySelector('.image-preview-del').addEventListener('click', (e) => {
-                e.stopPropagation();
+            if (item.pending) {
+                thumb.classList.add('attachment-upload-thumb');
+                const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
+                thumb.innerHTML = `
+                    <div class="attachment-upload-progress">
+                        <svg viewBox="0 0 48 48" aria-hidden="true">
+                            <circle class="attachment-upload-track" cx="24" cy="24" r="20"></circle>
+                            <circle class="attachment-upload-value" cx="24" cy="24" r="20" style="stroke-dashoffset: ${125.66 * (1 - progress / 100)}"></circle>
+                        </svg>
+                        <span>${progress}%</span>
+                    </div>
+                    <div class="attachment-preview-name">${App.escapeHtml(item.name)}</div>
+                    <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                `;
+            } else if (item.type === 'image') {
+                const image = document.createElement('img');
+                image.src = item.url || '';
+                image.alt = item.name || 'Фото';
+                image.loading = 'lazy';
+                thumb.appendChild(image);
+                const name = document.createElement('div');
+                name.className = 'attachment-preview-name';
+                name.textContent = item.name || 'Фото';
+                thumb.appendChild(name);
+            } else {
+                thumb.classList.add('attachment-file-thumb');
+                thumb.innerHTML = `
+                    <div class="attachment-file-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>
+                    </div>
+                    <div class="attachment-preview-name">${App.escapeHtml(item.name || 'Файл')}</div>
+                    <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                `;
+            }
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'image-preview-del';
+            removeButton.setAttribute('aria-label', 'Удалить вложение');
+            removeButton.textContent = '✕';
+            removeButton.addEventListener('click', event => {
+                event.stopPropagation();
+                const removed = this.currentImages[index];
                 this.currentImages.splice(index, 1);
                 this.renderImagesPreview();
+                if (removed && removed.isNew && removed.filename) {
+                    App.deleteUploadedMedia(removed.filename).catch(error => App.showToast(error.message));
+                }
             });
+            thumb.appendChild(removeButton);
             grid.appendChild(thumb);
         });
     },
@@ -386,7 +502,7 @@ const CreateScreen = {
         this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
         this.currentImages = Array.isArray(reminder.images)
-            ? reminder.images.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3)
+            ? reminder.images.filter(image => image && (image.type === 'image' || image.type === 'file') && typeof image.url === 'string').slice(0, 3)
             : [];
 
         if (sendNowToggle) {
@@ -667,40 +783,28 @@ const CreateScreen = {
         if (addMediaBtn && createMediaInput) {
             addMediaBtn.addEventListener('click', () => {
                 if (this.currentImages.length >= 3) {
-                    App.showToast('Можно прикрепить максимум 3 фото');
+                    App.showToast('Можно прикрепить максимум 3 вложения');
                     return;
                 }
                 createMediaInput.click();
             });
 
-            createMediaInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files || []);
+            createMediaInput.addEventListener('change', event => {
+                const files = Array.from(event.target.files || []);
                 if (files.length === 0) return;
-
-                const imageFiles = files.filter(file => file.type.startsWith('image/'));
-                if (imageFiles.length !== files.length) App.showToast('Можно прикреплять только фотографии');
                 const availableSlots = 3 - this.currentImages.length;
-                if (availableSlots <= 0) {
-                    App.showToast('Можно прикрепить максимум 3 фото');
-                    createMediaInput.value = '';
-                    return;
-                }
-
-                const processFiles = imageFiles.slice(0, availableSlots);
-                if (imageFiles.length > availableSlots) App.showToast('Можно прикрепить максимум 3 фото');
-                for (const file of processFiles) {
-                    const reader = new FileReader();
-                    reader.onload = async (event) => {
-                        const uploaded = await App.uploadImage(event.target.result);
-                        if (uploaded && uploaded.url) {
-                            this.currentImages.push({ url: uploaded.url, type: 'image', filename: uploaded.filename });
-                            this.renderImagesPreview();
-                        } else {
-                            App.showToast('Не удалось загрузить фото');
-                        }
+                if (files.length > availableSlots) App.showToast('Можно прикрепить максимум 3 вложения');
+                files.slice(0, availableSlots).forEach(file => {
+                    const pending = {
+                        pending: true,
+                        progress: 0,
+                        name: file.name || 'Файл',
+                        size: file.size || 0
                     };
-                    reader.readAsDataURL(file);
-                }
+                    this.currentImages.push(pending);
+                    this.renderImagesPreview();
+                    this.uploadAttachmentFile(file, pending);
+                });
                 createMediaInput.value = '';
             });
         }
@@ -740,6 +844,11 @@ const CreateScreen = {
                     return;
                 }
 
+                if (this.currentImages.some(item => item.pending)) {
+                    App.showToast('Дождитесь окончания загрузки вложений');
+                    return;
+                }
+
                 const payload = {
                     title,
                     description,
@@ -749,7 +858,7 @@ const CreateScreen = {
                     repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
-                    images: this.currentImages
+                    images: this.currentImages.map(({ isNew, ...item }) => item)
                 };
 
                 try {

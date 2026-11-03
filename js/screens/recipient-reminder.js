@@ -64,73 +64,96 @@ const RecipientReminder = {
         mediaContainer.replaceChildren();
 
         const media = (Array.isArray(reminder.images) ? reminder.images : [])
-            .filter(item => item && typeof item.url === 'string')
+            .filter(item => item && typeof item.url === 'string' && (item.type === 'image' || item.type === 'file'))
             .slice(0, 3);
+        const createMediaElement = item => {
+            if (item.type === 'image') {
+                const image = document.createElement('img');
+                image.className = 'recipient-reminder-media-item';
+                image.src = item.url;
+                image.alt = item.name || reminder.title || 'Изображение';
+                image.loading = 'lazy';
+                return image;
+            }
+            const link = document.createElement('a');
+            link.className = 'recipient-reminder-file';
+            link.href = item.url;
+            link.download = item.name || 'Файл';
+            link.rel = 'noopener';
+            const icon = document.createElement('span');
+            icon.className = 'recipient-reminder-file-icon';
+            icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>';
+            const copy = document.createElement('span');
+            copy.className = 'recipient-reminder-file-copy';
+            const name = document.createElement('span');
+            name.className = 'recipient-reminder-file-name';
+            name.textContent = item.name || 'Файл';
+            const details = document.createElement('span');
+            details.className = 'recipient-reminder-file-details';
+            const size = Number(item.size) || 0;
+            details.textContent = size ? (size >= 1048576 ? (size / 1048576).toFixed(1).replace('.', ',') + ' МБ' : Math.max(1, Math.round(size / 1024)) + ' КБ') : 'Файл';
+            copy.append(name, details);
+            const download = document.createElement('span');
+            download.className = 'recipient-reminder-file-download';
+            download.textContent = 'Скачать';
+            link.append(icon, copy, download);
+            return link;
+        };
 
         if (media.length === 1) {
-            const image = document.createElement('img');
-            image.className = 'recipient-reminder-media-item';
-            image.src = media[0].url;
-            image.alt = reminder.title || 'Изображение';
-            image.loading = 'lazy';
-            mediaContainer.appendChild(image);
-        } else if (media.length > 1) {
+            mediaContainer.appendChild(createMediaElement(media[0]));
+        } else if (media.length > 1 && media.every(item => item.type === 'image')) {
             let activeIndex = 0;
             const gallery = document.createElement('div');
             gallery.className = 'recipient-reminder-gallery';
-
             const viewport = document.createElement('div');
             viewport.className = 'recipient-reminder-gallery-viewport';
-
             const image = document.createElement('img');
             image.className = 'recipient-reminder-media-item recipient-reminder-gallery-image';
             image.alt = reminder.title || 'Изображение';
             image.loading = 'lazy';
-
             const controls = document.createElement('div');
             controls.className = 'recipient-reminder-gallery-controls';
-
             const previous = document.createElement('button');
             previous.type = 'button';
             previous.className = 'recipient-reminder-gallery-arrow';
             previous.textContent = '‹';
             previous.setAttribute('aria-label', 'Предыдущее фото');
-
             const counter = document.createElement('span');
             counter.className = 'recipient-reminder-gallery-counter';
-
             const next = document.createElement('button');
             next.type = 'button';
             next.className = 'recipient-reminder-gallery-arrow';
             next.textContent = '›';
             next.setAttribute('aria-label', 'Следующее фото');
-
             const showImage = () => {
                 image.src = media[activeIndex].url;
                 counter.textContent = (activeIndex + 1) + '/' + media.length;
                 previous.disabled = activeIndex === 0;
                 next.disabled = activeIndex === media.length - 1;
             };
-
             previous.addEventListener('click', () => {
                 if (activeIndex > 0) {
                     activeIndex -= 1;
                     showImage();
                 }
             });
-
             next.addEventListener('click', () => {
                 if (activeIndex < media.length - 1) {
                     activeIndex += 1;
                     showImage();
                 }
             });
-
             viewport.appendChild(image);
             controls.append(previous, counter, next);
             gallery.append(viewport, controls);
             mediaContainer.appendChild(gallery);
             showImage();
+        } else if (media.length > 1) {
+            const attachmentList = document.createElement('div');
+            attachmentList.className = 'recipient-reminder-attachments';
+            media.forEach(item => attachmentList.appendChild(createMediaElement(item)));
+            mediaContainer.appendChild(attachmentList);
         }
 
         mediaContainer.style.display = media.length > 0 ? 'block' : 'none';

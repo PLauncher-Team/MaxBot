@@ -110,6 +110,77 @@
     object-fit: contain;
 }
 
+
+.recipient-reminder-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.recipient-reminder-file {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 13px;
+    background: var(--surface, #fff);
+    color: var(--text, #172033);
+    text-decoration: none;
+}
+
+.recipient-reminder-file-icon {
+    display: flex;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--accent, #536dfe);
+}
+
+.recipient-reminder-file-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.recipient-reminder-file-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recipient-reminder-file-name {
+    overflow: hidden;
+    color: var(--text, #172033);
+    font-size: 13px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-file-details {
+    color: var(--muted, #778196);
+    font-size: 11px;
+}
+
+.recipient-reminder-file-download {
+    flex: 0 0 auto;
+    color: var(--accent, #536dfe);
+    font-size: 12px;
+    font-weight: 700;
+}
+
 .recipient-reminder-copy {
     padding: 20px;
 }

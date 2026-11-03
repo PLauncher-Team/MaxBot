@@ -53,9 +53,9 @@
     <link rel="stylesheet" href="css/screens/home.css?v=12">
     <link rel="stylesheet" href="css/screens/templates.css">
     <link rel="stylesheet" href="css/screens/create.css?v=2">
-    <link rel="stylesheet" href="css/redesign.css?v=9">
+    <link rel="stylesheet" href="css/redesign.css?v=10">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
-    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=3">
+    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=4">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -297,11 +297,11 @@
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Фотографии</div>
+                <div class="create-section-title">Фото и файлы</div>
                 <div class="images-preview-grid" id="media-preview-grid"></div>
-                <input type="file" id="create-media-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-media-btn" style="margin-top: 10px;">Добавить фото</button>
-                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Можно прикрепить до 3 фотографий.</div>
+                <input type="file" id="create-media-input" accept="image/png,image/jpeg,image/gif,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-media-btn" style="margin-top: 10px;">Добавить фото или файл</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">До 3 вложений. Каждое — не больше 10 МБ. Размер фото — до 7680 × 7680 пикселей.</div>
             </div>
 
             <div class="create-section">
@@ -423,10 +423,10 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=18"></script>
-<script src="js/screens/recipient-reminder.js?v=4"></script>
+<script src="js/app.js?v=19"></script>
+<script src="js/screens/recipient-reminder.js?v=5"></script>
 <script src="js/screens/home.js?v=28"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=22"></script>
+<script src="js/screens/create.js?v=23"></script>
 </body>
 </html>

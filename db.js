@@ -73,6 +73,13 @@ db.exec(`
     );
 `);
 
+db.exec(`
+    CREATE TABLE IF NOT EXISTS uploaded_media (
+        filename TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+`);
 
 const participantColumns = new Set(
     db.prepare('PRAGMA table_info(participants)').all().map(column => column.name)

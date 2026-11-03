@@ -10,7 +10,8 @@ const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../sche
 const router = express.Router();
 
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
-const MAX_UPLOAD_BYTES = 14 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 7680;
 const MEDIA_TYPES = {
     'image/png': { kind: 'image', ext: 'png' },
     'image/jpeg': { kind: 'image', ext: 'jpg' },
@@ -20,70 +21,152 @@ const MEDIA_TYPES = {
     'video/quicktime': { kind: 'video', ext: 'mov' },
     'video/webm': { kind: 'video', ext: 'webm' }
 };
+const FILE_TYPES = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+    csv: 'text/csv',
+    rtf: 'application/rtf',
+    md: 'text/markdown',
+    odt: 'application/vnd.oasis.opendocument.text',
+    ods: 'application/vnd.oasis.opendocument.spreadsheet',
+    odp: 'application/vnd.oasis.opendocument.presentation',
+    zip: 'application/zip'
+};
+
+function cleanUploadedFileName(name, extension) {
+    const clean = path.basename(String(name || '').replace(/\\/g, '/'))
+        .replace(/[\u0000-\u001f\u007f]/g, '')
+        .trim()
+        .slice(0, 120);
+    return clean || 'Файл.' + extension;
+}
+
+function getImageDimensions(buffer, mimeType) {
+    if (mimeType === 'image/png' && buffer.length >= 24) {
+        return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+    }
+    if (mimeType === 'image/gif' && buffer.length >= 10) {
+        return { width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8) };
+    }
+    if (mimeType === 'image/webp' && buffer.length >= 30) {
+        const format = buffer.toString('ascii', 12, 16);
+        if (format === 'VP8X') return { width: buffer.readUIntLE(24, 3) + 1, height: buffer.readUIntLE(27, 3) + 1 };
+        if (format === 'VP8 ' && buffer[23] === 0x9d && buffer[24] === 0x01 && buffer[25] === 0x2a) {
+            return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff };
+        }
+        if (format === 'VP8L' && buffer[20] === 0x2f) {
+            const b1 = buffer[21], b2 = buffer[22], b3 = buffer[23], b4 = buffer[24];
+            return {
+                width: 1 + (((b2 & 0x3f) << 8) | b1),
+                height: 1 + (((b4 & 0x0f) << 10) | (b3 << 2) | ((b2 & 0xc0) >> 6))
+            };
+        }
+        return null;
+    }
+    if (mimeType === 'image/jpeg' && buffer.length >= 4) {
+        let offset = 2;
+        while (offset + 4 < buffer.length) {
+            if (buffer[offset] !== 0xff) {
+                offset++;
+                continue;
+            }
+            let marker = buffer[offset + 1];
+            offset += 2;
+            while (marker === 0xff && offset < buffer.length) marker = buffer[offset++];
+            if (marker === 0xd8 || marker === 0xd9 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+            if (offset + 2 > buffer.length) return null;
+            const segmentLength = buffer.readUInt16BE(offset);
+            if (segmentLength < 2 || offset + segmentLength > buffer.length) return null;
+            if ([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf].includes(marker)) {
+                if (segmentLength < 7) return null;
+                return { height: buffer.readUInt16BE(offset + 3), width: buffer.readUInt16BE(offset + 5) };
+            }
+            offset += segmentLength;
+        }
+    }
+    return null;
+}
 
 function hasValidMediaSignature(buffer, mimeType) {
-    if (mimeType === 'image/png') {
-        return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-    }
-    if (mimeType === 'image/jpeg') {
-        return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
-    }
-    if (mimeType === 'image/gif') {
-        return buffer.length >= 6 && (buffer.subarray(0, 6).toString('ascii') === 'GIF87a' || buffer.subarray(0, 6).toString('ascii') === 'GIF89a');
-    }
-    if (mimeType === 'image/webp') {
-        return buffer.length >= 12 &&
-            buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
-            buffer.subarray(8, 12).toString('ascii') === 'WEBP';
-    }
-    if (mimeType === 'video/mp4' || mimeType === 'video/quicktime') {
-        return buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp';
-    }
-    if (mimeType === 'video/webm') {
-        return buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
-    }
+    if (mimeType === 'image/png') return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    if (mimeType === 'image/jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    if (mimeType === 'image/gif') return buffer.length >= 6 && ['GIF87a', 'GIF89a'].includes(buffer.subarray(0, 6).toString('ascii'));
+    if (mimeType === 'image/webp') return buffer.length >= 12 && buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
     return false;
 }
 
-function decodeUploadedMedia(data, imagesOnly = false) {
-    if (typeof data !== 'string' || data.length === 0) return null;
-
-    const match = /^data:(image|video)\/([a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
-    if (!match) return null;
-
-    const mimeType = (match[1] + '/' + match[2]).toLowerCase();
-    const mediaType = MEDIA_TYPES[mimeType];
-    if (!mediaType || (imagesOnly && mediaType.kind !== 'image')) return null;
-
-    const encoded = match[3];
-    if (encoded.length % 4 !== 0) return null;
-
-    const buffer = Buffer.from(encoded, 'base64');
-    if (
-        buffer.length === 0 ||
-        buffer.length > MAX_UPLOAD_BYTES ||
-        buffer.toString('base64') !== encoded ||
-        !hasValidMediaSignature(buffer, mimeType)
-    ) {
-        return null;
+function hasValidFileSignature(buffer, extension) {
+    if (extension === 'pdf') return buffer.length >= 5 && buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    if (['doc', 'xls', 'ppt'].includes(extension)) return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+    if (['docx', 'xlsx', 'pptx', 'odt', 'ods', 'odp', 'zip'].includes(extension)) {
+        return buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && [0x03, 0x05, 0x07].includes(buffer[2]) && [0x04, 0x06, 0x08].includes(buffer[3]);
     }
-
-    return { buffer, ...mediaType };
+    if (extension === 'rtf') return buffer.subarray(0, 5).toString('ascii').toLowerCase() === '{\\rtf';
+    if (['txt', 'csv', 'md'].includes(extension)) return !buffer.includes(0);
+    return false;
 }
 
-function storeUploadedMedia(media) {
+function decodeUploadedMedia(data, expectedKind = 'image', originalName = '') {
+    if (typeof data !== 'string' || data.length === 0) throw new Error('INVALID_UPLOAD');
+    const match = /^data:([^;,]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
+    if (!match) throw new Error('INVALID_UPLOAD');
+    const declaredMimeType = match[1].toLowerCase();
+    const encoded = match[2];
+    if (encoded.length % 4 !== 0) throw new Error('INVALID_UPLOAD');
+    const buffer = Buffer.from(encoded, 'base64');
+    if (buffer.length === 0 || buffer.toString('base64') !== encoded) throw new Error('INVALID_UPLOAD');
+    if (buffer.length > MAX_UPLOAD_BYTES) throw new Error('FILE_TOO_LARGE');
+
+    if (expectedKind === 'image') {
+        const mediaType = MEDIA_TYPES[declaredMimeType];
+        if (!mediaType || mediaType.kind !== 'image' || !hasValidMediaSignature(buffer, declaredMimeType)) throw new Error('INVALID_IMAGE');
+        const dimensions = getImageDimensions(buffer, declaredMimeType);
+        if (!dimensions || dimensions.width < 1 || dimensions.height < 1) throw new Error('INVALID_IMAGE');
+        if (dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) throw new Error('IMAGE_TOO_LARGE');
+        return {
+            buffer,
+            kind: 'image',
+            ext: mediaType.ext,
+            mimeType: declaredMimeType,
+            name: cleanUploadedFileName(originalName, mediaType.ext),
+            dimensions
+        };
+    }
+
+    const extension = path.extname(String(originalName || '')).slice(1).toLowerCase();
+    const mimeType = FILE_TYPES[extension];
+    if (!mimeType || !hasValidFileSignature(buffer, extension)) throw new Error('INVALID_FILE');
+    return { buffer, kind: 'file', ext: extension, mimeType, name: cleanUploadedFileName(originalName, extension) };
+}
+
+function storeUploadedMedia(media, userId) {
     const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
     fs.mkdirSync(uploadsDir, { recursive: true });
-
-    const prefix = media.kind === 'video' ? 'vid_' : 'img_';
+    const prefix = media.kind === 'video' ? 'vid_' : media.kind === 'file' ? 'file_' : 'img_';
     const filename = prefix + crypto.randomBytes(16).toString('hex') + '.' + media.ext;
     const filePath = path.join(uploadsDir, filename);
     fs.writeFileSync(filePath, media.buffer, { flag: 'wx', mode: 0o644 });
-
+    try {
+        db.prepare('INSERT INTO uploaded_media (filename, user_id) VALUES (?, ?)').run(filename, String(userId));
+    } catch (error) {
+        fs.unlinkSync(filePath);
+        throw error;
+    }
+    const url = PUBLIC_BASE_URL + '/api/uploads/' + filename + (media.kind === 'file' ? '?name=' + encodeURIComponent(media.name) : '');
     return {
-        url: PUBLIC_BASE_URL + '/api/uploads/' + filename,
+        url,
         type: media.kind,
-        filename
+        filename,
+        name: media.name || filename,
+        size: media.buffer.length,
+        mime_type: media.mimeType || '',
+        ...(media.dimensions || {})
     };
 }
 
@@ -122,10 +205,9 @@ async function getRecipientChatId(reminder, messageIds, userId) {
     return null;
 }
 
-function sanitizeUploadedImages(images) {
+function sanitizeUploadedMedia(images, userId) {
     if (images === undefined || images === null) return [];
     if (!Array.isArray(images) || images.length > 3) return null;
-
     let publicOrigin;
     try {
         const publicUrl = new URL(PUBLIC_BASE_URL);
@@ -134,49 +216,80 @@ function sanitizeUploadedImages(images) {
     } catch (error) {
         return null;
     }
-
     const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
     const result = [];
-
     for (const item of images) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
         if (typeof item.filename !== 'string' || typeof item.url !== 'string') return null;
-        if (item.type !== 'image') return null;
-
-        const match = /^img_([a-f0-9]{16}|[a-f0-9]{32})\.(png|jpg|gif|webp)$/i.exec(item.filename);
-        if (!match) return null;
-
+        let extension;
+        if (item.type === 'image') {
+            const match = /^img_([a-f0-9]{16}|[a-f0-9]{32})\.(png|jpg|gif|webp)$/i.exec(item.filename);
+            if (!match) return null;
+            extension = match[2].toLowerCase();
+        } else if (item.type === 'file') {
+            const match = /^file_([a-f0-9]{32})\.([a-z0-9]+)$/i.exec(item.filename);
+            if (!match || !FILE_TYPES[match[2].toLowerCase()]) return null;
+            extension = match[2].toLowerCase();
+        } else {
+            return null;
+        }
         let parsedUrl;
         try {
             parsedUrl = new URL(item.url);
         } catch (error) {
             return null;
         }
-
-        if (
-            parsedUrl.origin !== publicOrigin ||
-            parsedUrl.pathname !== '/api/uploads/' + item.filename ||
-            parsedUrl.search ||
-            parsedUrl.hash
-        ) {
-            return null;
-        }
-
+        const safeName = cleanUploadedFileName(item.name || item.filename, extension);
+        const expectedSearch = item.type === 'file' ? '?name=' + encodeURIComponent(safeName) : '';
+        if (parsedUrl.origin !== publicOrigin || parsedUrl.pathname !== '/api/uploads/' + item.filename || parsedUrl.search !== expectedSearch || parsedUrl.hash) return null;
         const filePath = path.join(uploadsDir, item.filename);
+        let stat;
+        let buffer;
         try {
-            if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+            stat = fs.statSync(filePath);
+            if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return null;
+            buffer = fs.readFileSync(filePath);
         } catch (error) {
             return null;
         }
-
-        result.push({
-            url: parsedUrl.toString(),
-            type: item.type,
-            filename: item.filename
-        });
+        const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(item.filename);
+        if (owner && String(owner.user_id) !== String(userId)) return null;
+        if (item.type === 'file' && (!owner || String(owner.user_id) !== String(userId))) return null;
+        if (item.type === 'image') {
+            const mimeType = extension === 'jpg' ? 'image/jpeg' : 'image/' + extension;
+            if (!hasValidMediaSignature(buffer, mimeType)) return null;
+            const dimensions = getImageDimensions(buffer, mimeType);
+            if (!dimensions || dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) return null;
+            result.push({ url: parsedUrl.toString(), type: 'image', filename: item.filename, name: safeName, size: stat.size, mime_type: mimeType, width: dimensions.width, height: dimensions.height });
+        } else {
+            if (!hasValidFileSignature(buffer, extension)) return null;
+            result.push({ url: parsedUrl.toString(), type: 'file', filename: item.filename, name: safeName, size: stat.size, mime_type: FILE_TYPES[extension] });
+        }
     }
-
     return result;
+}
+
+function cleanupUnusedUploadedMedia(userId, previousMedia, nextMedia) {
+    const nextFilenames = new Set((Array.isArray(nextMedia) ? nextMedia : []).map(item => item?.filename).filter(Boolean));
+    const previousFilenames = new Set((Array.isArray(previousMedia) ? previousMedia : []).map(item => item?.filename).filter(Boolean));
+    const referenced = new Set();
+    db.prepare('SELECT images FROM reminders WHERE user_id = ?').all(userId).forEach(row => {
+        safeJsonParse(row.images, []).forEach(item => {
+            if (item && item.filename) referenced.add(item.filename);
+        });
+    });
+    for (const filename of previousFilenames) {
+        if (nextFilenames.has(filename) || referenced.has(filename)) continue;
+        const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+        if (!owner || String(owner.user_id) !== String(userId)) continue;
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        try {
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            db.prepare('DELETE FROM uploaded_media WHERE filename = ? AND user_id = ?').run(filename, String(userId));
+        } catch (error) {
+            console.error('Failed to clean unused uploaded file:', error.message);
+        }
+    }
 }
 
 function sanitizeQuickReplies(quickReplies) {
@@ -312,9 +425,9 @@ router.get('/public/:id', async (req, res) => {
                 .map(({ index, question, answer }) => ({ index, question, answer }))
             : [];
         const savedImages = safeJsonParse(reminder.images, []);
-        const validImages = sanitizeUploadedImages(savedImages);
+        const validImages = sanitizeUploadedMedia(savedImages, reminder.user_id);
         const publicImages = Array.isArray(validImages)
-            ? validImages.map(({ url, type }) => ({ url, type }))
+            ? validImages.map(({ url, type, name, size, mime_type, width, height }) => ({ url, type, name, size, mime_type, width, height }))
             : [];
 
         res.setHeader('Cache-Control', 'no-store');
@@ -409,29 +522,69 @@ router.get('/', (req, res) => {
 
 router.post('/upload-media', (req, res) => {
     try {
-        const media = decodeUploadedMedia(req.body?.media_data, true);
-        if (!media) {
-            return res.status(400).json({ error: 'Unsupported or invalid media file. Use PNG, JPEG, GIF, WEBP, MP4, MOV or WEBM.' });
-        }
-
-        return res.json(storeUploadedMedia(media));
+        const media = decodeUploadedMedia(req.body?.media_data, 'image', req.body?.file_name);
+        return res.json(storeUploadedMedia(media, req.userId));
     } catch (error) {
-        console.error('Failed to store uploaded media:', error.message);
-        return res.status(500).json({ error: 'Failed to upload media' });
+        const messages = {
+            FILE_TOO_LARGE: 'Каждый файл должен быть не больше 10 МБ',
+            IMAGE_TOO_LARGE: 'Размер фото не должен превышать 7680 × 7680 пикселей',
+            INVALID_IMAGE: 'Поддерживаются изображения PNG, JPEG, GIF и WEBP'
+        };
+        if (messages[error.message]) return res.status(400).json({ error: messages[error.message] });
+        if (error.message === 'INVALID_UPLOAD') return res.status(400).json({ error: 'Не удалось прочитать файл' });
+        console.error('Failed to store uploaded image:', error.message);
+        return res.status(500).json({ error: 'Не удалось загрузить фото' });
     }
 });
 
 router.post('/upload-image', (req, res) => {
     try {
-        const media = decodeUploadedMedia(req.body?.image_data, true);
-        if (!media) {
-            return res.status(400).json({ error: 'Unsupported or invalid image file. Use PNG, JPEG, GIF or WEBP.' });
-        }
-
-        return res.json(storeUploadedMedia(media));
+        const media = decodeUploadedMedia(req.body?.image_data, 'image', req.body?.file_name);
+        return res.json(storeUploadedMedia(media, req.userId));
     } catch (error) {
+        const messages = {
+            FILE_TOO_LARGE: 'Каждый файл должен быть не больше 10 МБ',
+            IMAGE_TOO_LARGE: 'Размер фото не должен превышать 7680 × 7680 пикселей',
+            INVALID_IMAGE: 'Поддерживаются изображения PNG, JPEG, GIF и WEBP'
+        };
+        if (messages[error.message]) return res.status(400).json({ error: messages[error.message] });
+        if (error.message === 'INVALID_UPLOAD') return res.status(400).json({ error: 'Не удалось прочитать фото' });
         console.error('Failed to store uploaded image:', error.message);
-        return res.status(500).json({ error: 'Failed to upload image' });
+        return res.status(500).json({ error: 'Не удалось загрузить фото' });
+    }
+});
+
+router.post('/upload-file', (req, res) => {
+    try {
+        const media = decodeUploadedMedia(req.body?.media_data, 'file', req.body?.file_name);
+        return res.json(storeUploadedMedia(media, req.userId));
+    } catch (error) {
+        if (error.message === 'FILE_TOO_LARGE') return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+        if (error.message === 'INVALID_UPLOAD') return res.status(400).json({ error: 'Не удалось прочитать файл' });
+        if (error.message === 'INVALID_FILE') return res.status(400).json({ error: 'Формат файла не поддерживается' });
+        console.error('Failed to store uploaded file:', error.message);
+        return res.status(500).json({ error: 'Не удалось загрузить файл' });
+    }
+});
+
+router.delete('/uploads/:filename', (req, res) => {
+    const filename = String(req.params.filename || '');
+    const match = /^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename)
+        || /^img_[a-f0-9]{32}\.(png|jpg|gif|webp)$/i.exec(filename);
+    if (!match) return res.status(400).json({ error: 'Некорректный файл' });
+    const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+    if (!owner || String(owner.user_id) !== String(req.userId)) return res.status(404).json({ error: 'Файл не найден' });
+    const rows = db.prepare('SELECT images FROM reminders WHERE user_id = ?').all(req.userId);
+    const isAttached = rows.some(row => safeJsonParse(row.images, []).some(item => item && item.filename === filename));
+    if (isAttached) return res.status(409).json({ error: 'Файл уже прикреплён к сохранённому напоминанию' });
+    try {
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        db.prepare('DELETE FROM uploaded_media WHERE filename = ? AND user_id = ?').run(filename, String(req.userId));
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete uploaded file:', error.message);
+        return res.status(500).json({ error: 'Не удалось удалить файл' });
     }
 });
 
@@ -441,7 +594,7 @@ router.delete('/:id', async (req, res) => {
         if (!Number.isSafeInteger(id) || id <= 0) {
             return res.status(400).json({ error: 'Invalid id' });
         }
-        const reminder = db.prepare('SELECT status, message_ids FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const reminder = db.prepare('SELECT status, message_ids, images FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder) return res.json({ success: true });
         const messageIds = safeJsonParse(reminder.message_ids, {});
         if (reminder.status === 'sent' && Object.keys(messageIds).length === 0) {
@@ -470,6 +623,7 @@ router.delete('/:id', async (req, res) => {
             db.prepare('DELETE FROM responses WHERE reminder_id = ?').run(id);
             db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
         })();
+        cleanupUnusedUploadedMedia(req.userId, safeJsonParse(reminder.images, []), []);
         res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
         console.error('Failed to delete reminder:', e);
@@ -531,9 +685,9 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
 
-        const validImages = sanitizeUploadedImages(images);
+        const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
-            return res.status(400).json({ error: 'Images must be uploaded through this application' });
+            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 файла по 10 МБ' });
         }
 
         const stmt = db.prepare(`
@@ -640,10 +794,11 @@ router.put('/:id', async (req, res) => {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
 
-        const validImages = sanitizeUploadedImages(images);
+        const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
-            return res.status(400).json({ error: 'Images must be uploaded through this application' });
+            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 файла по 10 МБ' });
         }
+        const oldImages = safeJsonParse(existing.images, []);
 
         if (existing.status === 'sent') {
             const oldRecipients = safeJsonParse(existing.recipients, []);
@@ -655,8 +810,18 @@ router.put('/:id', async (req, res) => {
             const oldImages = safeJsonParse(existing.images, []);
             const oldChatIds = getTargetChatIds(req.userId, oldRecipients);
             const newChatIds = getTargetChatIds(req.userId, validRecipients);
+            const oldMediaSignature = (Array.isArray(oldImages) ? oldImages : []).map(item => ({
+                type: item?.type || '',
+                filename: item?.filename || '',
+                url: item?.url || ''
+            }));
+            const newMediaSignature = validImages.map(item => ({
+                type: item.type,
+                filename: item.filename,
+                url: item.url
+            }));
             const attachmentDataChanged = JSON.stringify(oldQuickReplies) !== JSON.stringify(validReplies)
-                || JSON.stringify(oldImages) !== JSON.stringify(validImages)
+                || JSON.stringify(oldMediaSignature) !== JSON.stringify(newMediaSignature)
                 || (existing.sender_name || '') !== cleanSenderName;
             const updatedMessageIds = {};
             const recipientsToSend = [];
@@ -731,6 +896,7 @@ router.put('/:id', async (req, res) => {
                 id,
                 req.userId
             );
+            cleanupUnusedUploadedMedia(req.userId, oldImages, validImages);
 
             return res.json({
                 id,
@@ -775,6 +941,7 @@ router.put('/:id', async (req, res) => {
                 cleanRepeatTime
             );
         }
+        cleanupUnusedUploadedMedia(req.userId, oldImages, validImages);
         res.json({ id, status });
     } catch (e) {
         res.status(500).json({ error: 'Failed to update reminder' });

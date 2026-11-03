@@ -201,6 +201,76 @@ const App = {
         return null;
     },
 
+    uploadAttachment: function(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const extension = String(file.name || '').split('.').pop().toLowerCase();
+            const imageMimeTypes = {
+                png: 'image/png',
+                jpg: 'image/jpeg',
+                jpeg: 'image/jpeg',
+                gif: 'image/gif',
+                webp: 'image/webp'
+            };
+            const isImage = Object.prototype.hasOwnProperty.call(imageMimeTypes, extension);
+            const endpoint = isImage ? '/api/reminders/upload-media' : '/api/reminders/upload-file';
+            const reader = new FileReader();
+
+            reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+            reader.onprogress = event => {
+                if (event.lengthComputable && typeof onProgress === 'function') {
+                    onProgress(Math.round(event.loaded / event.total * 25));
+                }
+            };
+            reader.onload = () => {
+                const dataUrl = String(reader.result || '').replace(/^data:[^;,]+/, 'data:' + (imageMimeTypes[extension] || file.type || 'application/octet-stream'));
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, true);
+                xhr.timeout = 120000;
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                Object.entries(this.getAuthHeaders()).forEach(([name, value]) => {
+                    if (value) xhr.setRequestHeader(name, value);
+                });
+                xhr.upload.addEventListener('progress', event => {
+                    if (event.lengthComputable && typeof onProgress === 'function') {
+                        onProgress(25 + Math.round(event.loaded / event.total * 75));
+                    }
+                });
+                xhr.onload = () => {
+                    let data;
+                    try {
+                        data = JSON.parse(xhr.responseText || '{}');
+                    } catch (error) {
+                        reject(new Error('Сервер вернул некорректный ответ'));
+                        return;
+                    }
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        reject(new Error(data.error || 'Не удалось загрузить файл'));
+                        return;
+                    }
+                    if (typeof onProgress === 'function') onProgress(100);
+                    resolve(data);
+                };
+                xhr.onerror = () => reject(new Error('Не удалось связаться с сервером'));
+                xhr.ontimeout = () => reject(new Error('Время загрузки файла истекло'));
+                xhr.onabort = () => reject(new Error('Загрузка отменена'));
+                xhr.send(JSON.stringify({ media_data: dataUrl, file_name: file.name }));
+            };
+            reader.readAsDataURL(file);
+        });
+    },
+
+    deleteUploadedMedia: async function(filename) {
+        const res = await fetch('/api/reminders/uploads/' + encodeURIComponent(filename), {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось удалить файл');
+        }
+        return data;
+    },
+
     getGroups: async function() {
         const res = await fetch('/api/groups', {
             headers: this.getAuthHeaders()
