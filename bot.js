@@ -267,6 +267,62 @@ try {
     console.error('MAX Bot API require error:', e);
 }
 
+let cachedBotUsername = null;
+let botUsernamePromise = null;
+
+async function getMiniAppBotUsername() {
+    if (cachedBotUsername) return cachedBotUsername;
+    if (botUsernamePromise) return botUsernamePromise;
+
+    botUsernamePromise = (async () => {
+        let username = process.env.MAX_BOT_USERNAME;
+        if (!username) {
+            let botInfo = botInstance?.botInfo;
+            if (!botInfo?.username) {
+                botInfo = await botInstance.api.getMyInfo();
+            }
+            username = botInfo?.username || botInfo?.user?.username;
+        }
+
+        const normalized = String(username || '').replace(/^@/, '').trim();
+        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(normalized)) {
+            throw new Error('MAX bot username is unavailable. Set MAX_BOT_USERNAME or configure a public bot name.');
+        }
+
+        cachedBotUsername = normalized;
+        return normalized;
+    })();
+
+    try {
+        return await botUsernamePromise;
+    } finally {
+        botUsernamePromise = null;
+    }
+}
+
+async function sendQuickReplyMessage(reminderId, chatId, answerText) {
+    if (!botInstance || typeof answerText !== 'string' || !answerText.trim()) return false;
+
+    const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(reminderId);
+    const messageIds = safeJsonParse(reminder?.message_ids, {});
+    const parentMid = messageIds[String(chatId)];
+    if (!parentMid) return false;
+
+    if (!await deleteLinkedReplyMessages(reminderId, chatId, parentMid)) return false;
+
+    const sentReply = await botInstance.api.sendMessageToUser(chatId, answerText.trim().slice(0, 500), {
+        link: { type: 'reply', mid: String(parentMid) }
+    });
+    const replyMid = sentReply?.message?.body?.mid
+        || sentReply?.body?.mid
+        || sentReply?.mid
+        || sentReply?.body?.message_id;
+
+    if (!replyMid) return false;
+    storeReplyMessage(reminderId, chatId, replyMid, parentMid);
+    return true;
+}
+
 async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images) {
     const result = {
         sentChatIds: [],
@@ -283,6 +339,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 
     try {
         const { Keyboard } = require('@maxhub/max-bot-api');
+        const botUsername = await getMiniAppBotUsername();
         let attachments = [];
 
         if (Array.isArray(images) && images.length > 0) {
@@ -364,12 +421,9 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
             }
         }
 
-        if (Array.isArray(quickReplies) && quickReplies.length > 0) {
-            const buttons = quickReplies.map(qr => [
-                Keyboard.button.callback(qr.question, `ans:${reminderId}:${qr.answer}`)
-            ]);
-            attachments.push(Keyboard.inlineKeyboard(buttons));
-        }
+        attachments.push(Keyboard.inlineKeyboard([
+            [Keyboard.button.openApp('Подробнее', botUsername, undefined, `r_${reminderId}`)]
+        ]));
 
         for (const chatId of uniqueChatIds) {
             let sentSuccess = false;
@@ -424,6 +478,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 module.exports = {
     botInstance,
     sendBroadcastMessage,
+    sendQuickReplyMessage,
     deleteMaxMessage,
     deleteLinkedReplyMessages,
     editMaxMessage

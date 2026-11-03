@@ -1,0 +1,122 @@
+.recipient-reminder-content {
+    display: flex;
+    width: 100%;
+    max-width: 440px;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 auto;
+    padding: 22px 16px 36px;
+    box-sizing: border-box;
+}
+
+.recipient-reminder-state {
+    padding: 28px 18px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 18px;
+    background: var(--surface, #fff);
+    color: var(--muted, #778196);
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.recipient-reminder-state.is-error {
+    color: var(--text, #172033);
+}
+
+.recipient-reminder-card,
+.recipient-reminder-replies {
+    overflow: hidden;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 20px;
+    background: var(--surface, #fff);
+    box-shadow: 0 8px 24px rgba(23, 32, 51, .06);
+}
+
+.recipient-reminder-media {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 3px;
+    overflow: hidden;
+}
+
+.recipient-reminder-media-item {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    aspect-ratio: 1 / 1;
+    border: 0;
+    background: var(--surface-muted, #f1f4f9);
+    object-fit: cover;
+}
+
+.recipient-reminder-media-item:only-child {
+    aspect-ratio: 16 / 10;
+}
+
+.recipient-reminder-copy {
+    padding: 20px;
+}
+
+.recipient-reminder-copy h1 {
+    margin: 0;
+    color: var(--text, #172033);
+    font-size: 22px;
+    font-weight: 750;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-copy p {
+    margin: 12px 0 0;
+    color: var(--text, #273247);
+    font-size: 15px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-replies {
+    padding: 18px;
+}
+
+.recipient-reminder-replies-heading {
+    margin-bottom: 12px;
+    color: var(--text, #172033);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.recipient-reminder-replies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.recipient-reminder-reply-button {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 15px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 12px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--text, #172033);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.recipient-reminder-reply-button:disabled {
+    cursor: default;
+    opacity: .6;
+}
+
+.recipient-reminder-reply-button.is-sent {
+    border-color: rgba(23, 160, 102, .25);
+    background: rgba(23, 160, 102, .09);
+    color: #16845a;
+}

@@ -130,6 +130,29 @@ function authMiddleware(req, res, next) {
     next();
 }
 
+function recipientAuthMiddleware(req, res, next) {
+    if (!BOT_TOKEN) {
+        return res.status(503).json({ error: 'API authentication is not configured' });
+    }
+
+    const rawInitData = req.get('X-Webapp-Init-Data');
+    if (!rawInitData) {
+        return res.status(401).json({ error: 'MAX authentication data is required' });
+    }
+
+    const userId = validateInitData(rawInitData, BOT_TOKEN);
+    if (!userId) {
+        return res.status(401).json({ error: 'MAX authentication data is invalid or expired' });
+    }
+
+    if (BLOCKED_USER_IDS.has(userId)) {
+        return res.status(403).json({ error: 'Access is disabled for this account' });
+    }
+
+    req.userId = userId;
+    next();
+}
+
 function createUserRateLimiter(bucketMap, windowMs, maxRequests, message) {
     return function userRateLimit(req, res, next) {
         const now = Date.now();
@@ -183,6 +206,7 @@ const reminderWriteRateLimit = createUserRateLimiter(
 module.exports = {
     BOT_TOKEN,
     authMiddleware,
+    recipientAuthMiddleware,
     apiRateLimit,
     uploadRateLimit,
     reminderWriteRateLimit,

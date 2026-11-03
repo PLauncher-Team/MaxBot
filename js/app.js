@@ -62,7 +62,7 @@ const App = {
         }
 
         if (window.WebApp && window.WebApp.BackButton) {
-            if (screenName === 'home') {
+            if (screenName === 'home' || screenName === 'reminderView') {
                 window.WebApp.BackButton.hide();
             } else {
                 window.WebApp.BackButton.show();
@@ -408,7 +408,8 @@ const App = {
             home: document.getElementById('home-screen'),
             templates: document.getElementById('templates-screen'),
             create: document.getElementById('create-screen'),
-            recipients: document.getElementById('recipients-screen')
+            recipients: document.getElementById('recipients-screen'),
+            reminderView: document.getElementById('reminder-view-screen')
         };
 
         if (window.WebApp) {
@@ -447,6 +448,12 @@ const App = {
         } else {
             const urlParams = new URLSearchParams(window.location.search);
             startParam = urlParams.get('start') || urlParams.get('startapp');
+        }
+
+        if (startParam && /^r_[0-9]+$/.test(startParam)) {
+            this.showScreen('reminderView');
+            RecipientReminder.load(Number(startParam.slice(2)));
+            return;
         }
 
         if (startParam && startParam.startsWith('group_')) {

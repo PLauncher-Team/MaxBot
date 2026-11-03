@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
-const { sendBroadcastMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
+const { sendBroadcastMessage, sendQuickReplyMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
 const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
@@ -256,6 +256,80 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
         );
     }
 }
+
+router.get('/public/:id', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) {
+            return res.status(400).json({ error: 'Invalid reminder id' });
+        }
+
+        const reminder = db.prepare('SELECT title, description, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const messageIds = safeJsonParse(reminder?.message_ids, {});
+        if (!reminder || !messageIds[String(req.userId)]) {
+            return res.status(404).json({ error: 'Reminder not found' });
+        }
+
+        const quickReplies = safeJsonParse(reminder.quick_replies, []);
+        const publicReplies = Array.isArray(quickReplies)
+            ? quickReplies.map((reply, index) => ({
+                index,
+                question: typeof reply?.question === 'string' ? reply.question.trim().slice(0, 150) : '',
+                answer: typeof reply?.answer === 'string' ? reply.answer.trim().slice(0, 500) : ''
+            })).filter(reply => reply.question && reply.answer)
+                .map(({ index, question }) => ({ index, question }))
+            : [];
+        const savedImages = safeJsonParse(reminder.images, []);
+        const validImages = sanitizeUploadedImages(savedImages);
+        const publicImages = Array.isArray(validImages)
+            ? validImages.map(({ url, type }) => ({ url, type }))
+            : [];
+
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({
+            title: reminder.title || '',
+            description: reminder.description || '',
+            images: publicImages,
+            quick_replies: publicReplies
+        });
+    } catch (error) {
+        console.error('Failed to fetch recipient reminder:', error.message);
+        return res.status(500).json({ error: 'Failed to fetch reminder' });
+    }
+});
+
+router.post('/public/:id/replies/:replyIndex', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const replyIndex = Number(req.params.replyIndex);
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(replyIndex) || replyIndex < 0) {
+            return res.status(400).json({ error: 'Invalid quick reply' });
+        }
+
+        const reminder = db.prepare('SELECT quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
+        const messageIds = safeJsonParse(reminder?.message_ids, {});
+        if (!reminder || !messageIds[String(req.userId)]) {
+            return res.status(404).json({ error: 'Reminder not found' });
+        }
+
+        const quickReplies = safeJsonParse(reminder.quick_replies, []);
+        const selectedReply = Array.isArray(quickReplies) ? quickReplies[replyIndex] : null;
+        const answer = typeof selectedReply?.answer === 'string' ? selectedReply.answer.trim().slice(0, 500) : '';
+        if (!answer) {
+            return res.status(404).json({ error: 'Quick reply not found' });
+        }
+
+        const sent = await sendQuickReplyMessage(id, String(req.userId), answer);
+        if (!sent) {
+            return res.status(502).json({ error: 'Не удалось отправить ответ в MAX. Попробуйте ещё раз.' });
+        }
+
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to send recipient quick reply:', error.message);
+        return res.status(500).json({ error: 'Failed to send quick reply' });
+    }
+});
 
 router.get('/', (req, res) => {
     try {

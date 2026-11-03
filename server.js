@@ -4,7 +4,7 @@ const path = require('path');
 const fs = require('fs');
 
 const db = require('./db');
-const { authMiddleware, apiRateLimit, uploadRateLimit, reminderWriteRateLimit } = require('./auth');
+const { authMiddleware, recipientAuthMiddleware, apiRateLimit, uploadRateLimit, reminderWriteRateLimit } = require('./auth');
 const { botInstance } = require('./bot');
 const { startScheduler } = require('./scheduler');
 
@@ -85,11 +85,16 @@ app.get('/api/uploads/:filename', (req, res) => {
 
 // Authenticate before parsing request bodies so unauthenticated clients cannot make the
 // JSON parser process large payloads. No client-supplied user ID is trusted.
-app.use('/api', authMiddleware, apiRateLimit);
+app.use('/api', (req, res, next) => {
+    const authenticate = req.path.startsWith('/reminders/public/')
+        ? recipientAuthMiddleware
+        : authMiddleware;
+    return authenticate(req, res, () => apiRateLimit(req, res, next));
+});
 app.use('/api/reminders/upload-media', uploadRateLimit);
 app.use('/api/reminders/upload-image', uploadRateLimit);
 app.use('/api/reminders', (req, res, next) => {
-    if ((req.method === 'POST' && (req.path === '/' || req.path === '')) || req.method === 'PUT') {
+    if ((req.method === 'POST' && (req.path === '/' || req.path === '' || req.path.startsWith('/public/'))) || req.method === 'PUT') {
         return reminderWriteRateLimit(req, res, next);
     }
     return next();
