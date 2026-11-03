@@ -519,11 +519,16 @@ const App = {
                     return;
                 }
 
-                await this.saveTemplate({
-                    title,
-                    description,
-                    quick_replies: this.modalReplies
-                });
+                try {
+                    await this.saveTemplate({
+                        title,
+                        description,
+                        quick_replies: this.modalReplies
+                    });
+                } catch (error) {
+                    this.showToast(error.message || 'Не удалось сохранить шаблон');
+                    return;
+                }
 
                 this.closeCreateTemplateModal();
                 this.showToast('Шаблон сохранён');
