@@ -46,6 +46,14 @@ jobs:
           chmod 600 "$HOME/.ssh/known_hosts"
           ssh-keygen -F "$DEPLOY_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null || { echo "::error::Known-hosts secret does not contain the deployment host"; exit 1; }
 
+      - name: Run security tests and syntax checks
+        run: |
+          set -euo pipefail
+          npm test
+          for file in auth.js server.js bot.js scheduler.js routes/*.js js/*.js js/screens/*.js; do
+            node --check "$file"
+          done
+
       - name: Resolve and audit production dependencies
         run: |
           set -euo pipefail
