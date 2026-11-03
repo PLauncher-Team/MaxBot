@@ -72,7 +72,6 @@ const CreateScreen = {
     },
 
     selectWizardTemplate: async function(template) {
-        this.startedFromTemplate = Boolean(template);
         this.populateForm(template);
         this.showWizardStep(2);
         await this.loadRecipientOptions();
