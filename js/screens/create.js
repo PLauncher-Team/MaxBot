@@ -513,61 +513,6 @@ const CreateScreen = {
         });
     },
 
-    renderSelectedRecipients: function() {
-        const recipientList = document.getElementById('recipient-list');
-        if (!recipientList) return;
-        recipientList.innerHTML = '';
-
-        const sendToSelfActive = document.getElementById('send-to-self-toggle')?.classList.contains('active');
-        let totalCount = this.selectedGroups.length;
-
-        if (sendToSelfActive) {
-            const selfItem = document.createElement('div');
-            selfItem.className = 'recipient-item';
-            selfItem.innerHTML = `
-                <div class="recipient-check">
-                    <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="recipient-avatar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#007aff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                </div>
-                <div class="recipient-info">
-                    <div class="recipient-name">Себе</div>
-                    <div class="recipient-status">Личное сообщение</div>
-                </div>
-            `;
-            recipientList.appendChild(selfItem);
-            totalCount++;
-        }
-
-        this.selectedGroups.forEach(gName => {
-            const item = document.createElement('div');
-            item.className = 'recipient-item';
-            item.innerHTML = `
-                <div class="recipient-check">
-                    <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="recipient-avatar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#007aff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                </div>
-                <div class="recipient-info">
-                    <div class="recipient-name">${App.escapeHtml(gName)}</div>
-                    <div class="recipient-status">Группа</div>
-                </div>
-            `;
-            recipientList.appendChild(item);
-        });
-
-        this.updateRecipientsBadge(totalCount);
-    },
-
-    updateRecipientsBadge: function(count) {
-        const badge = document.getElementById('recipients-badge');
-        if (badge) {
-            badge.textContent = count !== undefined ? count : 1;
-        }
-    },
-
     init: function() {
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
