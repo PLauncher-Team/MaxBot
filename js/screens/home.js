@@ -178,7 +178,13 @@ const HomeScreen = {
     
             const reminders = await App.getReminders();
             const scheduled = reminders.filter(r => r.status === 'scheduled');
-            const sent = reminders.filter(r => r.status === 'sent');
+            const sent = reminders
+                .filter(r => r.status === 'sent')
+                .sort((a, b) => {
+                    const aTime = Date.parse(String(a.sent_at || a.created_at || '').replace(' ', 'T')) || 0;
+                    const bTime = Date.parse(String(b.sent_at || b.created_at || '').replace(' ', 'T')) || 0;
+                    return bTime - aTime || Number(b.id) - Number(a.id);
+                });
     
             if (scheduledCount) scheduledCount.textContent = scheduled.length;
     
