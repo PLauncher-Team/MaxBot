@@ -91,9 +91,9 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
 
 router.get('/', (req, res) => {
     try {
-        // Keep only the five newest sent reminders for this teacher.
-        // Remove their stored responses as well to avoid orphaned database rows.
-        const pruneSentHistory = db.transaction(userId => {
+        // Keep only five sent reminders and five upcoming scheduled reminders.
+        // Remove stored responses with pruned records to avoid orphaned database rows.
+        const pruneReminderHistory = db.transaction(userId => {
             db.prepare(`
                 DELETE FROM responses
                 WHERE reminder_id IN (
@@ -114,8 +114,39 @@ router.get('/', (req, res) => {
                       LIMIT 5
                   )
             `).run(userId, userId);
+
+            db.prepare(`
+                DELETE FROM responses
+                WHERE reminder_id IN (
+                    SELECT id FROM reminders
+                    WHERE user_id = ? AND status = 'scheduled'
+                      AND id NOT IN (
+                          SELECT id FROM reminders
+                          WHERE user_id = ? AND status = 'scheduled'
+                          ORDER BY
+                              CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END,
+                              scheduled_time ASC,
+                              id ASC
+                          LIMIT 5
+                      )
+                )
+            `).run(userId, userId);
+
+            db.prepare(`
+                DELETE FROM reminders
+                WHERE user_id = ? AND status = 'scheduled'
+                  AND id NOT IN (
+                      SELECT id FROM reminders
+                      WHERE user_id = ? AND status = 'scheduled'
+                      ORDER BY
+                          CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END,
+                          scheduled_time ASC,
+                          id ASC
+                      LIMIT 5
+                  )
+            `).run(userId, userId);
         });
-        pruneSentHistory(req.userId);
+        pruneReminderHistory(req.userId);
 
         const rows = db.prepare('SELECT * FROM reminders WHERE user_id = ? ORDER BY id DESC').all(req.userId);
         const parsed = rows.map(r => ({
