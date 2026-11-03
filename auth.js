@@ -7,6 +7,8 @@ const MAX_INIT_DATA_LENGTH = 16 * 1024;
 const API_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const API_RATE_LIMIT_MAX_REQUESTS = 300;
 const apiRateLimitBuckets = new Map();
+const uploadRateLimitBuckets = new Map();
+const reminderWriteRateLimitBuckets = new Map();
 
 function parsePositiveInteger(value, fallback) {
     const parsed = Number(value);
@@ -143,37 +145,61 @@ function authMiddleware(req, res, next) {
     next();
 }
 
-function apiRateLimit(req, res, next) {
-    const now = Date.now();
-    const key = req.userId;
-    let bucket = apiRateLimitBuckets.get(key);
+function createUserRateLimiter(bucketMap, windowMs, maxRequests, message) {
+    return function userRateLimit(req, res, next) {
+        const now = Date.now();
+        const key = req.userId;
+        let bucket = bucketMap.get(key);
 
-    if (!bucket || bucket.resetAt <= now) {
-        bucket = { count: 0, resetAt: now + API_RATE_LIMIT_WINDOW_MS };
-        apiRateLimitBuckets.set(key, bucket);
-    }
-
-    if (bucket.count >= API_RATE_LIMIT_MAX_REQUESTS) {
-        const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
-        res.setHeader('Retry-After', String(retryAfterSeconds));
-        return res.status(429).json({ error: 'Too many requests. Please try again shortly.' });
-    }
-
-    bucket.count += 1;
-
-    // Bound memory if many distinct authenticated users hit the API.
-    if (apiRateLimitBuckets.size > 10000) {
-        for (const [userId, entry] of apiRateLimitBuckets) {
-            if (entry.resetAt <= now) apiRateLimitBuckets.delete(userId);
+        if (!bucket || bucket.resetAt <= now) {
+            bucket = { count: 0, resetAt: now + windowMs };
+            bucketMap.set(key, bucket);
         }
-    }
 
-    next();
+        if (bucket.count >= maxRequests) {
+            const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+            res.setHeader('Retry-After', String(retryAfterSeconds));
+            return res.status(429).json({ error: message });
+        }
+
+        bucket.count += 1;
+
+        if (bucketMap.size > 10000) {
+            for (const [userId, entry] of bucketMap) {
+                if (entry.resetAt <= now) bucketMap.delete(userId);
+            }
+        }
+
+        next();
+    };
 }
+
+const apiRateLimit = createUserRateLimiter(
+    apiRateLimitBuckets,
+    API_RATE_LIMIT_WINDOW_MS,
+    API_RATE_LIMIT_MAX_REQUESTS,
+    'Too many requests. Please try again shortly.'
+);
+
+const uploadRateLimit = createUserRateLimiter(
+    uploadRateLimitBuckets,
+    5 * 60 * 1000,
+    15,
+    'Upload limit reached. Please try again in a few minutes.'
+);
+
+const reminderWriteRateLimit = createUserRateLimiter(
+    reminderWriteRateLimitBuckets,
+    60 * 1000,
+    10,
+    'Too many reminder changes. Please try again shortly.'
+);
 
 module.exports = {
     BOT_TOKEN,
     authMiddleware,
     apiRateLimit,
+    uploadRateLimit,
+    reminderWriteRateLimit,
     validateInitData
 };
