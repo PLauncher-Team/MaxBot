@@ -119,6 +119,13 @@ const CreateScreen = {
             return;
         }
         if (this.wizardStep === 2) {
+            if (this.editingSentReminder) {
+                this.wizardActive = false;
+                this.editingSentReminder = false;
+                App.editingReminderId = null;
+                App.showScreen('home');
+                return;
+            }
             this.showWizardStep(1);
             return;
         }
@@ -421,6 +428,10 @@ const CreateScreen = {
     },
 
     populateForSentEdit: function(reminder) {
+        this.recipientFilter = 'all';
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.value = '';
+
         this.populateForEdit({
             ...reminder,
             send_now: 1,
@@ -429,6 +440,9 @@ const CreateScreen = {
             repeat_time: null
         });
         this.editingSentReminder = true;
+        this.wizardActive = true;
+        this.showWizardStep(2);
+
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendNowSection = sendNowToggle?.closest('.create-section');
         const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
