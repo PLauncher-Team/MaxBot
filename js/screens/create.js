@@ -384,7 +384,9 @@ const CreateScreen = {
         if (titleInput) titleInput.value = reminder.title || '';
         if (descInput) descInput.value = reminder.description || '';
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
-        this.currentImages = Array.isArray(reminder.images) ? [...reminder.images] : [];
+        this.currentImages = Array.isArray(reminder.images)
+            ? reminder.images.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3)
+            : [];
 
         if (sendNowToggle) {
             sendNowToggle.classList.remove('active');
