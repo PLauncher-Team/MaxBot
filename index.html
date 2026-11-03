@@ -291,6 +291,12 @@
             </div>
 
             <div class="create-section">
+                <div class="create-section-title">От кого</div>
+                <input type="text" class="create-input" id="create-sender-name-input" placeholder="Имя учителя" maxlength="80">
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">ID вашего аккаунта MAX добавится автоматически.</div>
+            </div>
+
+            <div class="create-section">
                 <div class="create-section-title">Фотографии</div>
                 <div class="images-preview-grid" id="media-preview-grid"></div>
                 <input type="file" id="create-media-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
@@ -354,6 +360,7 @@
             <article class="recipient-reminder-card" id="reminder-view-card" style="display: none;">
                 <div class="recipient-reminder-media" id="reminder-view-media"></div>
                 <div class="recipient-reminder-copy">
+                    <div class="recipient-reminder-sender" id="reminder-view-sender" hidden></div>
                     <h1 id="reminder-view-title"></h1>
                     <p id="reminder-view-description"></p>
                 </div>
@@ -417,9 +424,9 @@
 </div>
 
 <script src="js/app.js?v=18"></script>
-<script src="js/screens/recipient-reminder.js?v=3"></script>
+<script src="js/screens/recipient-reminder.js?v=4"></script>
 <script src="js/screens/home.js?v=27"></script>
 <script src="js/screens/templates.js?v=10"></script>
-<script src="js/screens/create.js?v=19"></script>
+<script src="js/screens/create.js?v=20"></script>
 </body>
 </html>

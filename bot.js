@@ -335,7 +335,7 @@ async function sendQuickReplyMessage(reminderId, chatId, userId, answerText) {
     return true;
 }
 
-async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images) {
+async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images, sender = null) {
     const result = {
         sentChatIds: [],
         failedChatIds: [],
@@ -437,13 +437,22 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
             [Keyboard.button.openApp('Подробнее', botUsername, undefined, `r_${reminderId}`)]
         ]));
 
+        const senderId = String(sender?.id || '').trim();
+        const senderName = String(sender?.name || '').trim().replace(/[&<>"]/g, '');
+        const senderMarkup = senderId
+            ? '<p>От кого: <a href="max://user/' + senderId.replace(/[^0-9]/g, '') + '">' + (senderName || 'Учитель') + ' — ' + senderId.replace(/[^0-9]/g, '') + '</a></p><br>'
+            : '';
+        const safeMessageText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const messageText = senderMarkup + safeMessageText;
+        const messageOptions = { attachments, format: 'html' };
+
         for (const chatId of uniqueChatIds) {
             let sentSuccess = false;
             let lastError = null;
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const resMsg = await botInstance.api.sendMessageToUser(chatId, text, { attachments });
+                    const resMsg = await botInstance.api.sendMessageToUser(chatId, messageText, messageOptions);
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
                     if (mid) {
                         sentMessageMids[chatId + '_' + reminderId] = mid;
@@ -461,7 +470,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 
             if (!sentSuccess) {
                 try {
-                    const resMsg = await botInstance.api.sendMessageToChat(chatId, text, { attachments });
+                    const resMsg = await botInstance.api.sendMessageToChat(chatId, messageText, messageOptions);
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
                     if (mid) {
                         sentMessageMids[chatId + '_' + reminderId] = mid;

@@ -363,6 +363,7 @@ const CreateScreen = {
         App.editingReminderId = reminder.id;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
+        const senderNameInput = document.getElementById('create-sender-name-input');
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendTimeRow = document.getElementById('send-time-picker-row');
         const sendDateTime = document.getElementById('send-datetime-input');
@@ -383,6 +384,7 @@ const CreateScreen = {
 
         if (titleInput) titleInput.value = reminder.title || '';
         if (descInput) descInput.value = reminder.description || '';
+        if (senderNameInput) senderNameInput.value = reminder.sender_name || '';
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
         this.currentImages = Array.isArray(reminder.images)
             ? reminder.images.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3)
@@ -458,6 +460,7 @@ const CreateScreen = {
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
+        const senderNameInput = document.getElementById('create-sender-name-input');
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendTimeRow = document.getElementById('send-time-picker-row');
         const sendDateTime = document.getElementById('send-datetime-input');
@@ -478,10 +481,12 @@ const CreateScreen = {
         if (template) {
             if (titleInput) titleInput.value = template.title || '';
             if (descInput) descInput.value = template.description || '';
+            if (senderNameInput) senderNameInput.value = '';
             this.currentQuickReplies = Array.isArray(template.quick_replies) ? [...template.quick_replies] : [];
         } else {
             if (titleInput) titleInput.value = '';
             if (descInput) descInput.value = '';
+            if (senderNameInput) senderNameInput.value = '';
             this.currentQuickReplies = [];
         }
 
@@ -698,6 +703,7 @@ const CreateScreen = {
             saveReminderBtn.addEventListener('click', async () => {
                 const title = document.getElementById('create-title-input')?.value.trim();
                 const description = document.getElementById('create-desc-input')?.value.trim();
+                const senderName = document.getElementById('create-sender-name-input')?.value.trim() || '';
                 if (!title) {
                     App.showToast('Введите название напоминания');
                     return;
@@ -732,6 +738,7 @@ const CreateScreen = {
                 const payload = {
                     title,
                     description,
+                    sender_name: senderName,
                     send_now: sendNow,
                     scheduled_time: scheduledTime,
                     repeat_type: repeatType,

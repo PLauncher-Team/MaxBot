@@ -262,7 +262,8 @@ function getTargetChatIds(userId, validRecipients) {
 
 async function sendImmediateReminder(reminderId, userId, recipients, text, quickReplies, images, repeatType, repeatTime) {
     const targetChatIds = getTargetChatIds(userId, recipients);
-    const sendResult = await sendBroadcastMessage(reminderId, targetChatIds, text, quickReplies, images);
+    const reminder = db.prepare('SELECT sender_name FROM reminders WHERE id = ? AND user_id = ?').get(reminderId, userId);
+    const sendResult = await sendBroadcastMessage(reminderId, targetChatIds, text, quickReplies, images, { name: reminder?.sender_name || '', id: userId });
 
     db.prepare('UPDATE reminders SET sent_at = ?, message_ids = ? WHERE id = ? AND user_id = ?')
         .run(getMoscowDateTimeString(), JSON.stringify(sendResult.messageIds || {}), reminderId, userId);
@@ -294,7 +295,7 @@ router.get('/public/:id', async (req, res) => {
             return res.status(400).json({ error: 'Invalid reminder id' });
         }
 
-        const reminder = db.prepare('SELECT user_id, title, description, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
         const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
         if (!reminder || !chatId) {
@@ -320,6 +321,10 @@ router.get('/public/:id', async (req, res) => {
         return res.json({
             title: reminder.title || '',
             description: reminder.description || '',
+            sender: {
+                name: reminder.sender_name || '',
+                id: String(reminder.user_id)
+            },
             images: publicImages,
             quick_replies: publicReplies
         });
@@ -483,7 +488,8 @@ router.post('/', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images
+            images,
+            sender_name
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -500,6 +506,7 @@ router.post('/', async (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
+        const cleanSenderName = typeof sender_name === 'string' ? sender_name.trim().slice(0, 80) : '';
         const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         if (!validRepeatTypes.includes(repeat_type)) {
             return res.status(400).json({ error: 'Invalid repeat_type' });
@@ -532,14 +539,15 @@ router.post('/', async (req, res) => {
 
         const stmt = db.prepare(`
             INSERT INTO reminders (
-                user_id, title, description, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const info = stmt.run(
             req.userId,
             cleanTitle,
             cleanDesc,
+            cleanSenderName,
             send_now ? 1 : 0,
             cleanScheduledTime,
             cleanRepeatType,
@@ -590,7 +598,8 @@ router.put('/:id', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images
+            images,
+            sender_name
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -607,6 +616,7 @@ router.put('/:id', async (req, res) => {
         }
 
         const cleanDesc = typeof description === 'string' ? description.trim().slice(0, 2000) : '';
+        const cleanSenderName = typeof sender_name === 'string' ? sender_name.trim().slice(0, 80) : '';
         const validRepeatTypes = ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'];
         if (!validRepeatTypes.includes(repeat_type)) {
             return res.status(400).json({ error: 'Invalid repeat_type' });
@@ -648,7 +658,8 @@ router.put('/:id', async (req, res) => {
             const oldChatIds = getTargetChatIds(req.userId, oldRecipients);
             const newChatIds = getTargetChatIds(req.userId, validRecipients);
             const attachmentDataChanged = JSON.stringify(oldQuickReplies) !== JSON.stringify(validReplies)
-                || JSON.stringify(oldImages) !== JSON.stringify(validImages);
+                || JSON.stringify(oldImages) !== JSON.stringify(validImages)
+                || (existing.sender_name || '') !== cleanSenderName;
             const updatedMessageIds = {};
             const recipientsToSend = [];
 
@@ -698,7 +709,8 @@ router.put('/:id', async (req, res) => {
                     recipientsToSend,
                     cleanTitle + (cleanDesc ? '\n\n' + cleanDesc : ''),
                     validReplies,
-                    validImages
+                    validImages,
+                    { name: cleanSenderName, id: req.userId }
                 );
                 Object.assign(updatedMessageIds, sendResult.messageIds || {});
             }
@@ -707,7 +719,7 @@ router.put('/:id', async (req, res) => {
                 UPDATE reminders
                 SET title = ?, description = ?, send_now = 1, scheduled_time = NULL,
                     repeat_type = 'Никогда', repeat_time = NULL, recipients = ?,
-                    quick_replies = ?, images = ?, status = 'sent',
+                    quick_replies = ?, images = ?, sender_name = ?, status = 'sent',
                     message_ids = ?, pending_recipients = NULL
                 WHERE id = ? AND user_id = ?
             `).run(
@@ -716,6 +728,7 @@ router.put('/:id', async (req, res) => {
                 JSON.stringify(validRecipients),
                 JSON.stringify(validReplies),
                 JSON.stringify(validImages),
+                cleanSenderName,
                 JSON.stringify(updatedMessageIds),
                 id,
                 req.userId
@@ -731,13 +744,14 @@ router.put('/:id', async (req, res) => {
 
         const stmt = db.prepare(`
             UPDATE reminders
-            SET title = ?, description = ?, send_now = ?, scheduled_time = ?, repeat_type = ?, repeat_time = ?, recipients = ?, quick_replies = ?, images = ?, status = ?, pending_recipients = NULL
+            SET title = ?, description = ?, sender_name = ?, send_now = ?, scheduled_time = ?, repeat_type = ?, repeat_time = ?, recipients = ?, quick_replies = ?, images = ?, status = ?, pending_recipients = NULL
             WHERE id = ? AND user_id = ?
         `);
 
         stmt.run(
             cleanTitle,
             cleanDesc,
+            cleanSenderName,
             send_now ? 1 : 0,
             cleanScheduledTime,
             cleanRepeatType,

@@ -114,7 +114,20 @@
     padding: 20px;
 }
 
-.recipient-reminder-copy h1 {
+ .recipient-reminder-sender {
+    margin-bottom: 10px;
+    color: var(--muted, #778196);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.recipient-reminder-sender a {
+    color: var(--accent, #536dfe);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+ .recipient-reminder-copy h1 {
     margin: 0;
     color: var(--text, #172033);
     font-size: 22px;

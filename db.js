@@ -89,7 +89,8 @@ const reminderColumnMigrations = {
     pending_recipients: 'TEXT',
     sent_at: 'TEXT',
     message_ids: 'TEXT',
-    reply_message_ids: 'TEXT'
+    reply_message_ids: 'TEXT',
+    sender_name: 'TEXT'
 };
 for (const [columnName, columnType] of Object.entries(reminderColumnMigrations)) {
     if (!reminderColumns.has(columnName)) {

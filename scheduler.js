@@ -167,7 +167,8 @@ async function checkScheduledReminders() {
                         recipientsToSend,
                         reminder.title + (reminder.description ? '\n\n' + reminder.description : ''),
                         safeJsonParse(reminder.quick_replies, []),
-                        safeJsonParse(reminder.images, [])
+                        safeJsonParse(reminder.images, []),
+                        { name: reminder.sender_name || '', id: reminder.user_id }
                     );
                 }
 

@@ -38,10 +38,27 @@ const RecipientReminder = {
         const mediaContainer = document.getElementById('reminder-view-media');
         const title = document.getElementById('reminder-view-title');
         const description = document.getElementById('reminder-view-description');
+        const sender = document.getElementById('reminder-view-sender');
         const repliesSection = document.getElementById('reminder-view-replies');
         const repliesList = document.getElementById('reminder-view-replies-list');
 
         title.textContent = reminder.title || '';
+        if (sender) {
+            sender.replaceChildren();
+            const senderId = String(reminder.sender?.id || '').replace(/[^0-9]/g, '');
+            const senderName = String(reminder.sender?.name || '').trim();
+            if (senderId) {
+                const label = document.createElement('span');
+                label.textContent = 'От кого: ';
+                const link = document.createElement('a');
+                link.href = 'max://user/' + senderId;
+                link.textContent = (senderName || 'Учитель') + ' — ' + senderId;
+                sender.append(label, link);
+                sender.hidden = false;
+            } else {
+                sender.hidden = true;
+            }
+        }
         description.textContent = reminder.description || '';
         description.style.display = reminder.description ? 'block' : 'none';
         mediaContainer.replaceChildren();
