@@ -455,7 +455,6 @@ const CreateScreen = {
         const sendDateTime = document.getElementById('send-datetime-input');
         const repeatTimeRow = document.getElementById('repeat-time-picker-row');
         const repeatTypeText = document.getElementById('repeat-type-text');
-        const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
         const sendNowSection = sendNowToggle?.closest('.create-section');
@@ -484,7 +483,6 @@ const CreateScreen = {
             sendNowToggle.classList.add('active');
         }
         this.sendToSelf = true;
-        if (sendToSelfToggle) sendToSelfToggle.classList.add('active');
         if (sendTimeRow) {
             sendTimeRow.style.display = 'none';
         }
@@ -504,13 +502,6 @@ const CreateScreen = {
         if (repeatTimeRow) {
             repeatTimeRow.style.display = 'none';
         }
-
-        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
-            button.addEventListener('click', () => {
-                this.recipientFilter = button.getAttribute('data-recipient-filter') || 'all';
-                this.renderSelectedRecipients();
-            });
-        });
 
         ['wizard-recipient-search'].forEach(id => {
             const search = document.getElementById(id);
@@ -593,10 +584,15 @@ const CreateScreen = {
             });
         }
 
-        ['wizard-recipient-search', 'details-recipient-search'].forEach(id => {
-            const search = document.getElementById(id);
-            if (search) search.addEventListener('input', () => this.renderSelectedRecipients());
+        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                this.recipientFilter = button.getAttribute('data-recipient-filter') || 'all';
+                this.renderSelectedRecipients();
+            });
         });
+
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.addEventListener('input', () => this.renderSelectedRecipients());
 
         const wizardNextBtn = document.getElementById('wizard-next-btn');
         if (wizardNextBtn) {
