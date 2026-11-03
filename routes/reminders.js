@@ -9,6 +9,85 @@ const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../sche
 
 const router = express.Router();
 
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\\/+$/, '');
+const MAX_UPLOAD_BYTES = 14 * 1024 * 1024;
+const MEDIA_TYPES = {
+    'image/png': { kind: 'image', ext: 'png' },
+    'image/jpeg': { kind: 'image', ext: 'jpg' },
+    'image/gif': { kind: 'image', ext: 'gif' },
+    'image/webp': { kind: 'image', ext: 'webp' },
+    'video/mp4': { kind: 'video', ext: 'mp4' },
+    'video/quicktime': { kind: 'video', ext: 'mov' },
+    'video/webm': { kind: 'video', ext: 'webm' }
+};
+
+function hasValidMediaSignature(buffer, mimeType) {
+    if (mimeType === 'image/png') {
+        return buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
+    if (mimeType === 'image/jpeg') {
+        return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    }
+    if (mimeType === 'image/gif') {
+        return buffer.length >= 6 && (buffer.subarray(0, 6).toString('ascii') === 'GIF87a' || buffer.subarray(0, 6).toString('ascii') === 'GIF89a');
+    }
+    if (mimeType === 'image/webp') {
+        return buffer.length >= 12 &&
+            buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+            buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+    }
+    if (mimeType === 'video/mp4' || mimeType === 'video/quicktime') {
+        return buffer.length >= 12 && buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+    }
+    if (mimeType === 'video/webm') {
+        return buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    }
+    return false;
+}
+
+function decodeUploadedMedia(data, imagesOnly = false) {
+    if (typeof data !== 'string' || data.length === 0) return null;
+
+    const match = /^data:(image|video)\\/([a-z0-9.+-]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
+    if (!match) return null;
+
+    const mimeType = (match[1] + '/' + match[2]).toLowerCase();
+    const mediaType = MEDIA_TYPES[mimeType];
+    if (!mediaType || (imagesOnly && mediaType.kind !== 'image')) return null;
+
+    const encoded = match[3];
+    if (encoded.length % 4 !== 0) return null;
+
+    const buffer = Buffer.from(encoded, 'base64');
+    if (
+        buffer.length === 0 ||
+        buffer.length > MAX_UPLOAD_BYTES ||
+        buffer.toString('base64') !== encoded ||
+        !hasValidMediaSignature(buffer, mimeType)
+    ) {
+        return null;
+    }
+
+    return { buffer, ...mediaType };
+}
+
+function storeUploadedMedia(media) {
+    const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
+    fs.mkdirSync(uploadsDir, { recursive: true });
+
+    const prefix = media.kind === 'video' ? 'vid_' : 'img_';
+    const filename = prefix + crypto.randomBytes(16).toString('hex') + '.' + media.ext;
+    const filePath = path.join(uploadsDir, filename);
+    fs.writeFileSync(filePath, media.buffer, { flag: 'wx', mode: 0o644 });
+
+    return {
+        url: PUBLIC_BASE_URL + '/api/uploads/' + filename,
+        type: media.kind,
+        filename
+    };
+}
+
+
 function safeJsonParse(data, fallback = []) {
     if (!data || typeof data !== 'string') return fallback;
     try {
@@ -164,83 +243,29 @@ router.get('/', (req, res) => {
 
 router.post('/upload-media', (req, res) => {
     try {
-        const { media_data } = req.body;
-        if (!media_data || typeof media_data !== 'string') {
-            return res.status(400).json({ error: 'Media data required' });
+        const media = decodeUploadedMedia(req.body?.media_data, false);
+        if (!media) {
+            return res.status(400).json({ error: 'Unsupported or invalid media file. Use PNG, JPEG, GIF, WEBP, MP4, MOV or WEBM.' });
         }
 
-        const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
-        const matches = media_data.match(/^data:(image|video)\/([a-zA-Z0-9]+);base64,(.+)$/);
-        let ext = 'png';
-        let isVideo = false;
-        let buffer;
-
-        if (matches) {
-            isVideo = matches[1] === 'video';
-            ext = matches[2] === 'jpeg' ? 'jpg' : matches[2];
-            buffer = Buffer.from(matches[3], 'base64');
-        } else {
-            buffer = Buffer.from(media_data, 'base64');
-        }
-
-        if (buffer.length > 50 * 1024 * 1024) {
-            return res.status(400).json({ error: 'File size exceeds 50MB limit' });
-        }
-
-        const prefix = isVideo ? 'vid_' : 'img_';
-        const filename = prefix + crypto.randomBytes(8).toString('hex') + '.' + ext;
-        const filePath = path.join(uploadsDir, filename);
-        fs.writeFileSync(filePath, buffer);
-
-        const host = req.headers['host'] || 'mymaxapp.duckdns.org';
-        const fullUrl = `https://${host}/api/uploads/${filename}`;
-
-        res.json({ url: fullUrl, type: isVideo ? 'video' : 'image', filename });
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to upload media' });
+        return res.json(storeUploadedMedia(media));
+    } catch (error) {
+        console.error('Failed to store uploaded media:', error.message);
+        return res.status(500).json({ error: 'Failed to upload media' });
     }
 });
 
 router.post('/upload-image', (req, res) => {
     try {
-        const { image_data } = req.body;
-        if (!image_data || typeof image_data !== 'string') {
-            return res.status(400).json({ error: 'Image data required' });
+        const media = decodeUploadedMedia(req.body?.image_data, true);
+        if (!media) {
+            return res.status(400).json({ error: 'Unsupported or invalid image file. Use PNG, JPEG, GIF or WEBP.' });
         }
 
-        const uploadsDir = path.join(__dirname, '..', 'data', 'uploads');
-        if (!fs.existsSync(uploadsDir)) {
-            fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
-        const matches = image_data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-        let ext = 'png';
-        let buffer;
-        if (matches) {
-            ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-            buffer = Buffer.from(matches[2], 'base64');
-        } else {
-            buffer = Buffer.from(image_data, 'base64');
-        }
-
-        if (buffer.length > 50 * 1024 * 1024) {
-            return res.status(400).json({ error: 'Image size exceeds 50MB limit' });
-        }
-
-        const filename = 'img_' + crypto.randomBytes(8).toString('hex') + '.' + ext;
-        const filePath = path.join(uploadsDir, filename);
-        fs.writeFileSync(filePath, buffer);
-
-        const host = req.headers['host'] || 'mymaxapp.duckdns.org';
-        const fullUrl = `https://${host}/api/uploads/${filename}`;
-
-        res.json({ url: fullUrl, type: 'image', filename });
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to upload image' });
+        return res.json(storeUploadedMedia(media));
+    } catch (error) {
+        console.error('Failed to store uploaded image:', error.message);
+        return res.status(500).json({ error: 'Failed to upload image' });
     }
 });
 
