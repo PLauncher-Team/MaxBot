@@ -91,6 +91,32 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
 
 router.get('/', (req, res) => {
     try {
+        // Keep only the five newest sent reminders for this teacher.
+        // Remove their stored responses as well to avoid orphaned database rows.
+        const pruneSentHistory = db.transaction(userId => {
+            db.prepare(`
+                DELETE FROM responses
+                WHERE reminder_id IN (
+                    SELECT id FROM reminders
+                    WHERE user_id = ? AND status = 'sent'
+                    ORDER BY id DESC
+                    LIMIT -1 OFFSET 5
+                )
+            `).run(userId);
+
+            db.prepare(`
+                DELETE FROM reminders
+                WHERE user_id = ? AND status = 'sent'
+                  AND id NOT IN (
+                      SELECT id FROM reminders
+                      WHERE user_id = ? AND status = 'sent'
+                      ORDER BY id DESC
+                      LIMIT 5
+                  )
+            `).run(userId, userId);
+        });
+        pruneSentHistory(req.userId);
+
         const rows = db.prepare('SELECT * FROM reminders WHERE user_id = ? ORDER BY id DESC').all(req.userId);
         const parsed = rows.map(r => ({
             ...r,
@@ -100,6 +126,7 @@ router.get('/', (req, res) => {
         }));
         res.json(parsed);
     } catch (e) {
+        console.error('Failed to prune or fetch reminders:', e);
         res.status(500).json({ error: 'Failed to fetch reminders' });
     }
 });
@@ -217,7 +244,10 @@ router.delete('/:id', async (req, res) => {
                 .run(JSON.stringify(remainingMessageIds), id, req.userId);
             return res.status(502).json({ error: 'Не удалось удалить сообщение у всех получателей. Повторите попытку' });
         }
-        db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
+        db.transaction(() => {
+            db.prepare('DELETE FROM responses WHERE reminder_id = ?').run(id);
+            db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
+        })();
         res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
         console.error('Failed to delete reminder:', e);
