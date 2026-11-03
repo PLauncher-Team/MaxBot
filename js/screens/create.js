@@ -740,24 +740,29 @@ const CreateScreen = {
                     images: this.currentImages
                 };
 
-                if (App.editingReminderId) {
-                    const result = await App.updateReminder(App.editingReminderId, payload);
-                    if (result && result.error) {
-                        App.showToast(result.error);
-                        return;
-                    }
-                    App.editingReminderId = null;
-                    this.editingSentReminder = false;
-                    this.wizardActive = false;
-                    if (result && result.failed > 0) {
-                        App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                try {
+                    if (App.editingReminderId) {
+                        const result = await App.updateReminder(App.editingReminderId, payload);
+                        if (result && result.error) {
+                            App.showToast(result.error);
+                            return;
+                        }
+                        App.editingReminderId = null;
+                        this.editingSentReminder = false;
+                        this.wizardActive = false;
+                        if (result && result.failed > 0) {
+                            App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                        } else {
+                            App.showToast('Напоминание обновлено');
+                        }
                     } else {
-                        App.showToast('Напоминание обновлено');
+                        await App.saveReminder(payload);
+                        this.wizardActive = false;
+                        App.showToast('Напоминание сохранено');
                     }
-                } else {
-                    await App.saveReminder(payload);
-                    this.wizardActive = false;
-                    App.showToast('Напоминание сохранено');
+                } catch (error) {
+                    App.showToast(error.message || 'Не удалось сохранить напоминание');
+                    return;
                 }
 
                 if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
