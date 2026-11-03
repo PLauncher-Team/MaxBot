@@ -87,14 +87,39 @@ function storeUploadedMedia(media) {
     };
 }
 
-function getRecipientChatId(reminder, messageIds, userId) {
+async function getRecipientChatId(reminder, messageIds, userId) {
     const directChatId = String(userId);
     if (messageIds[directChatId]) return directChatId;
 
-    const participant = db.prepare('SELECT chat_id FROM participants WHERE teacher_id = ? AND user_id = ?')
-        .get(reminder.user_id, directChatId);
-    const mappedChatId = participant?.chat_id ? String(participant.chat_id) : null;
-    return mappedChatId && messageIds[mappedChatId] ? mappedChatId : null;
+    const mappedParticipants = db.prepare('SELECT chat_id FROM participants WHERE teacher_id = ? AND user_id = ?')
+        .all(reminder.user_id, directChatId);
+    const mappedParticipant = mappedParticipants.find(participant => messageIds[String(participant.chat_id)]);
+    if (mappedParticipant) return String(mappedParticipant.chat_id);
+
+    const legacyParticipants = db.prepare('SELECT id, chat_id FROM participants WHERE teacher_id = ? AND user_id IS NULL')
+        .all(reminder.user_id)
+        .filter(participant => messageIds[String(participant.chat_id)] && /^-?[0-9]+$/.test(String(participant.chat_id)));
+
+    for (const participant of legacyParticipants) {
+        try {
+            const response = await fetch('https://platform-api2.max.ru/chats/' + encodeURIComponent(participant.chat_id), {
+                headers: { Authorization: BOT_TOKEN }
+            });
+            if (!response.ok) continue;
+
+            const chat = await response.json().catch(() => null);
+            const dialogUserId = chat?.dialog_with_user?.user_id;
+            if (dialogUserId === undefined || String(dialogUserId) !== directChatId) continue;
+
+            db.prepare('UPDATE participants SET user_id = ? WHERE id = ? AND user_id IS NULL')
+                .run(directChatId, participant.id);
+            return String(participant.chat_id);
+        } catch (error) {
+            continue;
+        }
+    }
+
+    return null;
 }
 
 function sanitizeUploadedImages(images) {
@@ -267,7 +292,7 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
-router.get('/public/:id', (req, res) => {
+router.get('/public/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) {
@@ -276,7 +301,8 @@ router.get('/public/:id', (req, res) => {
 
         const reminder = db.prepare('SELECT user_id, title, description, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
-        if (!reminder || !getRecipientChatId(reminder, messageIds, req.userId)) {
+        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
+        if (!reminder || !chatId) {
             return res.status(404).json({ error: 'Reminder not found' });
         }
 
@@ -318,7 +344,7 @@ router.post('/public/:id/replies/:replyIndex', async (req, res) => {
 
         const reminder = db.prepare('SELECT user_id, quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
-        const chatId = reminder ? getRecipientChatId(reminder, messageIds, req.userId) : null;
+        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
         if (!reminder || !chatId) {
             return res.status(404).json({ error: 'Reminder not found' });
         }
