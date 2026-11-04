@@ -384,12 +384,14 @@ const HomeScreen = {
         responseCard.appendChild(createProgress(responsePercent));
         overview.appendChild(responseCard);
 
-        const filesCard = createNode('article', 'feedback-stat-card');
-        filesCard.appendChild(createNode('span', 'feedback-stat-label', 'ПРИКРЕПИЛИ ФАЙЛЫ'));
-        filesCard.appendChild(createNode('strong', 'feedback-stat-value', filePercent + '%'));
-        filesCard.appendChild(createNode('span', 'feedback-stat-description', uniqueFileRecipients + ' получателей'));
-        filesCard.appendChild(createProgress(filePercent));
-        overview.appendChild(filesCard);
+        if (data.feedback_allow_files === true) {
+            const filesCard = createNode('article', 'feedback-stat-card');
+            filesCard.appendChild(createNode('span', 'feedback-stat-label', 'ПРИКРЕПИЛИ ФАЙЛЫ'));
+            filesCard.appendChild(createNode('strong', 'feedback-stat-value', filePercent + '%'));
+            filesCard.appendChild(createNode('span', 'feedback-stat-description', uniqueFileRecipients + ' получателей'));
+            filesCard.appendChild(createProgress(filePercent));
+            overview.appendChild(filesCard);
+        }
 
         const submissionsCard = createNode('article', 'feedback-stat-card');
         submissionsCard.appendChild(createNode('span', 'feedback-stat-label', 'ПОЛУЧЕНО ОТВЕТОВ'));
