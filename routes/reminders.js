@@ -535,6 +535,21 @@ router.post('/public/:id/feedback', async (req, res) => {
         const files = Array.isArray(req.body?.files) ? req.body.files : [];
         if (!reminder.feedback_allow_files && files.length) return res.status(400).json({ error: 'File attachments are disabled' });
         if (files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
+        const preparedFiles = [];
+        for (const item of files) {
+            const filename = typeof item?.filename === 'string' ? item.filename : '';
+            const match = /^file_[a-f0-9]{32}\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename);
+            if (!match) return res.status(400).json({ error: 'Некорректный файл' });
+            const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+            const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+            if (!owner || String(owner.user_id) !== String(req.userId) || !fs.existsSync(filePath)) return res.status(400).json({ error: 'Файл не найден' });
+            const stat = fs.statSync(filePath);
+            if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+            const buffer = fs.readFileSync(filePath);
+            const extension = match[1].toLowerCase();
+            if (!hasValidFileSignature(buffer, extension)) return res.status(400).json({ error: 'Формат файла не поддерживается' });
+            preparedFiles.push({ filename, name: cleanUploadedFileName(item.name || filename, extension), size: stat.size, mime_type: FILE_TYPES[extension] });
+        }
         const save = db.transaction(() => {
             const existing = db.prepare('SELECT id FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?').get(id, chatId);
             let submissionId;
@@ -544,19 +559,14 @@ router.post('/public/:id/feedback', async (req, res) => {
             } else {
                 submissionId = db.prepare('INSERT INTO feedback_submissions (reminder_id, chat_id, answers) VALUES (?, ?, ?)').run(id, chatId, JSON.stringify(answers)).lastInsertRowid;
             }
+            db.prepare('DELETE FROM feedback_files WHERE submission_id = ?').run(submissionId);
+            preparedFiles.forEach(file => {
+                db.prepare('INSERT INTO feedback_files (submission_id, filename, name, size, mime_type) VALUES (?, ?, ?, ?, ?)')
+                    .run(submissionId, file.filename, file.name, file.size, file.mime_type);
+            });
             return submissionId;
         });
-        const submissionId = save();
-        const stored = db.prepare('SELECT filename FROM feedback_files WHERE submission_id = ?').all(submissionId).map(item => item.filename);
-        if (files.length) {
-            if (stored.length + files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
-            for (const file of files) {
-                const media = decodeUploadedMedia(file.data, 'file', file.name);
-                const saved = storeUploadedMedia(media, req.userId);
-                db.prepare('INSERT INTO feedback_files (submission_id, filename, name, size, mime_type) VALUES (?, ?, ?, ?, ?)')
-                    .run(submissionId, saved.filename, saved.name, saved.size, saved.mime_type);
-            }
-        }
+        save();
         res.json({ success: true });
     } catch (error) {
         if (error.message === 'FILE_TOO_LARGE') return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
