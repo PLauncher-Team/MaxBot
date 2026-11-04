@@ -1,3 +1,10 @@
+#feedback-results-screen {
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .feedback-results-header {
     position: sticky;
     top: 0;
@@ -9,7 +16,10 @@
 .feedback-page-content {
     width: 100%;
     max-width: 560px;
+    min-height: 0;
     flex: 1;
+    max-height: calc(100vh - 68px);
+    max-height: calc(100dvh - 68px);
     margin: 0 auto;
     padding: 22px 18px calc(40px + env(safe-area-inset-bottom));
     overflow-y: auto;
@@ -165,6 +175,7 @@
 }
 
 .feedback-stat-card-primary {
+    grid-column: 1 / -1;
     border-color: rgba(66, 99, 235, .2);
     background: linear-gradient(145deg, var(--surface, #fff), var(--accent-soft, #edf1ff));
 }
@@ -315,6 +326,20 @@
     display: flex;
     align-items: center;
     gap: 11px;
+}
+
+.feedback-respondent-avatar {
+    display: inline-flex;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 13px;
+    background: var(--accent-soft, #edf1ff);
+    color: var(--accent, #4263eb);
+    font-size: 14px;
+    font-weight: 800;
 }
 
 .feedback-respondent-copy {
