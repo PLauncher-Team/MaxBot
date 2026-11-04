@@ -541,10 +541,15 @@ const RecipientReminder = {
                 const uploadedFiles = this.feedbackFiles
                     .filter(file => file.filename)
                     .map(file => ({ filename: file.filename, name: file.name }));
+                const maxUser = window.WebApp?.initDataUnsafe?.user || {};
+                const recipientName = [maxUser.first_name, maxUser.last_name]
+                    .filter(value => typeof value === 'string' && value.trim())
+                    .join(' ')
+                    .trim() || (typeof maxUser.name === 'string' ? maxUser.name.trim() : '');
                 const response = await fetch('/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/feedback', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...App.getAuthHeaders() },
-                    body: JSON.stringify({ answers, files: uploadedFiles })
+                    body: JSON.stringify({ answers, files: uploadedFiles, recipient_name: recipientName })
                 });
                 const result = await response.json().catch(() => null);
                 if (!response.ok) throw new Error(result?.error || 'Не удалось отправить ответ');
