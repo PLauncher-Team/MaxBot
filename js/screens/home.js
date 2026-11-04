@@ -355,7 +355,7 @@ const HomeScreen = {
         const total = Math.max(0, Number(data.total_recipients) || 0);
         const responded = Math.max(0, Number(data.responded) || 0);
         const responsePercent = Math.max(0, Math.min(100, Number(data.response_percent) || 0));
-        const questions = Array.isArray(data.questions) ? data.questions : [];
+        const options = Array.isArray(data.options) ? data.options : [];
         const submissions = Array.isArray(data.submissions) ? data.submissions : [];
         const files = Array.isArray(data.files) ? data.files : [];
         const uniqueFileRecipients = new Set(files.map(entry => String(entry.chat_id))).size;
@@ -401,25 +401,24 @@ const HomeScreen = {
         overview.appendChild(submissionsCard);
         content.appendChild(overview);
 
-        const questionsSection = createNode('section', 'feedback-section');
-        const questionsHeading = createNode('div', 'feedback-section-heading');
-        const questionsHeadingCopy = createNode('div', 'feedback-section-heading-copy');
-        questionsHeadingCopy.appendChild(createNode('h2', '', 'Результаты опроса'));
-        questionsHeadingCopy.appendChild(createNode('p', '', 'Доля получателей, ответивших на каждый вопрос'));
-        questionsHeading.appendChild(questionsHeadingCopy);
-        questionsSection.appendChild(questionsHeading);
-
-        if (questions.length) {
-            questions.forEach((question, index) => {
+        if (options.length) {
+            const optionsSection = createNode('section', 'feedback-section');
+            const optionsHeading = createNode('div', 'feedback-section-heading');
+            const optionsHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+            optionsHeadingCopy.appendChild(createNode('h2', '', 'Результаты опроса'));
+            optionsHeadingCopy.appendChild(createNode('p', '', 'Распределение выбранных вариантов'));
+            optionsHeading.appendChild(optionsHeadingCopy);
+            optionsSection.appendChild(optionsHeading);
+            options.forEach(option => {
                 const card = createNode('article', 'feedback-question-card');
-                const questionText = createNode('div', 'feedback-question-text', question.question || ('Вопрос ' + (index + 1)));
+                const optionText = createNode('div', 'feedback-question-text', option.option);
                 const stats = createNode('div', 'feedback-question-stats');
-                stats.appendChild(createNode('strong', '', (Number(question.percent) || 0) + '%'));
-                stats.appendChild(createNode('span', '', (Number(question.answered) || 0) + ' из ' + total + ' ответили'));
-                card.append(questionText, stats, createProgress(question.percent));
-                questionsSection.appendChild(card);
+                stats.appendChild(createNode('strong', '', (Number(option.percent) || 0) + '%'));
+                stats.appendChild(createNode('span', '', (Number(option.count) || 0) + ' из ' + total + ' получателей'));
+                card.append(optionText, stats, createProgress(option.percent));
+                optionsSection.appendChild(card);
             });
-            content.appendChild(questionsSection);
+            content.appendChild(optionsSection);
         }
 
         const answersSection = createNode('section', 'feedback-section feedback-answers-section');
@@ -458,15 +457,13 @@ const HomeScreen = {
                 const answerList = createNode('div', 'feedback-answer-list');
                 let hasAnswers = false;
                 const answers = submission.answers && typeof submission.answers === 'object' ? submission.answers : {};
-                Object.entries(answers).forEach(([questionIndex, answer]) => {
-                    if (typeof answer !== 'string' || !answer.trim()) return;
+                if (typeof answers.choice === 'string' && answers.choice.trim()) {
                     hasAnswers = true;
-                    const question = questions.find(entry => String(entry.index) === String(questionIndex));
                     const answerItem = createNode('div', 'feedback-answer-item');
-                    answerItem.appendChild(createNode('span', 'feedback-answer-question', question?.question || 'Ответ'));
-                    answerItem.appendChild(createNode('p', 'feedback-answer-text', answer));
+                    answerItem.appendChild(createNode('span', 'feedback-answer-question', 'Выбранный вариант'));
+                    answerItem.appendChild(createNode('p', 'feedback-answer-text', answers.choice));
                     answerList.appendChild(answerItem);
-                });
+                }
                 if (hasAnswers) {
                     card.appendChild(answerList);
                 }
