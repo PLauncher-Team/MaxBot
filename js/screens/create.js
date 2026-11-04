@@ -4,6 +4,7 @@ const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xls
 
 const CreateScreen = {
     currentQuickReplies: [],
+    feedbackQuestions: [],
     selectedGroups: [],
     selectedPeople: [],
     recipientGroups: [],
@@ -510,6 +511,7 @@ const CreateScreen = {
         if (descInput) descInput.value = reminder.description || '';
         this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
+        this.feedbackQuestions = [];
         this.feedbackEnabled = false;
         this.feedbackAllowFiles = false;
         const savedMedia = Array.isArray(reminder.images) ? reminder.images : [];
@@ -548,6 +550,7 @@ const CreateScreen = {
         this.wizardActive = false;
         this.showWizardStep(3);
         this.renderQuickReplies();
+        this.renderFeedbackQuestions();
         this.renderSelectedRecipients();
         this.loadRecipientOptions();
         this.renderImagesPreview();
@@ -596,6 +599,7 @@ const CreateScreen = {
         this.editingSentReminder = false;
         this.feedbackEnabled = false;
         this.feedbackAllowFiles = false;
+        this.feedbackQuestions = [];
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
@@ -659,6 +663,7 @@ const CreateScreen = {
         const recipientSearch = document.getElementById('wizard-recipient-search');
         if (recipientSearch) recipientSearch.value = '';
         this.renderQuickReplies();
+        this.renderFeedbackQuestions();
         this.renderSelectedRecipients();
         this.renderImagesPreview();
         this.renderFeedbackSettings();
@@ -711,6 +716,31 @@ const CreateScreen = {
         });
     },
 
+    renderFeedbackQuestions: function() {
+        const list = document.getElementById('feedback-questions-list');
+        if (!list) return;
+        list.replaceChildren();
+
+        this.feedbackQuestions.forEach((question, index) => {
+            const row = document.createElement('div');
+            row.className = 'feedback-question-editor-row';
+            const text = document.createElement('span');
+            text.className = 'feedback-question-editor-text';
+            text.textContent = question;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'feedback-question-editor-remove';
+            remove.setAttribute('aria-label', 'Удалить вопрос');
+            remove.textContent = '×';
+            remove.addEventListener('click', () => {
+                this.feedbackQuestions.splice(index, 1);
+                this.renderFeedbackQuestions();
+            });
+            row.append(text, remove);
+            list.appendChild(row);
+        });
+    },
+
     init: function() {
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
@@ -722,6 +752,8 @@ const CreateScreen = {
         const qInput = document.getElementById('quick-reply-q-input');
         const aInput = document.getElementById('quick-reply-a-input');
         const addReplyBtn = document.getElementById('quick-reply-add-btn');
+        const feedbackQuestionInput = document.getElementById('feedback-question-input');
+        const addFeedbackQuestionBtn = document.getElementById('feedback-question-add-btn');
         const saveReminderBtn = document.getElementById('save-reminder-btn');
         const addPhotoBtn = document.getElementById('add-photo-btn');
         const photoInput = document.getElementById('create-photo-input');
@@ -821,6 +853,33 @@ const CreateScreen = {
         bindFeedbackToggle(document.getElementById('feedback-enabled-toggle'), 'feedbackEnabled', true);
         bindFeedbackToggle(document.getElementById('feedback-files-toggle'), 'feedbackAllowFiles', false);
 
+        if (addFeedbackQuestionBtn && feedbackQuestionInput) {
+            addFeedbackQuestionBtn.addEventListener('click', () => {
+                const question = feedbackQuestionInput.value.trim();
+                if (!question) {
+                    App.showToast('Введите вопрос для опроса');
+                    return;
+                }
+                if (this.feedbackQuestions.length >= 20) {
+                    App.showToast('Можно добавить не более 20 вопросов');
+                    return;
+                }
+                if (this.feedbackQuestions.some(item => item.toLocaleLowerCase() === question.toLocaleLowerCase())) {
+                    App.showToast('Такой вопрос уже добавлен');
+                    return;
+                }
+                this.feedbackQuestions.push(question.slice(0, 200));
+                feedbackQuestionInput.value = '';
+                this.renderFeedbackQuestions();
+            });
+            feedbackQuestionInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addFeedbackQuestionBtn.click();
+                }
+            });
+        }
+
         if (addReplyBtn && qInput && aInput) {
             addReplyBtn.addEventListener('click', () => {
                 const q = qInput.value.trim();
@@ -918,6 +977,7 @@ const CreateScreen = {
                     repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
+                    feedback_questions: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled ? this.feedbackQuestions : [],
                     feedback_enabled: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled,
                     feedback_allow_files: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled && this.feedbackAllowFiles,
                     images: this.currentImages.map(({ isNew, ...item }) => item)
