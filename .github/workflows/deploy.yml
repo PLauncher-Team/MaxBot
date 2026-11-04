@@ -45,10 +45,10 @@ jobs:
             printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
             chmod 600 "$HOME/.ssh/known_hosts"
             ssh-keygen -F "$DEPLOY_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null || { echo "::error::Known-hosts secret does not contain the deployment host"; exit 1; }
-            printf '%s\n' "SSH_HOST_KEY_OPTIONS=$SSH_HOST_KEY_OPTIONS" >> "$GITHUB_ENV"
+            printf '%s\n' "SSH_HOST_KEY_OPTIONS=-o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" >> "$GITHUB_ENV"
           else
             echo "::warning::DEPLOY_SSH_KNOWN_HOSTS is not configured; using the legacy SSH connection mode without host-key verification"
-            printf '%s\\n' 'SSH_HOST_KEY_OPTIONS=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' >> "$GITHUB_ENV"
+            printf '%s\n' 'SSH_HOST_KEY_OPTIONS=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' >> "$GITHUB_ENV"
           fi
 
       - name: Run security tests and syntax checks
