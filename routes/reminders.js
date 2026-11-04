@@ -661,20 +661,36 @@ router.delete('/public/:id/feedback/files/:filename', async (req, res) => {
         if (!reminder || !chatId) return res.status(404).json({ error: 'File not found' });
         const submission = db.prepare('SELECT id, answers FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?')
             .get(id, chatId);
-        if (!submission) return res.status(404).json({ error: 'File not found' });
-        const file = db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? AND filename = ?')
-            .get(submission.id, filename);
-        if (!file) return res.status(404).json({ error: 'File not found' });
+        const file = submission
+            ? db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? AND filename = ?').get(submission.id, filename)
+            : null;
+        if (file) {
+            db.transaction(() => {
+                db.prepare('DELETE FROM feedback_files WHERE id = ?').run(file.id);
+                const remaining = db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? LIMIT 1').get(submission.id);
+                const answers = safeJsonParse(submission.answers, {});
+                if (!remaining && !Object.keys(answers).some(key => typeof answers[key] === 'string' && answers[key].trim())) {
+                    db.prepare('DELETE FROM feedback_submissions WHERE id = ?').run(submission.id);
+                }
+            })();
+            cleanupUnreferencedUploadedMedia([filename]);
+            return res.json({ success: true });
+        }
 
-        db.transaction(() => {
-            db.prepare('DELETE FROM feedback_files WHERE id = ?').run(file.id);
-            const remaining = db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? LIMIT 1').get(submission.id);
-            const answers = safeJsonParse(submission.answers, {});
-            if (!remaining && !Object.keys(answers).some(key => typeof answers[key] === 'string' && answers[key].trim())) {
-                db.prepare('DELETE FROM feedback_submissions WHERE id = ?').run(submission.id);
-            }
-        })();
+        const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+        if (!owner || String(owner.user_id) !== String(req.userId)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const isReferencedByFeedback = db.prepare('SELECT id FROM feedback_files WHERE filename = ? LIMIT 1').get(filename);
+        const isReferencedByReminder = db.prepare('SELECT images FROM reminders').all().some(row =>
+            safeJsonParse(row.images, []).some(item => item && item.filename === filename)
+        );
+        if (isReferencedByFeedback || isReferencedByReminder) {
+            return res.status(409).json({ error: 'Файл уже прикреплён' });
+        }
         cleanupUnreferencedUploadedMedia([filename]);
+        const remainingOwner = db.prepare('SELECT filename FROM uploaded_media WHERE filename = ?').get(filename);
+        if (remainingOwner) return res.status(409).json({ error: 'Не удалось удалить временный файл' });
         return res.json({ success: true });
     } catch (error) {
         console.error('Failed to delete recipient feedback attachment:', error.message);
