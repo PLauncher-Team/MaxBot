@@ -626,7 +626,7 @@ router.get('/public/:id/feedback/files/:filename', async (req, res) => {
         if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
-        const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
         const chatId = reminder
             ? await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId)
             : null;
@@ -654,7 +654,7 @@ router.delete('/public/:id/feedback/files/:filename', async (req, res) => {
         if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
-        const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
         const chatId = reminder
             ? await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId)
             : null;
