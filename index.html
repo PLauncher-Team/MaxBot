@@ -344,8 +344,17 @@
                 <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Максимум 3 документа. Каждый — до 10 МБ.</div>
             </div>
 
+            <div class="create-section" id="feedback-settings-section">
+                <div class="create-section-title">Обратная связь</div>
+                <div class="create-row"><div class="create-row-left">Разрешить ответы получателей</div><div class="toggle-switch" id="feedback-enabled-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
+                <div class="feedback-settings-options" id="feedback-settings-options" hidden>
+                    <div class="create-row"><div class="create-row-left">Разрешить прикреплять файлы</div><div class="toggle-switch" id="feedback-files-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
+                    <p class="wizard-step-description">Получатели смогут прикрепить до 3 файлов размером до 10 МБ каждый.</p>
+                </div>
+            </div>
+
             <div class="create-section">
-                <div class="create-section-title">Быстрые ответы</div>
+                <div class="create-section-title">Вопросы для опроса</div>
                 <div class="quick-replies-list" id="quick-replies-list"></div>
                 <div class="quick-reply-add-box">
                     <div class="quick-reply-inputs">
@@ -380,7 +389,15 @@
                 <div class="recipient-reminder-replies-heading">Быстрые ответы</div>
                 <div class="recipient-reminder-replies-list" id="reminder-view-replies-list"></div>
             </section>
+            <section class="recipient-reminder-replies recipient-feedback-form" id="recipient-feedback-form" style="display: none;"></section>
         </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="feedback-results-modal" style="display: none;">
+    <div class="modal-card feedback-results-card">
+        <div class="modal-header"><div class="modal-title">Обратная связь</div><button type="button" class="modal-close-btn" id="feedback-results-close" aria-label="Закрыть">×</button></div>
+        <div id="feedback-results-content"></div>
     </div>
 </div>
 
