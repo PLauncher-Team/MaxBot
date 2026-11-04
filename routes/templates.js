@@ -40,7 +40,7 @@ function seedDefaultTemplates(userId) {
         if (check && check.count === 0) {
             const insert = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies, feedback_options) VALUES (?, ?, ?, ?, ?)');
             for (const template of defaultTemplates) {
-                insert.run(userId, template.title, template.description, template.quick_replies);
+                insert.run(userId, template.title, template.description, template.quick_replies, JSON.stringify([]));
             }
         }
     });
