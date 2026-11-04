@@ -606,7 +606,7 @@ router.get('/:id/feedback', (req, res) => {
             files: db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id').all(row.id)
                 .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
         })).filter(row => row.files.length);
-        res.json({ total_recipients: recipients.length, responded: submissions.length, response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0, file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0, questions, submissions: submissions.map(row => ({ chat_id: row.chat_id, answers: safeJsonParse(row.answers, {}), created_at: row.created_at })), files });
+        res.json({ total_recipients: recipients.length, responded: submissions.length, response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0, feedback_allow_files: Boolean(reminder.feedback_allow_files), file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0, questions, submissions: submissions.map(row => ({ chat_id: row.chat_id, answers: safeJsonParse(row.answers, {}), created_at: row.created_at })), files });
     } catch (error) {
         console.error('Failed to load feedback:', error.message);
         res.status(500).json({ error: 'Не удалось загрузить обратную связь' });
