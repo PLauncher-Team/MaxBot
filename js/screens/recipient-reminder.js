@@ -42,6 +42,20 @@ const RecipientReminder = {
             if (!response.ok) {
                 throw new Error(data?.error || 'Не удалось загрузить напоминание');
             }
+            if (data.feedback_submission) {
+                const maxUser = window.WebApp?.initDataUnsafe?.user || {};
+                const recipientName = [maxUser.first_name, maxUser.last_name]
+                    .filter(value => typeof value === 'string' && value.trim())
+                    .join(' ')
+                    .trim() || (typeof maxUser.name === 'string' ? maxUser.name.trim() : '');
+                if (recipientName) {
+                    fetch('/api/reminders/public/' + encodeURIComponent(reminderId) + '/feedback/profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...App.getAuthHeaders() },
+                        body: JSON.stringify({ recipient_name: recipientName })
+                    }).catch(() => {});
+                }
+            }
             await this.render(data);
         } catch (error) {
             this.setState(error.message || 'Не удалось загрузить напоминание', true);
