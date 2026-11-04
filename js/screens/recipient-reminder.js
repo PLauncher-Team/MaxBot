@@ -329,7 +329,7 @@ const RecipientReminder = {
                 this.renderFeedbackFiles(list);
             });
             if (!this.feedbackFiles.includes(item)) {
-                if (uploaded.filename) await App.deleteUploadedMedia(uploaded.filename).catch(() => {});
+                if (uploaded.filename) await this.deleteFeedbackUpload(uploaded.filename).catch(() => {});
                 return;
             }
             Object.assign(item, uploaded, {
@@ -363,6 +363,16 @@ const RecipientReminder = {
         }
     },
 
+    deleteFeedbackUpload: async function(filename) {
+        const response = await fetch('/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/feedback/files/' + encodeURIComponent(filename), {
+            method: 'DELETE',
+            headers: App.getAuthHeaders()
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.error || 'Не удалось удалить файл');
+        return result;
+    },
+
     removeFeedbackFile: async function(item, list) {
         if (item.removing) return;
         const index = this.feedbackFiles.indexOf(item);
@@ -375,16 +385,7 @@ const RecipientReminder = {
         item.removing = true;
         this.renderFeedbackFiles(list);
         try {
-            if (item.isSaved) {
-                const response = await fetch('/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/feedback/files/' + encodeURIComponent(item.filename), {
-                    method: 'DELETE',
-                    headers: App.getAuthHeaders()
-                });
-                const result = await response.json().catch(() => null);
-                if (!response.ok) throw new Error(result?.error || 'Не удалось удалить файл');
-            } else if (item.filename) {
-                await App.deleteUploadedMedia(item.filename);
-            }
+            if (item.filename) await this.deleteFeedbackUpload(item.filename);
             const currentIndex = this.feedbackFiles.indexOf(item);
             if (currentIndex !== -1) this.feedbackFiles.splice(currentIndex, 1);
             App.showToast('Файл удалён');
