@@ -554,6 +554,25 @@ router.get('/public/:id/media/:filename', async (req, res) => {
     }
 });
 
+router.post('/public/:id/feedback/profile', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, message_ids FROM reminders WHERE id = ?').get(id);
+        if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
+        const chatId = await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId);
+        if (!chatId) return res.status(404).json({ error: 'Reminder not found' });
+        const name = typeof req.body?.recipient_name === 'string' ? req.body.recipient_name.trim().slice(0, 150) : '';
+        if (!name) return res.json({ success: true, updated: false });
+        const result = db.prepare("UPDATE feedback_submissions SET recipient_name = ? WHERE reminder_id = ? AND chat_id = ? AND recipient_name = ''")
+            .run(name, id, chatId);
+        res.json({ success: true, updated: result.changes > 0 });
+    } catch (error) {
+        console.error('Failed to update feedback respondent profile:', error.message);
+        res.status(500).json({ error: 'Не удалось обновить имя получателя' });
+    }
+});
+
 router.post('/public/:id/feedback', async (req, res) => {
     try {
         const id = Number(req.params.id);
