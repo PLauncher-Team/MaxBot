@@ -554,7 +554,7 @@ const RecipientReminder = {
                     file.isSaved = true;
                     file.download_url = '/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/feedback/files/' + encodeURIComponent(file.filename);
                 });
-                this.renderFeedbackFiles(fileList);
+                if (fileList) this.renderFeedbackFiles(fileList);
                 App.showToast('Ответ сохранён');
                 submit.textContent = 'Изменения сохранены';
                 submit.disabled = false;
