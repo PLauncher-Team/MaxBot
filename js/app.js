@@ -117,6 +117,13 @@ const App = {
         return data;
     },
 
+    getFeedback: async function(id) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback', { headers: this.getAuthHeaders() });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось загрузить обратную связь');
+        return data;
+    },
+
     getReminders: async function() {
         const res = await fetch('/api/reminders', {
             headers: this.getAuthHeaders()
