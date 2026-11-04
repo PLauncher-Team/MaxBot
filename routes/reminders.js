@@ -749,6 +749,7 @@ router.get('/:id/feedback', (req, res) => {
                 .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
         })).filter(row => row.files.length);
         res.json({
+            latest_submission_id: submissions.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0),
             total_recipients: recipients.length,
             responded: submissions.length,
             response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0,
@@ -769,6 +770,38 @@ router.get('/:id/feedback', (req, res) => {
     } catch (error) {
         console.error('Failed to load feedback:', error.message);
         res.status(500).json({ error: 'Не удалось загрузить обратную связь' });
+    }
+});
+
+router.post('/:id/feedback/read', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT id FROM reminders WHERE id = ? AND user_id = ? AND feedback_enabled = 1').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Feedback is unavailable' });
+
+        const lastSeenSubmissionId = Number(req.body?.last_seen_submission_id);
+        if (!Number.isSafeInteger(lastSeenSubmissionId) || lastSeenSubmissionId < 0) {
+            return res.status(400).json({ error: 'Invalid feedback read position' });
+        }
+        const latestSubmissionId = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM feedback_submissions WHERE reminder_id = ?')
+            .get(id).id;
+        if (lastSeenSubmissionId > latestSubmissionId) {
+            return res.status(400).json({ error: 'Feedback read position is out of range' });
+        }
+
+        db.prepare(`
+            INSERT INTO feedback_views (user_id, reminder_id, last_seen_submission_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, reminder_id) DO UPDATE SET
+                last_seen_submission_id = MAX(feedback_views.last_seen_submission_id, excluded.last_seen_submission_id),
+                updated_at = CURRENT_TIMESTAMP
+        `).run(String(req.userId), id, lastSeenSubmissionId);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to mark feedback as read:', error.message);
+        res.status(500).json({ error: 'Не удалось отметить обратную связь просмотренной' });
     }
 });
 
@@ -896,7 +929,7 @@ router.get('/', (req, res) => {
         });
         cleanupUnreferencedUploadedMedia(pruneReminderHistory(req.userId));
 
-        const rows = db.prepare("SELECT reminders.*, (SELECT COUNT(*) FROM feedback_submissions WHERE feedback_submissions.reminder_id = reminders.id) AS feedback_response_count FROM reminders WHERE user_id = ? ORDER BY id DESC").all(req.userId);
+        const rows = db.prepare("SELECT reminders.*, CASE WHEN reminders.feedback_enabled = 1 THEN (SELECT COUNT(*) FROM feedback_submissions fs WHERE fs.reminder_id = reminders.id AND fs.id > COALESCE((SELECT fv.last_seen_submission_id FROM feedback_views fv WHERE fv.reminder_id = reminders.id AND fv.user_id = reminders.user_id), 0)) ELSE 0 END AS feedback_unread_count FROM reminders WHERE user_id = ? ORDER BY id DESC").all(req.userId);
         const parsed = rows.map(r => ({
             ...r,
             recipients: safeJsonParse(r.recipients, []),
