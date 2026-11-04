@@ -7,6 +7,7 @@ const HomeScreen = {
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    feedbackReminderId: null,
     expandedReminderSections: { scheduled: false, sent: false },
 
     updateTemplateScrollControls: function() {
@@ -279,10 +280,13 @@ const HomeScreen = {
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
                             <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                ${item.feedback_enabled ? '<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;">Обратная связь</button>' : ''}
                                 <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
                                 <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
                             </div>
                         `;
+                        const feedbackButton = el.querySelector('.feedback-sent-reminder-btn');
+                        if (feedbackButton) feedbackButton.addEventListener('click', () => this.openFeedbackResults(item));
                         el.querySelector('.edit-sent-reminder-btn').addEventListener('click', () => {
                             CreateScreen.populateForSentEdit(item);
                             App.showScreen('create');
@@ -301,6 +305,38 @@ const HomeScreen = {
         } finally {
             this.remindersRefreshInProgress = false;
         }
+    },
+
+    openFeedbackResults: async function(item) {
+        const modal = document.getElementById('feedback-results-modal');
+        const content = document.getElementById('feedback-results-content');
+        if (!modal || !content) return;
+        modal.style.display = 'flex';
+        content.textContent = 'Загрузка…';
+        try {
+            const data = await App.getFeedback(item.id);
+            content.replaceChildren();
+            const addStat = (label, value) => { const row = document.createElement('div'); row.className = 'feedback-result-stat'; row.textContent = label + ': ' + value; content.appendChild(row); };
+            addStat('Ответили', data.responded + ' из ' + data.total_recipients + ' (' + data.response_percent + '%)');
+            addStat('Отправили файлы', data.file_percent + '%');
+            (data.questions || []).forEach(question => addStat(question.question, question.answered + ' (' + question.percent + '%)'));
+            const heading = document.createElement('h3'); heading.textContent = 'Ответы получателей'; content.appendChild(heading);
+            (data.submissions || []).forEach(submission => {
+                const card = document.createElement('div'); card.className = 'feedback-result-answer';
+                const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(submission.chat_id));
+                const title = document.createElement('strong'); title.textContent = person?.name || ('Получатель ' + submission.chat_id); card.appendChild(title);
+                Object.entries(submission.answers || {}).forEach(([index, answer]) => { const line = document.createElement('p'); line.textContent = (data.questions.find(question => String(question.index) === String(index))?.question || 'Ответ') + ': ' + answer; card.appendChild(line); });
+                content.appendChild(card);
+            });
+            const filesHeading = document.createElement('h3'); filesHeading.textContent = 'Файлы получателей'; content.appendChild(filesHeading);
+            (data.files || []).forEach(entry => {
+                const group = document.createElement('div'); group.className = 'feedback-result-answer';
+                const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(entry.chat_id));
+                const title = document.createElement('strong'); title.textContent = person?.name || ('Получатель ' + entry.chat_id); group.appendChild(title);
+                entry.files.forEach(file => { const button = document.createElement('button'); button.type = 'button'; button.className = 'group-share-btn'; button.textContent = 'Скачать ' + file.name; button.addEventListener('click', async () => { try { const response = await fetch(file.download_url, { headers: App.getAuthHeaders() }); if (!response.ok) throw new Error('Не удалось скачать файл'); const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); URL.revokeObjectURL(url); } catch (error) { App.showToast(error.message); } }); group.appendChild(button); });
+                content.appendChild(group);
+            });
+        } catch (error) { content.textContent = error.message || 'Не удалось загрузить обратную связь'; }
     },
 
     loadRecipientsData: async function() {
