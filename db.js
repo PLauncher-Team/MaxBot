@@ -133,14 +133,6 @@ db.exec(`
         ON recipient_download_tickets(expires_at);
 `);
 
-const reminderColumns = db.prepare('PRAGMA table_info(reminders)').all().map(column => column.name);
-if (!reminderColumns.includes('feedback_enabled')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_enabled INTEGER NOT NULL DEFAULT 0');
-if (!reminderColumns.includes('feedback_allow_files')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_allow_files INTEGER NOT NULL DEFAULT 0');
-if (!reminderColumns.includes('feedback_questions')) db.exec("ALTER TABLE reminders ADD COLUMN feedback_questions TEXT NOT NULL DEFAULT '[]'");
-if (!reminderColumns.includes('feedback_options')) db.exec("ALTER TABLE reminders ADD COLUMN feedback_options TEXT NOT NULL DEFAULT '[]'");
-const templateColumns = db.prepare('PRAGMA table_info(templates)').all().map(column => column.name);
-if (!templateColumns.includes('feedback_options')) db.exec("ALTER TABLE templates ADD COLUMN feedback_options TEXT NOT NULL DEFAULT '[]'");
-
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedback_submissions(reminder_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
 
