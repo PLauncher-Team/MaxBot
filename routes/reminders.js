@@ -698,13 +698,35 @@ router.delete('/public/:id/feedback/files/:filename', async (req, res) => {
     }
 });
 
-router.get('/:id/feedback', (req, res) => {
+router.get('/:id/feedback', async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
         const reminder = db.prepare('SELECT id, user_id, recipients, feedback_options, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
         const submissions = db.prepare('SELECT id, chat_id, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
+        const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
+        const participantByChatId = new Map(participants.map(participant => [String(participant.chat_id), participant]));
+        const profileByUserId = new Map();
+        const userIds = [...new Set(submissions.map(submission => {
+            const participant = participantByChatId.get(String(submission.chat_id));
+            const userId = participant?.user_id || (/^[0-9]+$/.test(String(submission.chat_id)) ? submission.chat_id : null);
+            return userId ? String(userId) : null;
+        }).filter(Boolean))];
+        await Promise.all(userIds.map(async userId => {
+            try {
+                const response = await fetch('https://platform-api2.max.ru/users/' + encodeURIComponent(userId), {
+                    headers: { Authorization: BOT_TOKEN }
+                });
+                if (!response.ok) return;
+                const profile = await response.json().catch(() => null);
+                const fullName = [profile?.first_name, profile?.last_name].filter(value => typeof value === 'string' && value.trim()).join(' ').trim();
+                const name = fullName || (typeof profile?.name === 'string' ? profile.name.trim() : '');
+                if (name) profileByUserId.set(userId, name);
+            } catch (error) {
+                return;
+            }
+        }));
         const recipients = getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, []));
         const options = safeJsonParse(reminder.feedback_options, []).filter(item => typeof item === 'string' && item.trim()).map(option => {
             const count = submissions.filter(row => safeJsonParse(row.answers, {}).choice === option).length;
@@ -715,7 +737,25 @@ router.get('/:id/feedback', (req, res) => {
             files: db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id').all(row.id)
                 .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
         })).filter(row => row.files.length);
-        res.json({ total_recipients: recipients.length, responded: submissions.length, response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0, feedback_allow_files: Boolean(reminder.feedback_allow_files), file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0, options, submissions: submissions.map(row => ({ chat_id: row.chat_id, answers: safeJsonParse(row.answers, {}), created_at: row.created_at })), files });
+        res.json({
+            total_recipients: recipients.length,
+            responded: submissions.length,
+            response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0,
+            feedback_allow_files: Boolean(reminder.feedback_allow_files),
+            file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0,
+            options,
+            submissions: submissions.map(row => {
+                const participant = participantByChatId.get(String(row.chat_id));
+                const userId = participant?.user_id || (/^[0-9]+$/.test(String(row.chat_id)) ? String(row.chat_id) : null);
+                return {
+                    chat_id: row.chat_id,
+                    name: (userId && profileByUserId.get(userId)) || participant?.name || '',
+                    answers: safeJsonParse(row.answers, {}),
+                    created_at: row.created_at
+                };
+            }),
+            files
+        });
     } catch (error) {
         console.error('Failed to load feedback:', error.message);
         res.status(500).json({ error: 'Не удалось загрузить обратную связь' });
