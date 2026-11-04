@@ -83,7 +83,7 @@ router.post('/', (req, res) => {
         const validFeedbackOptions = Array.isArray(feedback_options) ? feedback_options.slice(0, 20).filter(option => typeof option === 'string').map(option => option.trim().slice(0, 200)).filter(Boolean) : [];
 
         const createTemplate = db.transaction(() => {
-            const info = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies) VALUES (?, ?, ?, ?)')
+            const info = db.prepare('INSERT INTO templates (user_id, title, description, quick_replies, feedback_options) VALUES (?, ?, ?, ?, ?)')
                 .run(req.userId, cleanTitle, cleanDesc, JSON.stringify(validReplies), JSON.stringify(validFeedbackOptions));
             db.prepare('INSERT OR IGNORE INTO template_seed_state (user_id) VALUES (?)').run(req.userId);
             return info;
