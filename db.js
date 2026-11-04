@@ -20,6 +20,8 @@ db.exec(`
         description TEXT NOT NULL,
         quick_replies TEXT NOT NULL,
         feedback_options TEXT NOT NULL DEFAULT '[]',
+        feedback_enabled INTEGER NOT NULL DEFAULT 0,
+        feedback_allow_files INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -90,6 +92,7 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
         chat_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL DEFAULT '',
         answers TEXT NOT NULL DEFAULT '{}',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(reminder_id, chat_id)
