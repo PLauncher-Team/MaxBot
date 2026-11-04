@@ -442,7 +442,7 @@ const HomeScreen = {
                 const card = createNode('article', 'feedback-respondent-card');
                 const header = createNode('div', 'feedback-respondent-header');
                 const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(submission.chat_id));
-                const personName = person?.name || ('Получатель ' + submission.chat_id);
+                const personName = submission.name || person?.name || 'Получатель';
                 header.appendChild(createNode('span', 'feedback-respondent-avatar', personName.trim().slice(0, 1).toUpperCase() || 'П'));
                 const personCopy = createNode('div', 'feedback-respondent-copy');
                 personCopy.appendChild(createNode('strong', 'feedback-respondent-name', personName));
