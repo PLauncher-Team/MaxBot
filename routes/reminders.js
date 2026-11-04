@@ -960,11 +960,20 @@ router.delete('/:id', async (req, res) => {
                 .run(JSON.stringify(remainingMessageIds), id, req.userId);
             return res.status(502).json({ error: 'Не удалось удалить сообщение у всех получателей. Повторите попытку' });
         }
+        const feedbackFilenames = db.prepare('SELECT f.filename FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ?')
+            .all(id)
+            .map(file => file.filename);
         db.transaction(() => {
             db.prepare('DELETE FROM responses WHERE reminder_id = ?').run(id);
+            db.prepare('DELETE FROM recipient_download_tickets WHERE reminder_id = ?').run(id);
+            db.prepare('DELETE FROM feedback_files WHERE submission_id IN (SELECT id FROM feedback_submissions WHERE reminder_id = ?)').run(id);
+            db.prepare('DELETE FROM feedback_submissions WHERE reminder_id = ?').run(id);
             db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
         })();
-        cleanupUnusedUploadedMedia(req.userId, safeJsonParse(reminder.images, []), []);
+        const reminderFilenames = safeJsonParse(reminder.images, [])
+            .map(item => item && item.filename)
+            .filter(Boolean);
+        cleanupUnreferencedUploadedMedia([...reminderFilenames, ...feedbackFilenames]);
         res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
         console.error('Failed to delete reminder:', e);
