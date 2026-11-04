@@ -308,6 +308,15 @@ function sanitizeQuickReplies(quickReplies) {
         .filter(reply => reply.question.length > 0);
 }
 
+function sanitizeFeedbackQuestions(feedbackQuestions) {
+    if (feedbackQuestions === undefined || feedbackQuestions === null) return [];
+    if (!Array.isArray(feedbackQuestions) || feedbackQuestions.length > 20) return null;
+    return feedbackQuestions
+        .filter(question => typeof question === 'string')
+        .map(question => question.trim().slice(0, 200))
+        .filter(Boolean);
+}
+
 function isValidScheduledTime(value) {
     if (typeof value !== 'string') return false;
     const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
@@ -520,12 +529,12 @@ router.post('/public/:id/feedback', async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
-        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, quick_replies, message_ids, repeat_type FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, feedback_questions, message_ids, repeat_type FROM reminders WHERE id = ?').get(id);
         if (!reminder || !reminder.feedback_enabled || reminder.repeat_type && reminder.repeat_type !== 'Никогда') return res.status(404).json({ error: 'Feedback is unavailable' });
         const messageIds = safeJsonParse(reminder.message_ids, {});
         const chatId = await getRecipientChatId(reminder, messageIds, req.userId);
         if (!chatId) return res.status(404).json({ error: 'Reminder not found' });
-        const questions = safeJsonParse(reminder.quick_replies, []).filter(item => item && typeof item.question === 'string' && item.question.trim());
+        const questions = safeJsonParse(reminder.feedback_questions, []).filter(item => typeof item === 'string' && item.trim());
         const incoming = req.body?.answers && typeof req.body.answers === 'object' && !Array.isArray(req.body.answers) ? req.body.answers : {};
         const answers = {};
         questions.forEach((question, index) => {
@@ -581,16 +590,16 @@ router.get('/:id/feedback', (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
-        const reminder = db.prepare('SELECT id, user_id, recipients, quick_replies, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const reminder = db.prepare('SELECT id, user_id, recipients, feedback_questions, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
         const submissions = db.prepare('SELECT id, chat_id, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
         const recipients = getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, []));
-        const questions = safeJsonParse(reminder.quick_replies, []).filter(item => item && item.question).map((item, index) => {
+        const questions = safeJsonParse(reminder.feedback_questions, []).filter(item => typeof item === 'string' && item.trim()).map((question, index) => {
             const count = submissions.filter(row => {
                 const answers = safeJsonParse(row.answers, {});
                 return typeof answers[index] === 'string' && answers[index].trim();
             }).length;
-            return { index, question: item.question, answered: count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
+            return { index, question, answered: count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
         });
         const files = submissions.map(row => ({
             chat_id: row.chat_id,
@@ -629,7 +638,7 @@ router.get('/public/:id', async (req, res) => {
             return res.status(400).json({ error: 'Invalid reminder id' });
         }
 
-        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, images, message_ids, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, feedback_questions, images, message_ids, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
         const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
         if (!reminder || !chatId) {
@@ -672,6 +681,7 @@ router.get('/public/:id', async (req, res) => {
             },
             images: publicImages,
             quick_replies: publicReplies,
+            feedback_questions: sanitizeFeedbackQuestions(safeJsonParse(reminder.feedback_questions, [])) || [],
             feedback_enabled: Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда',
             feedback_allow_files: Boolean(reminder.feedback_allow_files)
         });
@@ -745,6 +755,7 @@ router.get('/', (req, res) => {
             ...r,
             recipients: safeJsonParse(r.recipients, []),
             quick_replies: safeJsonParse(r.quick_replies, []),
+            feedback_questions: safeJsonParse(r.feedback_questions, []),
             images: safeJsonParse(r.images, [])
         }));
         res.json(parsed);
@@ -878,7 +889,8 @@ router.post('/', async (req, res) => {
             quick_replies,
             images,
             feedback_enabled,
-            feedback_allow_files
+            feedback_allow_files,
+            feedback_questions
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -920,9 +932,14 @@ router.post('/', async (req, res) => {
         if (!validReplies) {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
+        const validFeedbackQuestions = sanitizeFeedbackQuestions(feedback_questions);
+        if (!validFeedbackQuestions) {
+            return res.status(400).json({ error: 'feedback_questions must contain at most 20 questions' });
+        }
 
         const cleanFeedbackEnabled = cleanRepeatType === 'Никогда' && feedback_enabled === true;
         const cleanFeedbackAllowFiles = cleanFeedbackEnabled && feedback_allow_files === true;
+        const cleanFeedbackQuestions = cleanFeedbackEnabled ? validFeedbackQuestions : [];
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
             return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
@@ -930,8 +947,8 @@ router.post('/', async (req, res) => {
 
         const stmt = db.prepare(`
             INSERT INTO reminders (
-                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, feedback_enabled, feedback_allow_files, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, feedback_questions, images, feedback_enabled, feedback_allow_files, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const info = stmt.run(
@@ -945,6 +962,7 @@ router.post('/', async (req, res) => {
             cleanRepeatTime,
             JSON.stringify(validRecipients),
             JSON.stringify(validReplies),
+            JSON.stringify(cleanFeedbackQuestions),
             JSON.stringify(validImages),
             cleanFeedbackEnabled ? 1 : 0,
             cleanFeedbackAllowFiles ? 1 : 0,
