@@ -308,12 +308,12 @@ function sanitizeQuickReplies(quickReplies) {
         .filter(reply => reply.question.length > 0);
 }
 
-function sanitizeFeedbackQuestions(feedbackQuestions) {
-    if (feedbackQuestions === undefined || feedbackQuestions === null) return [];
-    if (!Array.isArray(feedbackQuestions) || feedbackQuestions.length > 20) return null;
-    return feedbackQuestions
-        .filter(question => typeof question === 'string')
-        .map(question => question.trim().slice(0, 200))
+function sanitizeFeedbackOptions(feedbackOptions) {
+    if (feedbackOptions === undefined || feedbackOptions === null) return [];
+    if (!Array.isArray(feedbackOptions) || feedbackOptions.length > 20) return null;
+    return feedbackOptions
+        .filter(option => typeof option === 'string')
+        .map(option => option.trim().slice(0, 200))
         .filter(Boolean);
 }
 
@@ -675,7 +675,7 @@ router.get('/public/:id', async (req, res) => {
             },
             images: publicImages,
             quick_replies: publicReplies,
-            feedback_options: sanitizeFeedbackQuestions(safeJsonParse(reminder.feedback_options, [])) || [],
+            feedback_options: sanitizeFeedbackOptions(safeJsonParse(reminder.feedback_options, [])) || [],
             feedback_enabled: Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда',
             feedback_allow_files: Boolean(reminder.feedback_allow_files)
         });
@@ -927,16 +927,10 @@ router.post('/', async (req, res) => {
         if (!validReplies) {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
-        const validFeedbackQuestions = sanitizeFeedbackQuestions(feedback_questions);
-        if (!validFeedbackQuestions) {
-            return res.status(400).json({ error: 'feedback_questions must contain at most 20 questions' });
-        }
-
         const cleanFeedbackEnabled = cleanRepeatType === 'Никогда' && feedback_enabled === true;
         const cleanFeedbackAllowFiles = cleanFeedbackEnabled && feedback_allow_files === true;
-        const validFeedbackOptions = feedback_options === undefined ? validFeedbackQuestions : sanitizeFeedbackQuestions(feedback_options);
+        const validFeedbackOptions = sanitizeFeedbackOptions(feedback_options);
         if (!validFeedbackOptions) return res.status(400).json({ error: 'feedback_options must contain at most 20 options' });
-        const cleanFeedbackQuestions = cleanFeedbackEnabled ? validFeedbackQuestions : [];
         const cleanFeedbackOptions = cleanFeedbackEnabled ? validFeedbackOptions : [];
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
@@ -960,7 +954,7 @@ router.post('/', async (req, res) => {
             cleanRepeatTime,
             JSON.stringify(validRecipients),
             JSON.stringify(validReplies),
-            JSON.stringify(cleanFeedbackQuestions),
+            JSON.stringify([]),
             JSON.stringify(cleanFeedbackOptions),
             JSON.stringify(validImages),
             cleanFeedbackEnabled ? 1 : 0,
