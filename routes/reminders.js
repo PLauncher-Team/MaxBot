@@ -404,17 +404,34 @@ async function sendImmediateReminder(reminderId, userId, recipients, text, quick
     }
 }
 
-const RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS = 30 * 60;
+const RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS = 60 * 60;
 
 function createRecipientDownloadToken(reminderId, filename, userId) {
     const now = Math.floor(Date.now() / 1000);
-    db.prepare('DELETE FROM recipient_download_tickets WHERE expires_at <= ? OR (reminder_id = ? AND filename = ? AND user_id = ?)')
-        .run(now, Number(reminderId), filename, String(userId));
+    const normalizedReminderId = Number(reminderId);
+    const normalizedUserId = String(userId);
+    db.prepare('DELETE FROM recipient_download_tickets WHERE expires_at <= ?').run(now);
 
-    const token = crypto.randomBytes(32).toString('hex');
+    const existing = db.prepare('SELECT token_hash, expires_at FROM recipient_download_tickets WHERE reminder_id = ? AND filename = ? AND user_id = ? AND expires_at > ? ORDER BY expires_at DESC LIMIT 1')
+        .get(normalizedReminderId, filename, normalizedUserId, now);
+
+    if (existing) {
+        const token = crypto.createHmac('sha256', BOT_TOKEN)
+            .update([normalizedReminderId, filename, normalizedUserId, existing.expires_at].join(':'))
+            .digest('hex');
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        if (tokenHash === existing.token_hash) return token;
+        db.prepare('DELETE FROM recipient_download_tickets WHERE reminder_id = ? AND filename = ? AND user_id = ?')
+            .run(normalizedReminderId, filename, normalizedUserId);
+    }
+
+    const expiresAt = now + RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS;
+    const token = crypto.createHmac('sha256', BOT_TOKEN)
+        .update([normalizedReminderId, filename, normalizedUserId, expiresAt].join(':'))
+        .digest('hex');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     db.prepare('INSERT INTO recipient_download_tickets (token_hash, reminder_id, filename, user_id, expires_at) VALUES (?, ?, ?, ?, ?)')
-        .run(tokenHash, Number(reminderId), filename, String(userId), now + RECIPIENT_DOWNLOAD_TICKET_TTL_SECONDS);
+        .run(tokenHash, normalizedReminderId, filename, normalizedUserId, expiresAt);
     return token;
 }
 
