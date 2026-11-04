@@ -444,8 +444,10 @@ const HomeScreen = {
                 const card = createNode('article', 'feedback-respondent-card');
                 const header = createNode('div', 'feedback-respondent-header');
                 const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(submission.chat_id));
+                const personName = person?.name || ('Получатель ' + submission.chat_id);
+                header.appendChild(createNode('span', 'feedback-respondent-avatar', personName.trim().slice(0, 1).toUpperCase() || 'П'));
                 const personCopy = createNode('div', 'feedback-respondent-copy');
-                personCopy.appendChild(createNode('strong', 'feedback-respondent-name', person?.name || 'Получатель'));
+                personCopy.appendChild(createNode('strong', 'feedback-respondent-name', personName));
                 const submittedAt = submission.created_at ? new Date(String(submission.created_at).replace(' ', 'T')) : null;
                 const dateLabel = submittedAt && !Number.isNaN(submittedAt.getTime())
                     ? submittedAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
