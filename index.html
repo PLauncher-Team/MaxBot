@@ -454,11 +454,15 @@
             </div>
         </div>
         <div class="modal-field">
-            <div class="modal-field-label">Варианты ответа в опросе</div>
-            <div class="feedback-question-editor-list" id="modal-feedback-options-list"></div>
-            <div class="modal-reply-add">
-                <input type="text" id="modal-feedback-option-input" placeholder="Например: Да">
-                <button type="button" class="modal-reply-add-btn" id="modal-feedback-option-add-btn">Добавить вариант</button>
+            <div class="create-row"><div class="create-row-left">Разрешить ответы получателей</div><div class="toggle-switch" id="modal-feedback-enabled-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
+            <div id="modal-feedback-settings" hidden>
+                <div class="modal-field-label">Варианты ответа в опросе</div>
+                <div class="feedback-question-editor-list" id="modal-feedback-options-list"></div>
+                <div class="modal-reply-add">
+                    <input type="text" id="modal-feedback-option-input" placeholder="Например: Да">
+                    <button type="button" class="modal-reply-add-btn" id="modal-feedback-option-add-btn">Добавить вариант</button>
+                </div>
+                <div class="create-row"><div class="create-row-left">Разрешить прикреплять файлы</div><div class="toggle-switch" id="modal-feedback-files-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
             </div>
         </div>
         <div class="modal-actions">
@@ -489,10 +493,10 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=22"></script>
-<script src="js/screens/recipient-reminder.js?v=14"></script>
+<script src="js/app.js?v=23"></script>
+<script src="js/screens/recipient-reminder.js?v=15"></script>
 <script src="js/screens/home.js?v=36"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=29"></script>
+<script src="js/screens/create.js?v=30"></script>
 </body>
 </html>
