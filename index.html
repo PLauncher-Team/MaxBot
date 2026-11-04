@@ -56,6 +56,7 @@
     <link rel="stylesheet" href="css/redesign.css?v=10">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
     <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=6">
+    <link rel="stylesheet" href="css/screens/feedback.css?v=1">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -373,6 +374,29 @@
             <button class="bottom-button" id="save-reminder-btn">Сохранить напоминание <span class="btn-badge" id="recipients-badge">1</span></button>
         </div>
     </div>
+    <div class="screen" id="feedback-results-screen">
+        <div class="templates-header feedback-results-header">
+            <button class="back-btn" id="feedback-results-back-btn" aria-label="Назад">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg>
+            </button>
+            <div class="templates-title">Обратная связь</div>
+        </div>
+        <main class="feedback-page-content">
+            <section class="feedback-page-hero">
+                <div class="feedback-page-hero-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M7 18.5 3.5 21v-5.2A8.5 8.5 0 0 1 3 12c0-4.7 4-8.5 9-8.5s9 3.8 9 8.5-4 8.5-9 8.5a9.8 9.8 0 0 1-5-.0Z"></path><path d="M8 10h8M8 14h5"></path></svg>
+                </div>
+                <div class="feedback-page-hero-copy">
+                    <div class="feedback-page-eyebrow">ОТЧЁТ ПО РАССЫЛКЕ</div>
+                    <h1 id="feedback-results-reminder-title">Ответы получателей</h1>
+                    <p id="feedback-results-reminder-subtitle">Статистика и индивидуальные ответы по отправленному напоминанию.</p>
+                </div>
+            </section>
+            <div class="feedback-results-content" id="feedback-results-content" aria-live="polite">
+                <div class="feedback-loading-state">Загружаем ответы…</div>
+            </div>
+        </main>
+    </div>
     <div class="screen" id="reminder-view-screen">
         <div class="recipient-reminder-content">
             <div class="recipient-reminder-state" id="reminder-view-state">Загружаем напоминание…</div>
@@ -394,12 +418,6 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="feedback-results-modal" style="display: none;">
-    <div class="modal-card feedback-results-card">
-        <div class="modal-header"><div class="modal-title">Обратная связь</div><button type="button" class="modal-close-btn" id="feedback-results-close" aria-label="Закрыть">×</button></div>
-        <div id="feedback-results-content"></div>
-    </div>
-</div>
 
 <div class="modal-overlay" id="template-modal" style="display: none;">
     <div class="modal-card">
