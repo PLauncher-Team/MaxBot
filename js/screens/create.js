@@ -625,6 +625,8 @@ const CreateScreen = {
             if (descInput) descInput.value = template.description || '';
             this.currentQuickReplies = Array.isArray(template.quick_replies) ? [...template.quick_replies] : [];
             this.feedbackOptions = Array.isArray(template.feedback_options) ? [...template.feedback_options] : [];
+            this.feedbackEnabled = Boolean(template.feedback_enabled);
+            this.feedbackAllowFiles = this.feedbackEnabled && Boolean(template.feedback_allow_files);
         } else {
             if (titleInput) titleInput.value = '';
             if (descInput) descInput.value = '';
