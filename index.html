@@ -4,183 +4,331 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://st.max.ru/js/max-web-app.js"></script>
-    <title>Напоминатель</title>
+    <script>
+    (() => {
+        const root = document.documentElement;
+        const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+        const themeFromBackground = (value) => {
+            if (typeof value !== 'string') return null;
+            const match = value.trim().match(/^#([0-9a-f]{6})$/i);
+            if (!match) return null;
+            const hex = match[1];
+            const channels = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+            const linear = channels.map(c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+            const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+            return luminance < 0.42 ? 'dark' : 'light';
+        };
+
+        const applyTheme = () => {
+            const app = window.WebApp;
+            const scheme = app && (app.colorScheme || app.color_scheme);
+            const params = app && (app.themeParams || app.theme_params);
+            const fromParams = params && themeFromBackground(
+                params.bg_color || params.background_color || params.backgroundColor
+            );
+            const theme = scheme === 'dark' || scheme === 'light'
+                ? scheme
+                : (fromParams || (media && media.matches ? 'dark' : 'light'));
+
+            root.setAttribute('data-theme', theme);
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', theme === 'dark' ? '#111827' : '#f5f7fb');
+        };
+
+        applyTheme();
+        if (media && typeof media.addEventListener === 'function') {
+            media.addEventListener('change', applyTheme);
+        }
+        if (window.WebApp && typeof window.WebApp.onEvent === 'function') {
+            try { window.WebApp.onEvent('themeChanged', applyTheme); } catch (error) {}
+            try { window.WebApp.onEvent('theme_changed', applyTheme); } catch (error) {}
+        }
+    })();
+    </script>
+    <meta name="theme-color" content="#f5f7fb">
+    <title>Напоминания</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
-    <link rel="stylesheet" href="css/screens/home.css?v=12">
+    <link rel="stylesheet" href="css/screens/home.css?v=13">
     <link rel="stylesheet" href="css/screens/templates.css">
-    <link rel="stylesheet" href="css/screens/create.css">
+    <link rel="stylesheet" href="css/screens/create.css?v=2">
+    <link rel="stylesheet" href="css/redesign.css?v=10">
+    <link rel="stylesheet" href="css/ambient-background.css?v=9">
+    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=5">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
     <div class="gate-card">
         <div class="gate-icon">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#007aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#4263eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
                 <line x1="12" y1="18" x2="12.01" y2="18"></line>
             </svg>
         </div>
-        <div class="gate-title">Откройте в приложении MAX</div>
-        <div class="gate-description">Это мини-приложение работает только внутри мессенджера MAX и недоступно для запуска напрямую из браузера.</div>
+        <div class="gate-title">Откройте приложение в MAX</div>
+        <div class="gate-description">Это мини-приложение работает внутри мессенджера MAX. Откройте его через меню бота.</div>
     </div>
 </div>
+
 <div class="app-container" id="app-container" style="display: none;">
-
     <div class="screen active" id="home-screen">
-        <div class="header">
-            Напоминатель
-        </div>
-
         <div class="content">
             <div class="section-header">
                 <div class="section-header-left">
-                    Получатели <span class="badge" id="home-groups-count">0</span>
+                    Получатели
+                    <span class="badge" id="home-groups-count">0</span>
                 </div>
-                <div class="link-all" id="show-recipients-btn">Управление</div>
             </div>
+            <button type="button" class="placeholder-box recipients-placeholder recipients-management-card"
+                    id="show-recipients-btn" aria-label="Открыть управление получателями">
+                <span class="placeholder-icon recipients-management-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </span>
+                <span class="recipients-management-copy">
+                    <strong>Группы и контакты</strong>
+                    <span>Добавляйте людей, объединяйте их в группы и выбирайте адресатов для напоминаний.</span>
+                </span>
+                <span class="recipients-management-action">
+                    <span>Управлять</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7"></path></svg>
+                </span>
+            </button>
 
-            <div class="section-header" style="margin-top: 16px;">
-                <div class="section-header-left">
-                    Запланированные <span class="count" id="scheduled-count">0</span>
-                </div>
+            <div class="section-header">
+                <button type="button" class="section-toggle" id="scheduled-toggle" aria-expanded="false" aria-controls="scheduled-section-content">
+                    <span class="section-header-left">Запланированные <span class="count" id="scheduled-count">0</span></span>
+                    <svg class="section-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
             </div>
+            <div class="home-collapsible-content" id="scheduled-section-content" hidden>
             <div class="placeholder-box" id="scheduled-placeholder">
                 <div class="placeholder-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                 </div>
-                <span>Здесь покажем запланированные вами события</span>
+                <span>Здесь появятся напоминания, которые ожидают отправки.</span>
             </div>
             <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
+            </div>
 
             <div class="section-header">
                 <div class="section-header-left">
-                    Шаблоны <span class="badge" id="home-templates-count">2</span>
+                    Шаблоны
+                    <span class="badge" id="home-templates-count">0</span>
                 </div>
-                <div class="link-all" id="show-templates-btn">Все</div>
+                <button type="button" class="link-all" id="show-templates-btn">Все шаблоны</button>
             </div>
-
             <div class="templates-wrapper">
-                <button class="scroll-btn left" id="scroll-left-btn"></button>
+                <button class="scroll-btn left" id="scroll-left-btn" aria-label="Прокрутить шаблоны влево" hidden></button>
                 <div class="templates-scroll" id="templates-scroll">
-                    <button class="template-add-card" id="home-add-template-card">
+                    <button class="template-add-card" id="home-add-template-card" aria-label="Создать шаблон">
                         <svg width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
                 </div>
-                <button class="scroll-btn right" id="scroll-right-btn"></button>
+                <button class="scroll-btn right" id="scroll-right-btn" aria-label="Прокрутить шаблоны вправо" hidden></button>
             </div>
 
             <div class="section-header">
-                <div class="section-header-left">
-                    Отправленные
-                </div>
+                <button type="button" class="section-toggle" id="sent-toggle" aria-expanded="false" aria-controls="sent-section-content">
+                    <span class="section-header-left">Отправленные <span class="count" id="sent-count">0</span></span>
+                    <svg class="section-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
             </div>
+            <div class="home-collapsible-content" id="sent-section-content" hidden>
             <div class="placeholder-box" id="sent-placeholder">
                 <div class="placeholder-icon">
-                    <svg width="14" height="14" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
                 </div>
-                <span>Здесь покажем отправленные напоминания</span>
+                <span>История отправленных напоминаний будет храниться здесь.</span>
             </div>
             <div class="reminders-list" id="sent-list" style="display: none;"></div>
+            </div>
         </div>
-
         <div class="bottom-button-container">
-            <button class="bottom-button" id="add-reminder-btn">
-                Добавить напоминание
-            </button>
+            <button class="bottom-button" id="add-reminder-btn">Создать напоминание</button>
         </div>
     </div>
 
     <div class="screen" id="recipients-screen">
         <div class="templates-header">
-            <button class="back-btn" id="recipients-back-btn"></button>
+            <button class="back-btn" id="recipients-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="templates-title">Управление получателями</div>
         </div>
 
-        <div class="recipients-tabs">
-            <button class="tab-btn active" id="tab-groups-btn">Группы (<span id="tab-groups-count">0</span>)</button>
-            <button class="tab-btn" id="tab-people-btn">Все люди (<span id="tab-people-count">0</span>)</button>
-        </div>
-
-        <div class="tab-content" id="tab-groups-content">
-            <div class="create-group-box">
-                <input type="text" class="modal-input" id="new-group-name-input" placeholder="Название группы (например: 10А класс)">
-                <button class="quick-reply-submit-btn" id="create-group-btn">+ Создать группу</button>
+        <div class="recipients-page-content">
+            <div class="recipients-tabs" role="tablist" aria-label="Разделы получателей">
+                <button type="button" class="tab-btn active" id="tab-groups-btn" role="tab" aria-selected="true" aria-controls="tab-groups-content">
+                    <span>Группы</span><span class="tab-count" id="tab-groups-count">0</span>
+                </button>
+                <button type="button" class="tab-btn" id="tab-people-btn" role="tab" aria-selected="false" aria-controls="tab-people-content">
+                    <span>Контакты</span><span class="tab-count" id="tab-people-count">0</span>
+                </button>
             </div>
-            <div class="groups-list" id="groups-list"></div>
-        </div>
 
-        <div class="tab-content" id="tab-people-content" style="display: none;">
-            <div class="combine-bar" id="combine-bar">
-                <select class="modal-input" id="combine-group-select"></select>
-                <button class="quick-reply-submit-btn" id="combine-submit-btn">В группу</button>
+            <div class="tab-content" id="tab-groups-content" role="tabpanel" aria-labelledby="tab-groups-btn">
+                <div class="recipient-panel-heading">
+                    <div>
+                        <h2>Создайте группу</h2>
+                        <p>Объедините людей, которым обычно нужны одни и те же напоминания.</p>
+                    </div>
+                </div>
+                <div class="create-group-box">
+                    <label class="recipient-field-label" for="new-group-name-input">Название группы</label>
+                    <div class="recipient-create-row">
+                        <input type="text" class="modal-input" id="new-group-name-input" placeholder="Например, Родители 5А" autocomplete="off">
+                        <button type="button" class="quick-reply-submit-btn" id="create-group-btn">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+                            <span>Создать</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="recipient-list-heading">
+                    <h3>Ваши группы</h3>
+                    <p>Приглашайте людей и раскрывайте группу, чтобы посмотреть её состав.</p>
+                </div>
+                <div class="groups-list" id="groups-list"></div>
             </div>
-            <div class="participants-list" id="participants-list"></div>
+
+            <div class="tab-content" id="tab-people-content" role="tabpanel" aria-labelledby="tab-people-btn" style="display: none;">
+                <div class="recipient-panel-heading">
+                    <div>
+                        <h2>Управляйте контактами</h2>
+                        <p>Все люди, которые переходили по вашим ссылкам-приглашениям, остаются здесь даже без группы.</p>
+                    </div>
+                </div>
+                <div class="combine-bar" id="combine-bar">
+                    <div class="recipient-assignment-heading">
+                        <strong>Добавить контакты в группы</strong>
+                        <span>Можно выбрать несколько групп. Уже назначенные группы сохранятся.</span>
+                    </div>
+                    <div class="recipient-field-label">1. Выберите одну или несколько групп</div>
+                    <div class="assignment-groups-list" id="assignment-groups-list"></div>
+                    <div class="recipient-selection-hint">
+                        <strong>2. Выберите контакты ниже</strong>
+                        <span>Выбранные люди будут добавлены во все отмеченные группы.</span>
+                    </div>
+                    <button type="button" class="quick-reply-submit-btn" id="combine-submit-btn" disabled>
+                        <span>Добавить в выбранные группы</span>
+                        <span class="selection-count" id="selected-participants-count">0</span>
+                    </button>
+                </div>
+
+                <div class="recipient-list-heading">
+                    <h3>Все контакты</h3>
+                    <p>Контакты можно добавить в одну или несколько групп.</p>
+                </div>
+                <div class="participants-list" id="participants-list"></div>
+            </div>
         </div>
     </div>
-
     <div class="screen" id="templates-screen">
         <div class="templates-header">
-            <button class="back-btn" id="back-btn"></button>
-            <div class="templates-title">
-                Шаблоны <span class="badge" id="templates-count">2</span>
-            </div>
-            <button class="add-template-btn" id="templates-add-btn">
+            <button class="back-btn" id="back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
+            <div class="templates-title">Шаблоны <span class="badge" id="templates-count">0</span></div>
+            <button class="add-template-btn" id="templates-add-btn" aria-label="Добавить шаблон">
                 <svg width="20" height="20" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
         </div>
-
         <div class="search-container">
             <div class="search-input-wrapper">
                 <div class="search-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
-                <input type="text" class="search-input" id="search-input" placeholder="Поиск по названию">
+                <input type="text" class="search-input" id="search-input" placeholder="Найти шаблон">
             </div>
         </div>
-
         <div class="templates-list" id="templates-list"></div>
-        <div class="empty-search" id="empty-search">Ничего не найдено</div>
+        <div class="empty-search" id="empty-search">Подходящих шаблонов нет</div>
     </div>
 
     <div class="screen" id="create-screen">
         <div class="create-header">
-            <button class="back-btn" id="create-back-btn"></button>
+            <button class="back-btn" id="create-back-btn" aria-label="Назад"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5M12 19l-7-7 7-7"></path></svg></button>
             <div class="create-title">Новое напоминание</div>
         </div>
-
+        <div class="reminder-wizard-progress" id="reminder-wizard-progress" aria-label="Этапы создания напоминания">
+            <div class="reminder-wizard-progress-step" data-wizard-step="1"><span class="reminder-wizard-progress-number">1</span><span>Шаблон</span></div>
+            <span class="reminder-wizard-progress-line"></span>
+            <div class="reminder-wizard-progress-step" data-wizard-step="2"><span class="reminder-wizard-progress-number">2</span><span>Получатели</span></div>
+            <span class="reminder-wizard-progress-line"></span>
+            <div class="reminder-wizard-progress-step" data-wizard-step="3"><span class="reminder-wizard-progress-number">3</span><span>Детали</span></div>
+        </div>
         <div class="create-content">
+            <section class="reminder-wizard-panel" id="reminder-step-template">
+                <div class="create-section wizard-intro-section">
+                    <div class="create-section-title">Выберите шаблон</div>
+                    <p class="wizard-step-description">Начните с готового шаблона или создайте напоминание с нуля.</p>
+                    <div class="wizard-template-list" id="wizard-template-options"></div>
+                </div>
+            </section>
+
+            <section class="reminder-wizard-panel" id="reminder-step-recipients" style="display: none;">
+                <div class="create-section wizard-intro-section">
+                    <div class="create-section-title">Кому отправить напоминание?</div>
+                    <p class="wizard-step-description">Выберите группы, отдельных участников или отправку себе.</p>
+                    <div class="recipient-filter-tabs" role="group" aria-label="Фильтр получателей">
+                        <button type="button" data-recipient-filter="all" class="active" aria-pressed="true">Все</button>
+                        <button type="button" data-recipient-filter="groups" aria-pressed="false">Группы</button>
+                        <button type="button" data-recipient-filter="people" aria-pressed="false">Люди</button>
+                    </div>
+                    <input type="search" class="recipient-search-input" id="wizard-recipient-search" placeholder="Поиск по названию" autocomplete="off">
+                    <button type="button" class="wizard-self-option" id="wizard-self-option" aria-pressed="false">
+                        <span class="wizard-recipient-check"></span>
+                        <span class="wizard-recipient-option-copy"><strong>Себе</strong><small>Личное сообщение</small></span>
+                    </button>
+                    <div class="wizard-recipient-list" id="wizard-recipients-list"></div>
+                    <button type="button" class="wizard-manage-recipients" id="manage-recipients-btn">Настроить группы и контакты <span aria-hidden="true">↗</span></button>
+                </div>
+            </section>
+
+            <section class="reminder-wizard-panel" id="reminder-step-details" style="display: none;">
             <div class="create-section">
-                <div class="create-section-title">Фото и видео (до 11 шт)</div>
-                <div class="images-preview-grid" id="media-preview-grid"></div>
-                <input type="file" id="create-media-input" accept="image/*,video/*" multiple style="display: none;">
-                <button class="quick-reply-submit-btn" id="add-media-btn" style="background-color: #f2f2f7; color: #007aff; margin-top: 8px;">+ Добавить фото/видео</button>
+                <div class="create-section-title">Фото</div>
+                <div class="images-preview-grid" id="photo-preview-grid"></div>
+                <input type="file" id="create-photo-input" accept="image/png,image/jpeg,image/gif,image/webp" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-photo-btn" style="margin-top: 10px;">Добавить фото</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Максимум 3 фото. Каждое — до 10 МБ и 7680 × 7680 пикселей.</div>
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Название</div>
-                <input type="text" class="create-input" id="create-title-input" placeholder="Введите название">
+                <div class="create-section-title">Содержание</div>
+                <input type="text" class="create-input" id="create-title-input" placeholder="Название напоминания">
+                <div style="height: 14px;"></div>
+                <textarea class="create-textarea" id="create-desc-input" placeholder="Добавьте подробности, место или другую важную информацию"></textarea>
+            </div>
+
+
+
+
+            <div class="create-section">
+                <div class="create-section-title">Получатели</div>
+                <p class="wizard-step-description">Проверьте выбранных получателей. Чтобы изменить список, вернитесь на предыдущий этап.</p>
+                <div class="recipient-summary-list" id="details-recipients-summary"></div>
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Описание</div>
-                <textarea class="create-textarea" id="create-desc-input" placeholder="Введите описание"></textarea>
-            </div>
-
-            <div class="create-section">
+                <div class="create-section-title">Когда отправить</div>
                 <div class="create-row">
                     <div class="create-row-left">Отправить сейчас</div>
-                    <div class="toggle-switch active" id="send-now-toggle"></div>
+                    <div class="toggle-switch active" id="send-now-toggle" role="switch" aria-label="Отправить сейчас"></div>
                 </div>
                 <div class="time-picker-row" id="send-time-picker-row" style="display: none;">
-                    <div class="time-picker-label">Время отправки (МСК)</div>
+                    <div class="time-picker-label">Дата и время (МСК)</div>
                     <input type="datetime-local" class="time-picker-input" id="send-datetime-input">
                 </div>
             </div>
 
             <div class="create-section">
+                <div class="create-section-title">Повторение</div>
                 <div class="create-row">
-                    <div class="create-row-left">Повтор</div>
-                    <div class="create-row-right" id="repeat-type-btn"><span id="repeat-type-text">Никогда</span> <span class="chevron-right"></span></div>
+                    <div class="create-row-left">Повторять</div>
+                    <div class="create-row-right" id="repeat-type-btn"><span id="repeat-type-text">Никогда</span><span class="chevron-right"></span></div>
                 </div>
                 <div class="time-picker-row" id="repeat-time-picker-row" style="display: none;">
                     <div class="time-picker-label">Время повтора</div>
@@ -189,18 +337,11 @@
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Получатели</div>
-                <div class="recipient-add-row" id="recipient-add-row">
-                    <div class="recipient-add-icon">+</div>
-                    <div class="recipient-add-text">Выбрать группы получателей</div>
-                </div>
-
-                <div class="create-row" style="margin-top: 10px;">
-                    <div class="create-row-left">Также отправить себе</div>
-                    <div class="toggle-switch active" id="send-to-self-toggle"></div>
-                </div>
-
-                <div class="recipient-list" id="recipient-list"></div>
+                <div class="create-section-title">Документы</div>
+                <div class="images-preview-grid" id="document-preview-grid"></div>
+                <input type="file" id="create-document-input" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip" multiple style="display: none;">
+                <button class="quick-reply-submit-btn" id="add-document-btn" style="margin-top: 10px;">Добавить документы</button>
+                <div style="margin-top: 8px; color: var(--muted); font-size: 11px;">Максимум 3 документа. Каждый — до 10 МБ.</div>
             </div>
 
             <div class="create-section">
@@ -208,21 +349,39 @@
                 <div class="quick-replies-list" id="quick-replies-list"></div>
                 <div class="quick-reply-add-box">
                     <div class="quick-reply-inputs">
-                        <input type="text" class="quick-reply-input" id="quick-reply-q-input" placeholder="Вопрос (например: Где?)">
-                        <input type="text" class="quick-reply-input" id="quick-reply-a-input" placeholder="Ответ (например: В актовом зале)">
+                        <input type="text" class="quick-reply-input" id="quick-reply-q-input" placeholder="Вопрос, например: Где?">
+                        <input type="text" class="quick-reply-input" id="quick-reply-a-input" placeholder="Ответ, например: В актовом зале">
                     </div>
                     <button class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить ответ</button>
                 </div>
             </div>
+            </section>
         </div>
-
-        <div class="create-bottom">
-            <button class="bottom-button" id="save-reminder-btn">
-                Запланировать отправку <span class="btn-badge" id="recipients-badge">1</span>
-            </button>
+        <div class="create-bottom" id="wizard-step-bottom" style="display: none;">
+            <button type="button" class="bottom-button" id="wizard-next-btn">Продолжить</button>
+        </div>
+        <div class="create-bottom" id="details-step-bottom" style="display: none;">
+            <button class="bottom-button" id="save-reminder-btn">Сохранить напоминание <span class="btn-badge" id="recipients-badge">1</span></button>
         </div>
     </div>
-
+    <div class="screen" id="reminder-view-screen">
+        <div class="recipient-reminder-content">
+            <div class="recipient-reminder-state" id="reminder-view-state">Загружаем напоминание…</div>
+            <article class="recipient-reminder-card" id="reminder-view-card" style="display: none;">
+                <div class="recipient-reminder-media" id="reminder-view-media"></div>
+                <div class="recipient-reminder-copy">
+                    <div class="recipient-reminder-sender" id="reminder-view-sender" hidden></div>
+                    <h1 id="reminder-view-title"></h1>
+                    <p id="reminder-view-description"></p>
+                    <div class="recipient-reminder-documents" id="reminder-view-files" style="display: none;"></div>
+                </div>
+            </article>
+            <section class="recipient-reminder-replies" id="reminder-view-replies" style="display: none;">
+                <div class="recipient-reminder-replies-heading">Быстрые ответы</div>
+                <div class="recipient-reminder-replies-list" id="reminder-view-replies-list"></div>
+            </section>
+        </div>
+    </div>
 </div>
 
 <div class="modal-overlay" id="template-modal" style="display: none;">
@@ -242,30 +401,14 @@
             <div class="modal-field-label">Быстрые ответы</div>
             <div class="modal-replies-list" id="modal-replies-list"></div>
             <div class="modal-reply-add">
-                <input type="text" id="modal-reply-q" placeholder="Вопрос (например: Где?)">
-                <input type="text" id="modal-reply-a" placeholder="Ответ (например: В классе)">
-                <button type="button" class="modal-reply-add-btn" id="modal-reply-add-btn">+ Добавить</button>
+                <input type="text" id="modal-reply-q" placeholder="Вопрос">
+                <input type="text" id="modal-reply-a" placeholder="Ответ">
+                <button type="button" class="modal-reply-add-btn" id="modal-reply-add-btn">Добавить ответ</button>
             </div>
         </div>
         <div class="modal-actions">
             <button class="modal-cancel-btn" id="modal-template-cancel">Отмена</button>
             <button class="modal-save-btn" id="modal-template-save">Создать шаблон</button>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay" id="recipient-modal" style="display: none;">
-    <div class="modal-card">
-        <div class="modal-header">
-            <div class="modal-title">Выбор групп для рассылки</div>
-        </div>
-        <div class="modal-field">
-            <div class="modal-field-label">Группы</div>
-            <div class="contacts-modal-list" id="groups-modal-list"></div>
-        </div>
-        <div class="modal-actions">
-            <button class="modal-cancel-btn" id="recipient-modal-cancel">Отмена</button>
-            <button class="modal-save-btn" id="recipient-modal-confirm">Выбрать (<span id="recipient-modal-count">0</span>)</button>
         </div>
     </div>
 </div>
@@ -291,9 +434,10 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=11"></script>
-<script src="js/screens/home.js?v=13"></script>
-<script src="js/screens/templates.js?v=8"></script>
-<script src="js/screens/create.js?v=11"></script>
+<script src="js/app.js?v=19"></script>
+<script src="js/screens/recipient-reminder.js?v=9"></script>
+<script src="js/screens/home.js?v=29"></script>
+<script src="js/screens/templates.js?v=11"></script>
+<script src="js/screens/create.js?v=26"></script>
 </body>
 </html>

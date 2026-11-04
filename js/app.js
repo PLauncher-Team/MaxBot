@@ -1,5 +1,6 @@
 const App = {
     currentScreen: 'home',
+    recipientsReturnScreen: null,
 
     screens: {},
 
@@ -18,35 +19,23 @@ const App = {
     },
 
     getAuthHeaders: function() {
-        const headers = {
-            'X-User-Id': this.getUserId()
-        };
-        if (window.WebApp && typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0) {
-            headers['X-Webapp-Init-Data'] = window.WebApp.initData;
-        }
-        return headers;
+        const initData = window.WebApp && typeof window.WebApp.initData === 'string'
+            ? window.WebApp.initData
+            : '';
+        return initData ? { 'X-Webapp-Init-Data': initData } : {};
     },
 
     getUserId: function() {
-        if (window.WebApp && window.WebApp.initDataUnsafe && window.WebApp.initDataUnsafe.user) {
-            return String(window.WebApp.initDataUnsafe.user.id);
-        }
-        return 'user_local';
+        const userId = window.WebApp?.initDataUnsafe?.user?.id;
+        return userId === undefined || userId === null ? null : String(userId);
     },
 
     isMaxApp: function() {
-        if (!window.WebApp) {
-            return false;
-        }
-        const hasInitData = typeof window.WebApp.initData === 'string' && window.WebApp.initData.length > 0;
-        const hasPlatform = typeof window.WebApp.platform === 'string' && window.WebApp.platform.length > 0;
-        const hasVersion = typeof window.WebApp.version === 'string' && window.WebApp.version.length > 0;
-        const hasInitDataUnsafe = Boolean(window.WebApp.initDataUnsafe && Object.keys(window.WebApp.initDataUnsafe).length > 0);
-        const hasWebViewHandler = typeof window.WebViewHandler !== 'undefined';
-        const hasHashData = location.hash.includes('WebAppData') || location.hash.includes('WebAppPlatform');
-        const hasSessionData = Boolean(sessionStorage.getItem('WebAppData') || sessionStorage.getItem('WebAppPlatform'));
-
-        return Boolean(hasInitData || hasPlatform || hasVersion || hasInitDataUnsafe || hasWebViewHandler || hasHashData || hasSessionData);
+        return Boolean(
+            window.WebApp &&
+            typeof window.WebApp.initData === 'string' &&
+            window.WebApp.initData.trim().length > 0
+        );
     },
 
     showToast: function(message) {
@@ -73,7 +62,7 @@ const App = {
         }
 
         if (window.WebApp && window.WebApp.BackButton) {
-            if (screenName === 'home') {
+            if (screenName === 'home' || screenName === 'reminderView') {
                 window.WebApp.BackButton.hide();
             } else {
                 window.WebApp.BackButton.show();
@@ -86,67 +75,33 @@ const App = {
     },
 
     getTemplates: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/templates', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_templates_' + userId;
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            return JSON.parse(local);
+        const res = await fetch('/api/templates', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить шаблоны');
         }
-
-        const defaults = [
-            {
-                id: 1,
-                title: 'Для соревнования',
-                description: 'Соревнование по [дисциплина].\nЗаявки принимаются с [дата/время] до [дата/время].\nПроводится с [дата/время] до [дата/время].',
-                quick_replies: [
-                    { question: 'Где?', answer: 'В спортивном комплексе школы' },
-                    { question: 'Когда?', answer: 'В субботу в 10:00' }
-                ]
-            },
-            {
-                id: 2,
-                title: 'Для справки об отсутствии',
-                description: 'Уважаемые родители, напоминаем о необходимости предоставить медицинскую справку или заявление об отсутствии ученика с указанием периода и причины.',
-                quick_replies: [
-                    { question: 'Какую именно справку надо?', answer: 'Справка от врача-педиатра с допуском к занятиям' },
-                    { question: 'Куда приносить?', answer: 'Классному руководителю или медпункт' }
-                ]
-            }
-        ];
-        localStorage.setItem(storageKey, JSON.stringify(defaults));
-        return defaults;
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список шаблонов');
+        }
+        return data;
     },
 
     saveTemplate: async function(template) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/templates', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(template)
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const templates = await this.getTemplates();
-        template.id = Date.now();
-        templates.push(template);
-        localStorage.setItem('maxapp_templates_' + userId, JSON.stringify(templates));
-        return template;
+        const res = await fetch('/api/templates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(template)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось сохранить шаблон');
+        }
+        return data;
     },
 
     deleteTemplate: async function(id) {
@@ -159,30 +114,21 @@ const App = {
             throw new Error(data?.error || 'Не удалось удалить шаблон');
         }
 
-        const storageKey = 'maxapp_templates_' + this.getUserId();
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            const templates = JSON.parse(local).filter(template => String(template.id) !== String(id));
-            localStorage.setItem(storageKey, JSON.stringify(templates));
-        }
-
         return data;
     },
 
     getReminders: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/reminders', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_reminders_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+        const res = await fetch('/api/reminders', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить напоминания');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список напоминаний');
+        }
+        return data;
     },
 
     deleteReminder: async function(id) {
@@ -255,49 +201,104 @@ const App = {
         return null;
     },
 
-    getGroups: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/groups', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
+    uploadAttachment: function(file, onProgress) {
+        return new Promise((resolve, reject) => {
+            const extension = String(file.name || '').split('.').pop().toLowerCase();
+            const imageMimeTypes = {
+                png: 'image/png',
+                jpg: 'image/jpeg',
+                jpeg: 'image/jpeg',
+                gif: 'image/gif',
+                webp: 'image/webp'
+            };
+            const isImage = Object.prototype.hasOwnProperty.call(imageMimeTypes, extension);
+            const endpoint = isImage ? '/api/reminders/upload-media' : '/api/reminders/upload-file';
+            const reader = new FileReader();
 
-        const storageKey = 'maxapp_groups_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+            reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+            reader.onprogress = event => {
+                if (event.lengthComputable && typeof onProgress === 'function') {
+                    onProgress(Math.round(event.loaded / event.total * 25));
+                }
+            };
+            reader.onload = () => {
+                const dataUrl = String(reader.result || '').replace(/^data:[^;,]+/, 'data:' + (imageMimeTypes[extension] || file.type || 'application/octet-stream'));
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, true);
+                xhr.timeout = 120000;
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                Object.entries(this.getAuthHeaders()).forEach(([name, value]) => {
+                    if (value) xhr.setRequestHeader(name, value);
+                });
+                xhr.upload.addEventListener('progress', event => {
+                    if (event.lengthComputable && typeof onProgress === 'function') {
+                        onProgress(25 + Math.round(event.loaded / event.total * 75));
+                    }
+                });
+                xhr.onload = () => {
+                    let data;
+                    try {
+                        data = JSON.parse(xhr.responseText || '{}');
+                    } catch (error) {
+                        reject(new Error('Сервер вернул некорректный ответ'));
+                        return;
+                    }
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        reject(new Error(data.error || 'Не удалось загрузить файл'));
+                        return;
+                    }
+                    if (typeof onProgress === 'function') onProgress(100);
+                    resolve(data);
+                };
+                xhr.onerror = () => reject(new Error('Не удалось связаться с сервером'));
+                xhr.ontimeout = () => reject(new Error('Время загрузки файла истекло'));
+                xhr.onabort = () => reject(new Error('Загрузка отменена'));
+                xhr.send(JSON.stringify({ media_data: dataUrl, file_name: file.name }));
+            };
+            reader.readAsDataURL(file);
+        });
+    },
+
+    deleteUploadedMedia: async function(filename) {
+        const res = await fetch('/api/reminders/uploads/' + encodeURIComponent(filename), {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось удалить файл');
+        }
+        return data;
+    },
+
+    getGroups: async function() {
+        const res = await fetch('/api/groups', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить группы');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список групп');
+        }
+        return data;
     },
 
     saveGroup: async function(name) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/groups', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify({ name })
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const groups = await this.getGroups();
-        const group = {
-            id: Date.now(),
-            user_id: userId,
-            name: name,
-            unique_id: 'g_' + Math.random().toString(36).substr(2, 9),
-            participant_count: 0
-        };
-        groups.unshift(group);
-        localStorage.setItem('maxapp_groups_' + userId, JSON.stringify(groups));
-        return group;
+        const res = await fetch('/api/groups', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ name })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось создать группу');
+        }
+        return data;
     },
 
     deleteGroup: async function(id) {
@@ -309,42 +310,21 @@ const App = {
         if (!response.ok) {
             throw new Error(data?.error || 'Не удалось удалить группу');
         }
-
-        const userId = this.getUserId();
-        const groupsKey = 'maxapp_groups_' + userId;
-        const localGroups = localStorage.getItem(groupsKey);
-        if (localGroups) {
-            const groups = JSON.parse(localGroups).filter(group => String(group.id) !== String(id));
-            localStorage.setItem(groupsKey, JSON.stringify(groups));
-        }
-
-        const participantsKey = 'maxapp_participants_' + userId;
-        const localParticipants = localStorage.getItem(participantsKey);
-        if (localParticipants) {
-            const participants = JSON.parse(localParticipants).map(participant => {
-                if (String(participant.group_id) !== String(id)) return participant;
-                return { ...participant, group_id: null, group_name: null };
-            });
-            localStorage.setItem(participantsKey, JSON.stringify(participants));
-        }
-
         return data;
     },
 
     getParticipants: async function() {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/participants', {
-                headers: this.getAuthHeaders()
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const storageKey = 'maxapp_participants_' + userId;
-        const local = localStorage.getItem(storageKey);
-        return local ? JSON.parse(local) : [];
+        const res = await fetch('/api/participants', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось загрузить участников');
+        }
+        if (!Array.isArray(data)) {
+            throw new Error('Сервер вернул некорректный список участников');
+        }
+        return data;
     },
 
     deleteParticipant: async function(id) {
@@ -356,32 +336,35 @@ const App = {
         if (!response.ok) {
             throw new Error(data?.error || 'Не удалось удалить участника');
         }
-
-        const storageKey = 'maxapp_participants_' + this.getUserId();
-        const local = localStorage.getItem(storageKey);
-        if (local) {
-            const participants = JSON.parse(local).filter(participant => String(participant.id) !== String(id));
-            localStorage.setItem(storageKey, JSON.stringify(participants));
-        }
-
         return data;
     },
 
-    combineParticipantsToGroup: async function(participantIds, groupId) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/participants/batch-group', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify({ participant_ids: participantIds, group_id: groupId })
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
+    addParticipantsToGroups: async function(participantIds, groupIds) {
+        const response = await fetch('/api/participants/batch-group', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ participant_ids: participantIds, group_ids: groupIds })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось добавить участников в группы');
+        }
+        return data;
+    },
+
+    removeParticipantFromGroup: async function(participantId, groupId) {
+        const response = await fetch('/api/participants/' + participantId + '/groups/' + groupId, {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw new Error(data?.error || 'Не удалось убрать участника из группы');
+        }
+        return data;
     },
 
     joinGroup: async function(uniqueId) {
@@ -408,26 +391,19 @@ const App = {
     },
 
     saveReminder: async function(reminder) {
-        const userId = this.getUserId();
-        try {
-            const res = await fetch('/api/reminders', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...this.getAuthHeaders()
-                },
-                body: JSON.stringify(reminder)
-            });
-            if (res.ok) {
-                return await res.json();
-            }
-        } catch (e) {}
-
-        const reminders = await this.getReminders();
-        reminder.id = Date.now();
-        reminders.unshift(reminder);
-        localStorage.setItem('maxapp_reminders_' + userId, JSON.stringify(reminders));
-        return reminder;
+        const res = await fetch('/api/reminders', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(reminder)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось сохранить напоминание');
+        }
+        return data;
     },
 
     renderModalReplies: function() {
@@ -502,7 +478,8 @@ const App = {
             home: document.getElementById('home-screen'),
             templates: document.getElementById('templates-screen'),
             create: document.getElementById('create-screen'),
-            recipients: document.getElementById('recipients-screen')
+            recipients: document.getElementById('recipients-screen'),
+            reminderView: document.getElementById('reminder-view-screen')
         };
 
         if (window.WebApp) {
@@ -512,7 +489,14 @@ const App = {
 
             if (window.WebApp.BackButton) {
                 window.WebApp.BackButton.onClick(() => {
-                    if (this.currentScreen === 'create' || this.currentScreen === 'templates' || this.currentScreen === 'recipients') {
+                    if (this.currentScreen === 'create') {
+                        CreateScreen.backWizard();
+                    } else if (this.currentScreen === 'recipients') {
+                        const target = this.recipientsReturnScreen || 'home';
+                        this.recipientsReturnScreen = null;
+                        this.showScreen(target);
+                        if (target === 'create') CreateScreen.loadRecipientOptions();
+                    } else if (this.currentScreen === 'templates') {
                         this.showScreen('home');
                     }
                 });
@@ -536,6 +520,12 @@ const App = {
             startParam = urlParams.get('start') || urlParams.get('startapp');
         }
 
+        if (startParam && /^r_[0-9]+$/.test(startParam)) {
+            this.showScreen('reminderView');
+            RecipientReminder.load(Number(startParam.slice(2)));
+            return;
+        }
+
         if (startParam && startParam.startsWith('group_')) {
             const uniqueId = startParam.replace('group_', 'g_');
             this.joinGroup(uniqueId);
@@ -557,18 +547,7 @@ const App = {
 
         const addReminderBtn = document.getElementById('add-reminder-btn');
         if (addReminderBtn) {
-            addReminderBtn.addEventListener('click', () => {
-                this.selectedTemplate = null;
-                CreateScreen.populateForm(null);
-                this.showScreen('create');
-            });
-        }
-
-        const createBackBtn = document.getElementById('create-back-btn');
-        if (createBackBtn) {
-            createBackBtn.addEventListener('click', () => {
-                this.showScreen('home');
-            });
+            addReminderBtn.addEventListener('click', () => CreateScreen.startWizard());
         }
 
         const modalCancelBtn = document.getElementById('modal-template-cancel');
@@ -610,11 +589,16 @@ const App = {
                     return;
                 }
 
-                await this.saveTemplate({
-                    title,
-                    description,
-                    quick_replies: this.modalReplies
-                });
+                try {
+                    await this.saveTemplate({
+                        title,
+                        description,
+                        quick_replies: this.modalReplies
+                    });
+                } catch (error) {
+                    this.showToast(error.message || 'Не удалось сохранить шаблон');
+                    return;
+                }
 
                 this.closeCreateTemplateModal();
                 this.showToast('Шаблон сохранён');

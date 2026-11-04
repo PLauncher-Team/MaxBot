@@ -20,6 +20,7 @@ jobs:
       DEPLOY_PATH: /var/www/maxapp
       DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
       SSHPASS: ${{ secrets.DEPLOY_SSH_PASSWORD }}
+      DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.DEPLOY_SSH_KNOWN_HOSTS }}
     steps:
       - name: Checkout selected branch
         uses: actions/checkout@v4
@@ -32,25 +33,44 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y sshpass
 
-      - name: Validate deployment settings
+      - name: Validate deployment settings and pin SSH host key
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF" == refs/heads/* ]] || { echo "::error::Select a branch to deploy"; exit 1; }
+          [[ "$GITHUB_REF" == "refs/heads/ui-redesign" ]] || { echo "::error::Only ui-redesign may be deployed by this workflow"; exit 1; }
           test -n "$SSHPASS" || { echo "::error::Missing DEPLOY_SSH_PASSWORD"; exit 1; }
           test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
+          test -n "$DEPLOY_SSH_KNOWN_HOSTS" || { echo "::error::Missing DEPLOY_SSH_KNOWN_HOSTS"; exit 1; }
+          mkdir -p "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F "$DEPLOY_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null || { echo "::error::Known-hosts secret does not contain the deployment host"; exit 1; }
+
+      - name: Run security tests and syntax checks
+        run: |
+          set -euo pipefail
+          npm test
+          for file in auth.js server.js bot.js scheduler.js routes/*.js js/*.js js/screens/*.js; do
+            node --check "$file"
+          done
+
+      - name: Resolve and audit production dependencies
+        run: |
+          set -euo pipefail
+          npm install --package-lock-only --omit=dev
+          npm audit --omit=dev --audit-level=high
 
       - name: Check server
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "test -d '$DEPLOY_PATH' && test -f '$DEPLOY_PATH/ecosystem.config.js' && command -v rsync && command -v npm && command -v pm2"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_SSH_USER@$DEPLOY_HOST" "test -d '$DEPLOY_PATH' && test -f '$DEPLOY_PATH/ecosystem.config.js' && command -v rsync && command -v npm && command -v pm2"
 
       - name: Upload application files
         shell: bash
         run: |
           set -euo pipefail
-          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+          rsync -az -e "sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts" \
             --exclude='.git/' \
             --exclude='.github/' \
             --exclude='.idea/' \
@@ -58,7 +78,6 @@ jobs:
             --exclude='node_modules/' \
             --exclude='data/' \
             --exclude='ecosystem.config.js' \
-            --exclude='package-lock.json' \
             --exclude='.env' \
             --exclude='.env.*' \
             --exclude='logs/' \
@@ -69,13 +88,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && npm install --omit=dev"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && npm ci --omit=dev"
 
       - name: Restart application
         shell: bash
         run: |
           set -euo pipefail
-          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && pm2 startOrReload ecosystem.config.js --update-env && pm2 save && pm2 status"
+          sshpass -e ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o KbdInteractiveAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" "$DEPLOY_SSH_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && pm2 startOrReload ecosystem.config.js --update-env && pm2 save && pm2 status"
 
       - name: Deployment summary
         shell: bash

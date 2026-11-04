@@ -1,0 +1,351 @@
+.recipient-reminder-content {
+    display: flex;
+    width: 100%;
+    max-width: 440px;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 auto;
+    padding: 22px 16px 36px;
+    box-sizing: border-box;
+}
+
+.recipient-reminder-state {
+    padding: 28px 18px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 18px;
+    background: var(--surface, #fff);
+    color: var(--muted, #778196);
+    font-size: 14px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.recipient-reminder-state.is-error {
+    color: var(--text, #172033);
+}
+
+.recipient-reminder-card,
+.recipient-reminder-replies {
+    overflow: hidden;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 20px;
+    background: var(--surface, #fff);
+    box-shadow: 0 8px 24px rgba(23, 32, 51, .06);
+}
+
+.recipient-reminder-media {
+    display: block;
+    padding: 10px;
+    background: var(--surface-muted, #f1f4f9);
+}
+
+.recipient-reminder-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.recipient-reminder-gallery-viewport {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    overflow: hidden;
+    border-radius: 12px;
+    background: var(--surface, #fff);
+}
+
+.recipient-reminder-gallery-image {
+    max-height: 68vh;
+}
+
+.recipient-reminder-gallery-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 28px;
+}
+
+.recipient-reminder-gallery-counter {
+    min-width: 36px;
+    color: var(--muted, #778196);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.recipient-reminder-gallery-arrow {
+    display: inline-flex;
+    width: 28px;
+    height: 26px;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    color: var(--text, #273247);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.recipient-reminder-gallery-arrow:disabled {
+    opacity: .3;
+    cursor: default;
+}
+
+.recipient-reminder-media-item {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 68vh;
+    min-width: 0;
+    border: 0;
+    border-radius: 12px;
+    background: var(--surface, #fff);
+    object-fit: contain;
+}
+
+
+.recipient-reminder-attachments {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.recipient-reminder-file {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 13px;
+    background: var(--surface, #fff);
+    color: var(--text, #172033);
+    text-decoration: none;
+}
+
+.recipient-reminder-file-icon {
+    display: flex;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 11px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--accent, #536dfe);
+}
+
+.recipient-reminder-file-icon svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.recipient-reminder-file-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.recipient-reminder-file-name {
+    overflow: hidden;
+    color: var(--text, #172033);
+    font-size: 13px;
+    font-weight: 650;
+    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-file-details {
+    color: var(--muted, #778196);
+    font-size: 11px;
+}
+
+.recipient-reminder-file-download {
+    flex: 0 0 auto;
+    color: var(--accent, #536dfe);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.recipient-reminder-copy {
+    padding: 20px;
+}
+
+ .recipient-reminder-sender {
+    margin-bottom: 10px;
+    color: var(--muted, #778196);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.recipient-reminder-sender a {
+    color: var(--accent, #536dfe);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+ .recipient-reminder-copy h1 {
+    margin: 0;
+    color: var(--text, #172033);
+    font-size: 22px;
+    font-weight: 750;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-copy p {
+    margin: 12px 0 0;
+    color: var(--text, #273247);
+    font-size: 15px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-replies {
+    padding: 18px;
+}
+
+.recipient-reminder-replies-heading {
+    margin-bottom: 12px;
+    color: var(--text, #172033);
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.recipient-reminder-replies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.recipient-reminder-reply-item {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.recipient-reminder-reply-answer {
+    padding: 13px 15px;
+    border: 1px solid rgba(50, 145, 105, .22);
+    border-left: 4px solid #299b70;
+    border-radius: 12px;
+    background: rgba(50, 145, 105, .08);
+    color: var(--text, #273247);
+    white-space: normal;
+}
+
+.recipient-reminder-reply-answer-label {
+    margin-bottom: 5px;
+    color: #21865f;
+    font-size: 11px;
+    font-weight: 750;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.recipient-reminder-reply-answer-text {
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.recipient-reminder-reply-answer[hidden] {
+    display: none;
+}
+
+.recipient-reminder-reply-button.is-expanded {
+    border-color: var(--accent, #667eea);
+}
+
+.recipient-reminder-reply-button {
+    width: 100%;
+    min-height: 48px;
+    padding: 12px 15px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 12px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--text, #172033);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.35;
+    text-align: left;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.recipient-reminder-reply-button:disabled {
+    cursor: default;
+    opacity: .6;
+}
+
+.recipient-reminder-reply-button.is-sent {
+    border-color: rgba(23, 160, 102, .25);
+    background: rgba(23, 160, 102, .09);
+    color: #16845a;
+}
+
+.recipient-reminder-documents {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+.recipient-reminder-document {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    color: var(--text, #172033);
+    text-align: center;
+    text-decoration: none;
+}
+.recipient-reminder-document-icon {
+    display: flex;
+    width: 54px;
+    height: 54px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 50%;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--accent, #536dfe);
+}
+.recipient-reminder-document-icon svg {
+    width: 25px;
+    height: 25px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.recipient-reminder-document-name {
+    display: -webkit-box;
+    width: 100%;
+    overflow: hidden;
+    color: var(--text, #172033);
+    font-size: 10px;
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}

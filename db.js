@@ -10,6 +10,7 @@ if (!fs.existsSync(dataDir)) {
 const dbPath = path.join(dataDir, 'database.sqlite');
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS templates (
@@ -31,6 +32,7 @@ db.exec(`
         user_id TEXT NOT NULL,
         title TEXT NOT NULL,
         description TEXT NOT NULL,
+        sender_name TEXT,
         send_now INTEGER NOT NULL,
         scheduled_time TEXT,
         repeat_type TEXT,
@@ -59,8 +61,16 @@ db.exec(`
         teacher_id TEXT NOT NULL,
         group_id INTEGER,
         chat_id TEXT NOT NULL,
+        user_id TEXT,
         name TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS participant_groups (
+        participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
+        group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (participant_id, group_id)
     );
 
     CREATE TABLE IF NOT EXISTS responses (
@@ -70,6 +80,33 @@ db.exec(`
         answer TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS uploaded_media (
+        filename TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS recipient_download_tickets (
+        token_hash TEXT PRIMARY KEY,
+        reminder_id INTEGER NOT NULL,
+        filename TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_participants_teacher_user_id
+        ON participants(teacher_id, user_id);
+    CREATE INDEX IF NOT EXISTS idx_participant_groups_group_id
+        ON participant_groups(group_id);
+    CREATE INDEX IF NOT EXISTS idx_participant_groups_participant_id
+        ON participant_groups(participant_id);
+
+    CREATE INDEX IF NOT EXISTS idx_recipient_download_tickets_lookup
+        ON recipient_download_tickets(reminder_id, filename, user_id);
+    CREATE INDEX IF NOT EXISTS idx_recipient_download_tickets_expires_at
+        ON recipient_download_tickets(expires_at);
 `);
 
 module.exports = db;

@@ -1,11 +1,341 @@
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 7680;
+const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'md', 'odt', 'ods', 'odp', 'zip']);
+
 const CreateScreen = {
     currentQuickReplies: [],
     selectedGroups: [],
+    selectedPeople: [],
+    recipientGroups: [],
+    recipientPeople: [],
+    recipientFilter: 'all',
+    recipientLoadError: null,
+    recipientLoadRequestId: 0,
+    sendToSelf: false,
+    wizardActive: false,
+    startedFromTemplate: false,
+    wizardStep: 1,
     currentImages: [],
     editingSentReminder: false,
 
     repeatOptions: ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
     repeatIndex: 0,
+
+    startWizard: async function(template = null) {
+        this.wizardActive = true;
+        this.startedFromTemplate = Boolean(template);
+        this.editingSentReminder = false;
+        App.editingReminderId = null;
+        this.populateForm(template);
+        App.showScreen('create');
+        if (template) {
+            this.showWizardStep(2);
+            await this.loadRecipientOptions();
+        } else {
+            this.showWizardStep(1);
+            await this.renderTemplateOptions();
+        }
+    },
+
+    renderTemplateOptions: async function() {
+        const list = document.getElementById('wizard-template-options');
+        if (!list) return;
+        list.innerHTML = '';
+
+        const addOption = (title, description, template, isEmpty = false) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'wizard-template-option' + (isEmpty ? ' wizard-template-option-empty' : '');
+            const name = document.createElement('span');
+            name.className = 'wizard-template-option-title';
+            name.textContent = title;
+            option.appendChild(name);
+            if (description) {
+                const detail = document.createElement('span');
+                detail.className = 'wizard-template-option-description';
+                detail.textContent = description;
+                option.appendChild(detail);
+            }
+            option.addEventListener('click', () => this.selectWizardTemplate(template));
+            list.appendChild(option);
+        };
+
+        addOption('Без шаблона', 'Создать напоминание с пустой формой', null, true);
+        const loading = document.createElement('div');
+        loading.className = 'wizard-template-loading';
+        loading.textContent = 'Загрузка шаблонов...';
+        list.appendChild(loading);
+
+        try {
+            const templates = await App.getTemplates();
+            loading.remove();
+            templates.forEach(template => addOption(template.title || 'Без названия', template.description || '', template));
+        } catch (error) {
+            loading.textContent = 'Не удалось загрузить шаблоны';
+        }
+    },
+
+    selectWizardTemplate: async function(template) {
+        this.populateForm(template);
+        this.showWizardStep(2);
+        await this.loadRecipientOptions();
+    },
+
+    showWizardStep: function(step) {
+        this.wizardStep = step;
+        const panels = {
+            1: document.getElementById('reminder-step-template'),
+            2: document.getElementById('reminder-step-recipients'),
+            3: document.getElementById('reminder-step-details')
+        };
+        Object.entries(panels).forEach(([number, panel]) => {
+            if (panel) panel.style.display = Number(number) === step ? 'block' : 'none';
+        });
+
+        const progress = document.getElementById('reminder-wizard-progress');
+        if (progress) progress.style.display = this.wizardActive ? 'flex' : 'none';
+        document.querySelectorAll('.reminder-wizard-progress-step').forEach(item => {
+            const number = Number(item.getAttribute('data-wizard-step'));
+            item.classList.toggle('active', number === step);
+            item.classList.toggle('completed', number < step);
+        });
+
+        const stepBottom = document.getElementById('wizard-step-bottom');
+        const detailsBottom = document.getElementById('details-step-bottom');
+        if (stepBottom) stepBottom.style.display = this.wizardActive && step === 2 ? 'block' : 'none';
+        if (detailsBottom) detailsBottom.style.display = step === 3 ? 'block' : 'none';
+
+        const headerTitle = document.querySelector('#create-screen .create-title');
+        if (headerTitle && !App.editingReminderId) {
+            headerTitle.textContent = step === 1 ? 'Новое напоминание' : (step === 2 ? 'Получатели' : 'Детали напоминания');
+        }
+
+        const content = document.querySelector('#create-screen .create-content');
+        if (content) content.scrollTop = 0;
+        if (step === 3) this.renderSelectedRecipients();
+    },
+
+    discardNewAttachments: function() {
+        const newFiles = this.currentImages.filter(item => item && item.isNew && item.filename);
+        this.currentImages = [];
+        newFiles.forEach(item => App.deleteUploadedMedia(item.filename).catch(() => {}));
+        this.renderImagesPreview();
+    },
+
+    backWizard: function() {
+        if (!this.wizardActive) {
+            this.discardNewAttachments();
+            App.showScreen('home');
+            return;
+        }
+        if (this.wizardStep === 3) {
+            this.showWizardStep(2);
+            return;
+        }
+        if (this.wizardStep === 2) {
+            if (this.editingSentReminder || this.startedFromTemplate) {
+                this.wizardActive = false;
+                this.startedFromTemplate = false;
+                this.editingSentReminder = false;
+                App.editingReminderId = null;
+                this.discardNewAttachments();
+                App.showScreen('home');
+                return;
+            }
+            this.showWizardStep(1);
+            return;
+        }
+        this.discardNewAttachments();
+        App.showScreen('home');
+    },
+
+    loadRecipientOptions: async function() {
+        this.recipientLoadRequestId = (Number(this.recipientLoadRequestId) || 0) + 1;
+        const requestId = this.recipientLoadRequestId;
+        const listIds = ['wizard-recipients-list'];
+        listIds.forEach(id => {
+            const list = document.getElementById(id);
+            if (list) list.textContent = 'Загружаем получателей...';
+        });
+        this.recipientLoadError = null;
+
+        const selfOption = document.getElementById('wizard-self-option');
+        if (selfOption) {
+            selfOption.classList.toggle('selected', this.sendToSelf);
+            selfOption.setAttribute('aria-pressed', String(this.sendToSelf));
+        }
+        const selfToggle = document.getElementById('send-to-self-toggle');
+        if (selfToggle) selfToggle.classList.toggle('active', this.sendToSelf);
+        this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
+
+        let timeoutIds = [];
+        const withTimeout = (promise, label) => {
+            let timeoutId;
+            const timeout = new Promise((resolve, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(label + ': превышено время ожидания')), 12000);
+                timeoutIds.push(timeoutId);
+            });
+            return Promise.race([promise, timeout]).finally(() => {
+                clearTimeout(timeoutId);
+                timeoutIds = timeoutIds.filter(id => id !== timeoutId);
+            });
+        };
+
+        try {
+            const groups = await withTimeout(App.getGroups(), 'Загрузка групп');
+            if (requestId !== this.recipientLoadRequestId) return;
+            const people = await withTimeout(App.getParticipants(), 'Загрузка участников');
+            if (requestId !== this.recipientLoadRequestId) return;
+
+            if (!Array.isArray(groups) || !Array.isArray(people)) {
+                throw new Error('Сервер вернул некорректный список получателей');
+            }
+
+            this.recipientGroups = groups;
+            this.recipientPeople = people;
+            const groupNames = new Set(groups.map(group => String(group.name || '')));
+            const personIds = new Set(people.map(person => String(person.id)));
+            this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
+            this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
+            this.renderSelectedRecipients();
+        } catch (error) {
+            if (requestId !== this.recipientLoadRequestId) return;
+            this.recipientGroups = [];
+            this.recipientPeople = [];
+            this.recipientLoadError = 'Не удалось загрузить получателей: ' + (error.message || 'ошибка сервера');
+            this.renderSelectedRecipients();
+            App.showToast(this.recipientLoadError);
+        } finally {
+            timeoutIds.forEach(clearTimeout);
+            if (requestId === this.recipientLoadRequestId) {
+                const wizardList = document.getElementById('wizard-recipients-list');
+                if (wizardList?.textContent === 'Загружаем получателей...') {
+                    this.recipientLoadError = this.recipientLoadError || 'Не удалось отобразить список получателей. Попробуйте открыть шаг ещё раз';
+                    this.renderSelectedRecipients();
+                }
+            }
+        }
+    },
+
+    renderRecipientChoices: function(listId, searchId) {
+        const list = document.getElementById(listId);
+        if (!list) return;
+        if (this.recipientLoadError) {
+            list.textContent = this.recipientLoadError;
+            return;
+        }
+        const query = (document.getElementById(searchId)?.value || '').trim().toLocaleLowerCase();
+        list.innerHTML = '';
+        let visibleCount = 0;
+
+        const addChoice = (name, detail, selected, type, id) => {
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'wizard-recipient-option' + (selected ? ' selected' : '');
+            option.setAttribute('aria-pressed', String(selected));
+
+            const check = document.createElement('span');
+            check.className = 'wizard-recipient-check';
+            const copy = document.createElement('span');
+            copy.className = 'wizard-recipient-option-copy';
+            const title = document.createElement('strong');
+            title.textContent = name;
+            const subtitle = document.createElement('small');
+            subtitle.textContent = detail;
+            copy.append(title, subtitle);
+            option.append(check, copy);
+
+            option.addEventListener('click', () => {
+                if (type === 'group') {
+                    this.selectedGroups = selected
+                        ? this.selectedGroups.filter(value => value !== name)
+                        : [...this.selectedGroups, name];
+                } else {
+                    const personId = String(id);
+                    this.selectedPeople = selected
+                        ? this.selectedPeople.filter(value => value !== personId)
+                        : [...this.selectedPeople, personId];
+                }
+                this.renderSelectedRecipients();
+            });
+            list.appendChild(option);
+            visibleCount++;
+        };
+
+        if (this.recipientFilter === 'all' || this.recipientFilter === 'groups') this.recipientGroups.forEach(group => {
+            const name = String(group.name || '');
+            if (!name.toLocaleLowerCase().includes(query)) return;
+            addChoice(name, (group.participant_count || 0) + ' участников', this.selectedGroups.includes(name), 'group', group.id);
+        });
+
+        if (this.recipientFilter === 'all' || this.recipientFilter === 'people') this.recipientPeople.forEach(person => {
+            const name = String(person.name || 'Участник');
+            if (!name.toLocaleLowerCase().includes(query)) return;
+            const groupNames = Array.isArray(person.groups) ? person.groups.map(group => group.name).filter(Boolean) : [];
+            const detail = groupNames.length ? groupNames.join(', ') : 'Участник';
+            addChoice(name, detail, this.selectedPeople.includes(String(person.id)), 'person', person.id);
+        });
+
+        if (visibleCount === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'wizard-recipient-empty';
+            empty.textContent = query ? 'Ничего не найдено' : 'Пока нет групп и участников';
+            list.appendChild(empty);
+        }
+    },
+
+    renderSelectedRecipients: function() {
+        const selfOption = document.getElementById('wizard-self-option');
+        if (selfOption) {
+            selfOption.classList.toggle('selected', this.sendToSelf);
+            selfOption.setAttribute('aria-pressed', String(this.sendToSelf));
+        }
+
+        this.renderRecipientChoices('wizard-recipients-list', 'wizard-recipient-search');
+        this.renderRecipientSummary();
+        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
+            const active = button.getAttribute('data-recipient-filter') === this.recipientFilter;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+        this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
+    },
+
+    renderRecipientSummary: function() {
+        const summary = document.getElementById('details-recipients-summary');
+        if (!summary) return;
+        summary.innerHTML = '';
+
+        const addLine = (name, detail) => {
+            const item = document.createElement('div');
+            item.className = 'recipient-summary-item';
+            const title = document.createElement('strong');
+            title.textContent = name;
+            const subtitle = document.createElement('small');
+            subtitle.textContent = detail;
+            item.append(title, subtitle);
+            summary.appendChild(item);
+        };
+
+        if (this.sendToSelf) addLine('Себе', 'Личное сообщение');
+        this.selectedGroups.forEach(name => addLine(name, 'Группа'));
+        this.selectedPeople.forEach(id => {
+            const person = this.recipientPeople.find(item => String(item.id) === String(id));
+            addLine(person?.name || 'Участник', 'Отдельный участник');
+        });
+
+        if (!summary.children.length) {
+            const empty = document.createElement('div');
+            empty.className = 'recipient-summary-empty';
+            empty.textContent = 'Получатели не выбраны';
+            summary.appendChild(empty);
+        }
+    },
+
+    updateRecipientsBadge: function(count) {
+        const badge = document.getElementById('recipients-badge');
+        if (badge) badge.textContent = count;
+    },
 
     getMinDateTimeString: function() {
         const d = new Date();
@@ -19,35 +349,133 @@ const CreateScreen = {
         return `${year}-${month}-${day}T${hours}:${mins}`;
     },
 
-    renderImagesPreview: function() {
-        const grid = document.getElementById('media-preview-grid') || document.getElementById('images-preview-grid');
-        if (!grid) return;
-        grid.innerHTML = '';
+    getImageDimensions: async function(file) {
+        if (typeof createImageBitmap === 'function') {
+            const bitmap = await createImageBitmap(file);
+            const dimensions = { width: bitmap.width, height: bitmap.height };
+            bitmap.close();
+            return dimensions;
+        }
+        return new Promise((resolve, reject) => {
+            const objectUrl = URL.createObjectURL(file);
+            const image = new Image();
+            image.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve({ width: image.naturalWidth, height: image.naturalHeight });
+            };
+            image.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Не удалось прочитать изображение'));
+            };
+            image.src = objectUrl;
+        });
+    },
 
-        this.currentImages.forEach((imgObj, index) => {
-            const thumb = document.createElement('div');
-            thumb.className = 'image-preview-thumb';
-            const imgUrl = typeof imgObj === 'string' ? imgObj : (imgObj.url || '');
-            const isVideo = (typeof imgObj === 'object' && imgObj.type === 'video') || /\.(mp4|mov|webm|avi|mkv)$/i.test(imgUrl);
-
-            if (isVideo) {
-                thumb.innerHTML = `
-                    <video src="${App.escapeHtml(imgUrl)}" style="width: 100%; height: 100%; object-fit: cover;"></video>
-                    <button type="button" class="image-preview-del" data-index="${index}">✕</button>
-                `;
-            } else {
-                thumb.innerHTML = `
-                    <img src="${App.escapeHtml(imgUrl)}" alt="preview">
-                    <button type="button" class="image-preview-del" data-index="${index}">✕</button>
-                `;
+    uploadAttachmentFile: async function(file, pendingItem) {
+        try {
+            if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('Каждый файл должен быть не больше 10 МБ');
+            const extension = String(file.name || '').split('.').pop().toLowerCase();
+            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
+            if (!isImage && !SUPPORTED_DOCUMENT_EXTENSIONS.has(extension)) {
+                throw new Error('Этот формат файла не поддерживается');
             }
-
-            thumb.querySelector('.image-preview-del').addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.currentImages.splice(index, 1);
+            if (isImage) {
+                const dimensions = await this.getImageDimensions(file);
+                if (dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) {
+                    throw new Error('Размер фото не должен превышать 7680 × 7680 пикселей');
+                }
+                if (dimensions.width < 1 || dimensions.height < 1) throw new Error('Не удалось определить размер изображения');
+            }
+            pendingItem.type = isImage ? 'image' : 'file';
+            const uploaded = await App.uploadAttachment(file, progress => {
+                pendingItem.progress = progress;
                 this.renderImagesPreview();
             });
-            grid.appendChild(thumb);
+            const index = this.currentImages.indexOf(pendingItem);
+            if (index === -1) {
+                if (uploaded.filename) await App.deleteUploadedMedia(uploaded.filename).catch(() => {});
+                return;
+            }
+            this.currentImages.splice(index, 1, { ...uploaded, isNew: true });
+            this.renderImagesPreview();
+        } catch (error) {
+            const index = this.currentImages.indexOf(pendingItem);
+            if (index !== -1) this.currentImages.splice(index, 1);
+            this.renderImagesPreview();
+            App.showToast(error.message || 'Не удалось загрузить файл');
+        }
+    },
+
+    formatAttachmentSize: function(bytes) {
+        const size = Number(bytes) || 0;
+        if (size >= 1024 * 1024) return (size / (1024 * 1024)).toFixed(1).replace('.', ',') + ' МБ';
+        return Math.max(1, Math.round(size / 1024)) + ' КБ';
+    },
+
+    renderImagesPreview: function() {
+        const grids = [
+            { id: 'photo-preview-grid', type: 'image' },
+            { id: 'document-preview-grid', type: 'file' }
+        ];
+        grids.forEach(({ id, type }) => {
+            const grid = document.getElementById(id);
+            if (!grid) return;
+            grid.replaceChildren();
+            this.currentImages.forEach((item, index) => {
+                if ((item.type || 'file') !== type) return;
+                const thumb = document.createElement('div');
+                thumb.className = 'image-preview-thumb attachment-preview-thumb';
+                if (item.pending) {
+                    thumb.classList.add('attachment-upload-thumb');
+                    const progress = Math.max(0, Math.min(100, Number(item.progress) || 0));
+                    thumb.innerHTML = `
+                        <div class="attachment-upload-progress">
+                            <svg viewBox="0 0 48 48" aria-hidden="true">
+                                <circle class="attachment-upload-track" cx="24" cy="24" r="20"></circle>
+                                <circle class="attachment-upload-value" cx="24" cy="24" r="20" style="stroke-dashoffset: ${125.66 * (1 - progress / 100)}"></circle>
+                            </svg>
+                            <span>${progress}%</span>
+                        </div>
+                        <div class="attachment-preview-name">${App.escapeHtml(item.name)}</div>
+                        <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                    `;
+                } else if (type === 'image') {
+                    const image = document.createElement('img');
+                    image.src = item.url || '';
+                    image.alt = item.name || 'Фото';
+                    image.loading = 'lazy';
+                    thumb.appendChild(image);
+                    const name = document.createElement('div');
+                    name.className = 'attachment-preview-name';
+                    name.textContent = item.name || 'Фото';
+                    thumb.appendChild(name);
+                } else {
+                    thumb.classList.add('attachment-file-thumb');
+                    thumb.innerHTML = `
+                        <div class="attachment-file-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>
+                        </div>
+                        <div class="attachment-preview-name">${App.escapeHtml(item.name || 'Файл')}</div>
+                        <div class="attachment-preview-size">${this.formatAttachmentSize(item.size)}</div>
+                    `;
+                }
+                const removeButton = document.createElement('button');
+                removeButton.type = 'button';
+                removeButton.className = 'image-preview-del';
+                removeButton.setAttribute('aria-label', 'Удалить вложение');
+                removeButton.textContent = '✕';
+                removeButton.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const removed = this.currentImages[index];
+                    this.currentImages.splice(index, 1);
+                    this.renderImagesPreview();
+                    if (removed && removed.isNew && removed.filename) {
+                        App.deleteUploadedMedia(removed.filename).catch(error => App.showToast(error.message));
+                    }
+                });
+                thumb.appendChild(removeButton);
+                grid.appendChild(thumb);
+            });
         });
     },
 
@@ -62,7 +490,6 @@ const CreateScreen = {
         const repeatTimeRow = document.getElementById('repeat-time-picker-row');
         const repeatTypeText = document.getElementById('repeat-type-text');
         const repeatTimeInput = document.getElementById('repeat-time-input');
-        const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
         const sendNowSection = sendNowToggle?.closest('.create-section');
@@ -77,8 +504,13 @@ const CreateScreen = {
 
         if (titleInput) titleInput.value = reminder.title || '';
         if (descInput) descInput.value = reminder.description || '';
+        this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
-        this.currentImages = Array.isArray(reminder.images) ? [...reminder.images] : [];
+        const savedMedia = Array.isArray(reminder.images) ? reminder.images : [];
+        this.currentImages = [
+            ...savedMedia.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3),
+            ...savedMedia.filter(image => image && image.type === 'file' && typeof image.url === 'string').slice(0, 3)
+        ];
 
         if (sendNowToggle) {
             sendNowToggle.classList.remove('active');
@@ -102,19 +534,24 @@ const CreateScreen = {
         }
 
         const recipients = Array.isArray(reminder.recipients) ? reminder.recipients : [];
-        const hasSelf = recipients.includes('Себе');
-        if (sendToSelfToggle) {
-            if (hasSelf) sendToSelfToggle.classList.add('active');
-            else sendToSelfToggle.classList.remove('active');
-        }
-
-        this.selectedGroups = recipients.filter(r => r !== 'Себе');
+        this.sendToSelf = recipients.includes('Себе');
+        this.selectedPeople = recipients
+            .filter(value => /^person:[0-9]+$/.test(value))
+            .map(value => value.slice(7));
+        this.selectedGroups = recipients.filter(value => value !== 'Себе' && !/^person:[0-9]+$/.test(value));
+        this.wizardActive = false;
+        this.showWizardStep(3);
         this.renderQuickReplies();
         this.renderSelectedRecipients();
+        this.loadRecipientOptions();
         this.renderImagesPreview();
     },
 
     populateForSentEdit: function(reminder) {
+        this.recipientFilter = 'all';
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.value = '';
+
         this.populateForEdit({
             ...reminder,
             send_now: 1,
@@ -123,6 +560,9 @@ const CreateScreen = {
             repeat_time: null
         });
         this.editingSentReminder = true;
+        this.wizardActive = true;
+        this.showWizardStep(2);
+
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendNowSection = sendNowToggle?.closest('.create-section');
         const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
@@ -132,9 +572,18 @@ const CreateScreen = {
         if (sendNowToggle) sendNowToggle.classList.add('active');
         if (sendTimeRow) sendTimeRow.style.display = 'none';
         const headerTitle = document.querySelector('#create-screen .create-title');
-        if (headerTitle) headerTitle.textContent = 'Изменение отправленного сообщения';
+        if (headerTitle) headerTitle.textContent = 'Изменение сообщения';
         const saveBtn = document.getElementById('save-reminder-btn');
         if (saveBtn) saveBtn.childNodes[0].nodeValue = 'Сохранить изменения ';
+    },
+
+    renderSenderProfile: function() {
+        const preview = document.getElementById('create-sender-profile');
+        if (!preview) return;
+        const user = window.WebApp?.initDataUnsafe?.user || {};
+        const name = [user.first_name, user.last_name].filter(value => typeof value === 'string' && value.trim()).join(' ')
+            || (typeof user.username === 'string' ? user.username : '');
+        preview.textContent = name || 'Имя не указано';
     },
 
     populateForm: function(template) {
@@ -147,7 +596,6 @@ const CreateScreen = {
         const sendDateTime = document.getElementById('send-datetime-input');
         const repeatTimeRow = document.getElementById('repeat-time-picker-row');
         const repeatTypeText = document.getElementById('repeat-type-text');
-        const sendToSelfToggle = document.getElementById('send-to-self-toggle');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
         const sendNowSection = sendNowToggle?.closest('.create-section');
@@ -170,14 +618,13 @@ const CreateScreen = {
             this.currentQuickReplies = [];
         }
 
+        this.renderSenderProfile();
         this.currentImages = [];
 
         if (sendNowToggle) {
             sendNowToggle.classList.add('active');
         }
-        if (sendToSelfToggle) {
-            sendToSelfToggle.classList.add('active');
-        }
+        this.sendToSelf = false;
         if (sendTimeRow) {
             sendTimeRow.style.display = 'none';
         }
@@ -199,6 +646,10 @@ const CreateScreen = {
         }
 
         this.selectedGroups = [];
+        this.selectedPeople = [];
+        this.recipientFilter = 'all';
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.value = '';
         this.renderQuickReplies();
         this.renderSelectedRecipients();
         this.renderImagesPreview();
@@ -233,129 +684,6 @@ const CreateScreen = {
         });
     },
 
-    renderSelectedRecipients: function() {
-        const recipientList = document.getElementById('recipient-list');
-        if (!recipientList) return;
-        recipientList.innerHTML = '';
-
-        const sendToSelfActive = document.getElementById('send-to-self-toggle')?.classList.contains('active');
-        let totalCount = this.selectedGroups.length;
-
-        if (sendToSelfActive) {
-            const selfItem = document.createElement('div');
-            selfItem.className = 'recipient-item';
-            selfItem.innerHTML = `
-                <div class="recipient-check">
-                    <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="recipient-avatar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#007aff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                </div>
-                <div class="recipient-info">
-                    <div class="recipient-name">Себе</div>
-                    <div class="recipient-status">Личное сообщение</div>
-                </div>
-            `;
-            recipientList.appendChild(selfItem);
-            totalCount++;
-        }
-
-        this.selectedGroups.forEach(gName => {
-            const item = document.createElement('div');
-            item.className = 'recipient-item';
-            item.innerHTML = `
-                <div class="recipient-check">
-                    <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                </div>
-                <div class="recipient-avatar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#007aff"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                </div>
-                <div class="recipient-info">
-                    <div class="recipient-name">${App.escapeHtml(gName)}</div>
-                    <div class="recipient-status">Группа</div>
-                </div>
-            `;
-            recipientList.appendChild(item);
-        });
-
-        this.updateRecipientsBadge(totalCount);
-    },
-
-    updateRecipientsBadge: function(count) {
-        const badge = document.getElementById('recipients-badge');
-        if (badge) {
-            badge.textContent = count !== undefined ? count : 1;
-        }
-    },
-
-    openRecipientModal: async function() {
-        const modal = document.getElementById('recipient-modal');
-        const listContainer = document.getElementById('groups-modal-list');
-        const countSpan = document.getElementById('recipient-modal-count');
-
-        if (!modal || !listContainer) return;
-
-        const groups = await App.getGroups();
-        let selectedMap = {};
-        this.selectedGroups.forEach(gName => { selectedMap[gName] = true; });
-
-        const renderModalGroups = () => {
-            listContainer.innerHTML = '';
-
-            groups.forEach(g => {
-                const isChecked = Boolean(selectedMap[g.name]);
-
-                const card = document.createElement('div');
-                card.className = 'contact-modal-item';
-                card.innerHTML = `
-                    <div class="recipient-check ${isChecked ? '' : 'unchecked'}">
-                        <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div class="contact-modal-info">
-                        <div class="contact-modal-name">${App.escapeHtml(g.name)}</div>
-                        <div class="contact-modal-status">${g.participant_count || 0} участников</div>
-                    </div>
-                `;
-
-                card.addEventListener('click', () => {
-                    const check = card.querySelector('.recipient-check');
-                    if (selectedMap[g.name]) {
-                        delete selectedMap[g.name];
-                        check.classList.add('unchecked');
-                    } else {
-                        selectedMap[g.name] = true;
-                        check.classList.remove('unchecked');
-                    }
-                    if (countSpan) countSpan.textContent = Object.keys(selectedMap).length;
-                });
-
-                listContainer.appendChild(card);
-            });
-
-            if (countSpan) countSpan.textContent = Object.keys(selectedMap).length;
-        };
-
-        renderModalGroups();
-
-        modal.style.display = 'flex';
-
-        const confirmBtn = document.getElementById('recipient-modal-confirm');
-        if (confirmBtn) {
-            confirmBtn.onclick = () => {
-                this.selectedGroups = Object.keys(selectedMap);
-                this.renderSelectedRecipients();
-                modal.style.display = 'none';
-            };
-        }
-
-        const cancelBtn = document.getElementById('recipient-modal-cancel');
-        if (cancelBtn) {
-            cancelBtn.onclick = () => {
-                modal.style.display = 'none';
-            };
-        }
-    },
-
     init: function() {
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
@@ -367,10 +695,11 @@ const CreateScreen = {
         const qInput = document.getElementById('quick-reply-q-input');
         const aInput = document.getElementById('quick-reply-a-input');
         const addReplyBtn = document.getElementById('quick-reply-add-btn');
-        const recipientAddRow = document.getElementById('recipient-add-row');
         const saveReminderBtn = document.getElementById('save-reminder-btn');
-        const addMediaBtn = document.getElementById('add-media-btn') || document.getElementById('add-image-btn');
-        const createMediaInput = document.getElementById('create-media-input') || document.getElementById('create-image-input');
+        const addPhotoBtn = document.getElementById('add-photo-btn');
+        const photoInput = document.getElementById('create-photo-input');
+        const addDocumentBtn = document.getElementById('add-document-btn');
+        const documentInput = document.getElementById('create-document-input');
 
         if (sendNowToggle) {
             sendNowToggle.addEventListener('click', () => {
@@ -384,10 +713,43 @@ const CreateScreen = {
             });
         }
 
-        if (sendToSelfToggle) {
-            sendToSelfToggle.addEventListener('click', () => {
-                sendToSelfToggle.classList.toggle('active');
+        const wizardSelfOption = document.getElementById('wizard-self-option');
+        if (wizardSelfOption) {
+            wizardSelfOption.addEventListener('click', () => {
+                this.sendToSelf = !this.sendToSelf;
+                wizardSelfOption.classList.toggle('selected', this.sendToSelf);
+                wizardSelfOption.setAttribute('aria-pressed', String(this.sendToSelf));
+                this.updateRecipientsBadge(this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0));
+            });
+        }
+
+        document.querySelectorAll('[data-recipient-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                this.recipientFilter = button.getAttribute('data-recipient-filter') || 'all';
                 this.renderSelectedRecipients();
+            });
+        });
+
+        const recipientSearch = document.getElementById('wizard-recipient-search');
+        if (recipientSearch) recipientSearch.addEventListener('input', () => this.renderSelectedRecipients());
+
+        const wizardNextBtn = document.getElementById('wizard-next-btn');
+        if (wizardNextBtn) {
+            wizardNextBtn.addEventListener('click', () => {
+                const count = this.selectedGroups.length + this.selectedPeople.length + (this.sendToSelf ? 1 : 0);
+                if (count === 0) {
+                    App.showToast('Выберите хотя бы одного получателя');
+                    return;
+                }
+                this.showWizardStep(3);
+            });
+        }
+
+        const manageRecipientsBtn = document.getElementById('manage-recipients-btn');
+        if (manageRecipientsBtn) {
+            manageRecipientsBtn.addEventListener('click', () => {
+                App.recipientsReturnScreen = 'create';
+                App.showScreen('recipients');
             });
         }
 
@@ -427,47 +789,38 @@ const CreateScreen = {
             });
         }
 
-        if (addMediaBtn && createMediaInput) {
-            addMediaBtn.addEventListener('click', () => {
-                if (this.currentImages.length >= 11) {
-                    App.showToast('Максимум 11 файлов');
+        const bindAttachmentPicker = (button, input, type) => {
+            if (!button || !input) return;
+            const getCount = () => this.currentImages.filter(item => item.type === type || (!item.type && type === 'file')).length;
+            button.addEventListener('click', () => {
+                if (getCount() >= 3) {
+                    App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
                     return;
                 }
-                createMediaInput.click();
+                input.click();
             });
-
-            createMediaInput.addEventListener('change', async (e) => {
-                const files = Array.from(e.target.files || []);
-                if (files.length === 0) return;
-
-                const availableSlots = 11 - this.currentImages.length;
-                if (availableSlots <= 0) {
-                    App.showToast('Максимум 11 файлов');
-                    return;
-                }
-
-                const processFiles = files.slice(0, availableSlots);
-                for (const file of processFiles) {
-                    const reader = new FileReader();
-                    reader.onload = async (event) => {
-                        const base64 = event.target.result;
-                        const uploaded = await App.uploadMedia(base64);
-                        if (uploaded && uploaded.url) {
-                            this.currentImages.push({ url: uploaded.url, type: uploaded.type, filename: uploaded.filename });
-                            this.renderImagesPreview();
-                        }
+            input.addEventListener('change', event => {
+                const files = Array.from(event.target.files || []);
+                if (!files.length) return;
+                const availableSlots = 3 - getCount();
+                if (files.length > availableSlots) App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
+                files.slice(0, availableSlots).forEach(file => {
+                    const pending = {
+                        pending: true,
+                        type,
+                        progress: 0,
+                        name: file.name || (type === 'image' ? 'Фото' : 'Файл'),
+                        size: file.size || 0
                     };
-                    reader.readAsDataURL(file);
-                }
-                createMediaInput.value = '';
+                    this.currentImages.push(pending);
+                    this.renderImagesPreview();
+                    this.uploadAttachmentFile(file, pending);
+                });
+                input.value = '';
             });
-        }
-
-        if (recipientAddRow) {
-            recipientAddRow.addEventListener('click', () => {
-                this.openRecipientModal();
-            });
-        }
+        };
+        bindAttachmentPicker(addPhotoBtn, photoInput, 'image');
+        bindAttachmentPicker(addDocumentBtn, documentInput, 'file');
 
         if (saveReminderBtn) {
             saveReminderBtn.addEventListener('click', async () => {
@@ -493,14 +846,19 @@ const CreateScreen = {
                 const repeatType = this.editingSentReminder ? 'Никогда' : (repeatTypeText?.textContent || 'Никогда');
                 const repeatTime = repeatType === 'Никогда' ? null : document.getElementById('repeat-time-input')?.value;
 
-                const finalRecipients = [...this.selectedGroups];
-                const sendToSelf = sendToSelfToggle?.classList.contains('active');
-                if (sendToSelf) {
-                    finalRecipients.push('Себе');
-                }
+                const finalRecipients = [
+                    ...this.selectedGroups,
+                    ...this.selectedPeople.map(id => 'person:' + id)
+                ];
+                if (this.sendToSelf) finalRecipients.push('Себе');
 
                 if (finalRecipients.length === 0) {
                     App.showToast('Выберите хотя бы одну группу или отправку себе');
+                    return;
+                }
+
+                if (this.currentImages.some(item => item.pending)) {
+                    App.showToast('Дождитесь окончания загрузки вложений');
                     return;
                 }
 
@@ -513,25 +871,32 @@ const CreateScreen = {
                     repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
-                    images: this.currentImages
+                    images: this.currentImages.map(({ isNew, ...item }) => item)
                 };
 
-                if (App.editingReminderId) {
-                    const result = await App.updateReminder(App.editingReminderId, payload);
-                    if (result && result.error) {
-                        App.showToast(result.error);
-                        return;
-                    }
-                    App.editingReminderId = null;
-                    this.editingSentReminder = false;
-                    if (result && result.failed > 0) {
-                        App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                try {
+                    if (App.editingReminderId) {
+                        const result = await App.updateReminder(App.editingReminderId, payload);
+                        if (result && result.error) {
+                            App.showToast(result.error);
+                            return;
+                        }
+                        App.editingReminderId = null;
+                        this.editingSentReminder = false;
+                        this.wizardActive = false;
+                        if (result && result.failed > 0) {
+                            App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                        } else {
+                            App.showToast('Напоминание обновлено');
+                        }
                     } else {
-                        App.showToast('Напоминание обновлено');
+                        await App.saveReminder(payload);
+                        this.wizardActive = false;
+                        App.showToast('Напоминание сохранено');
                     }
-                } else {
-                    await App.saveReminder(payload);
-                    App.showToast('Напоминание сохранено');
+                } catch (error) {
+                    App.showToast(error.message || 'Не удалось сохранить напоминание');
+                    return;
                 }
 
                 if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
@@ -542,7 +907,11 @@ const CreateScreen = {
             });
         }
 
+        const createBackBtn = document.getElementById('create-back-btn');
+        if (createBackBtn) createBackBtn.addEventListener('click', () => this.backWizard());
+
         this.populateForm(null);
+        this.showWizardStep(3);
     }
 };
 

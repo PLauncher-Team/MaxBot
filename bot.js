@@ -116,16 +116,22 @@ async function deleteMaxMessage(botToken, mid) {
     }
 }
 
-async function editMaxMessage(botToken, mid, text) {
+async function editMaxMessage(botToken, mid, text, sender = null) {
     if (!botToken || !mid) return false;
     try {
+        const senderId = String(sender?.id || '').replace(/[^0-9]/g, '');
+        const senderName = String(sender?.name || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const senderMarkup = senderId
+            ? '<blockquote>От кого: <a href="max://user/' + senderId + '">' + (senderName || 'Учитель') + '</a></blockquote>'
+            : '';
+        const safeText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
         const response = await fetch(`https://platform-api2.max.ru/messages?message_id=${encodeURIComponent(mid)}`, {
             method: 'PUT',
             headers: {
                 Authorization: botToken,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text: senderMarkup + safeText, format: 'html' })
         });
         return response.ok;
     } catch (e) {
@@ -148,12 +154,16 @@ async function handleBotStart(ctx) {
         }
 
         let senderId = null;
+        let senderUserId = null;
         let senderName = 'Участник';
 
         if (update.chat_id) {
             senderId = String(update.chat_id);
         }
         if (update.user) {
+            if (update.user.user_id) {
+                senderUserId = String(update.user.user_id);
+            }
             if (!senderId && update.user.user_id) {
                 senderId = String(update.user.user_id);
             }
@@ -162,7 +172,10 @@ async function handleBotStart(ctx) {
 
         if (!senderId && ctx.user) {
             senderId = String(ctx.user.user_id || ctx.user.id || '');
+            senderUserId = String(ctx.user.user_id || ctx.user.id || '');
             senderName = ctx.user.name || [ctx.user.first_name, ctx.user.last_name].filter(Boolean).join(' ') || ('Участник ' + senderId);
+        } else if (!senderUserId && ctx.user) {
+            senderUserId = String(ctx.user.user_id || ctx.user.id || '');
         }
 
         if (!senderId) return;
@@ -176,12 +189,22 @@ async function handleBotStart(ctx) {
         if (uniqueId) {
             const group = db.prepare('SELECT * FROM groups WHERE unique_id = ?').get(uniqueId);
             if (group) {
-                const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND chat_id = ?').get(group.user_id, senderId);
-                if (existing) {
-                    db.prepare('UPDATE participants SET group_id = ?, name = ? WHERE id = ?').run(group.id, senderName, existing.id);
-                } else {
-                    db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, name) VALUES (?, ?, ?, ?)').run(group.user_id, group.id, senderId, senderName);
-                }
+                const joinGroup = db.transaction(() => {
+                    const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?)').get(group.user_id, senderId, senderUserId || senderId);
+                    let participantId;
+                    if (existing) {
+                        participantId = existing.id;
+                        db.prepare('UPDATE participants SET chat_id = ?, user_id = COALESCE(user_id, ?), name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
+                            .run(senderId, senderUserId || senderId, senderName, group.id, participantId);
+                    } else {
+                        const created = db.prepare('INSERT INTO participants (teacher_id, group_id, chat_id, user_id, name) VALUES (?, ?, ?, ?, ?)')
+                            .run(group.user_id, group.id, senderId, senderUserId || senderId, senderName);
+                        participantId = created.lastInsertRowid;
+                    }
+                    db.prepare('INSERT OR IGNORE INTO participant_groups (participant_id, group_id) VALUES (?, ?)')
+                        .run(participantId, group.id);
+                });
+                joinGroup();
 
                 const replyMsg = `Вы успешно присоединились к группе "${group.name}"! Теперь вы будете получать важные напоминания.`;
                 if (typeof ctx.reply === 'function') {
@@ -257,7 +280,68 @@ try {
     console.error('MAX Bot API require error:', e);
 }
 
-async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images) {
+let cachedBotUsername = null;
+let botUsernamePromise = null;
+
+async function getMiniAppBotUsername() {
+    if (cachedBotUsername) return cachedBotUsername;
+    if (botUsernamePromise) return botUsernamePromise;
+
+    botUsernamePromise = (async () => {
+        let username = process.env.MAX_BOT_USERNAME;
+        if (!username) {
+            let botInfo = botInstance?.botInfo;
+            if (!botInfo?.username) {
+                botInfo = await botInstance.api.getMyInfo();
+            }
+            username = botInfo?.username || botInfo?.user?.username;
+        }
+
+        const normalized = String(username || '').replace(/^@/, '').trim();
+        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(normalized)) {
+            throw new Error('MAX bot username is unavailable. Set MAX_BOT_USERNAME or configure a public bot name.');
+        }
+
+        cachedBotUsername = normalized;
+        return normalized;
+    })();
+
+    try {
+        return await botUsernamePromise;
+    } finally {
+        botUsernamePromise = null;
+    }
+}
+
+async function sendQuickReplyMessage(reminderId, chatId, userId, answerText) {
+    if (!botInstance || typeof answerText !== 'string' || !answerText.trim()) return false;
+
+    const reminder = db.prepare('SELECT message_ids FROM reminders WHERE id = ?').get(reminderId);
+    const messageIds = safeJsonParse(reminder?.message_ids, {});
+    const parentMid = messageIds[String(chatId)];
+    if (!parentMid) return false;
+
+    if (!await deleteLinkedReplyMessages(reminderId, chatId, parentMid)) return false;
+
+    const replyText = answerText.trim().slice(0, 500);
+    const replyOptions = { link: { type: 'reply', mid: String(parentMid) } };
+    let sentReply;
+    try {
+        sentReply = await botInstance.api.sendMessageToUser(userId, replyText, replyOptions);
+    } catch (error) {
+        sentReply = await botInstance.api.sendMessageToChat(chatId, replyText, replyOptions);
+    }
+    const replyMid = sentReply?.message?.body?.mid
+        || sentReply?.body?.mid
+        || sentReply?.mid
+        || sentReply?.body?.message_id;
+
+    if (!replyMid) return false;
+    storeReplyMessage(reminderId, chatId, replyMid, parentMid);
+    return true;
+}
+
+async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, images, sender = null) {
     const result = {
         sentChatIds: [],
         failedChatIds: [],
@@ -273,93 +357,63 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 
     try {
         const { Keyboard } = require('@maxhub/max-bot-api');
+        const botUsername = await getMiniAppBotUsername();
         let attachments = [];
+        const chatImages = Array.isArray(images)
+            ? images.filter(item => item && item.type === 'image').slice(0, 3)
+            : [];
 
-        if (Array.isArray(images) && images.length > 0) {
-            for (const img of images.slice(0, 11)) {
-                if (!img) continue;
+        for (const img of chatImages) {
+            if (typeof img === 'object' && typeof img.toJson === 'function') {
+                attachments.push(img.toJson());
+                continue;
+            }
 
-                if (typeof img === 'object' && typeof img.toJson === 'function') {
-                    attachments.push(img.toJson());
-                    continue;
-                }
+            if (typeof img === 'object' && img.payload && img.type === 'image') {
+                attachments.push(img);
+                continue;
+            }
 
-                if (typeof img === 'object' && img.payload && (img.type === 'image' || img.type === 'video')) {
-                    attachments.push(img);
-                    continue;
-                }
+            const urlStr = typeof img === 'string' ? img : (img.url || '');
+            if (!urlStr) continue;
 
-                const urlStr = typeof img === 'string' ? img : (img.url || '');
-                if (urlStr) {
-                    const match = urlStr.match(/\/api\/uploads\/([^/?#]+)$/);
-                    if (match && match[1]) {
-                        const filename = match[1];
-                        const filePath = path.join(__dirname, 'data', 'uploads', filename);
-                        if (fs.existsSync(filePath)) {
-                            const isVid = filename.startsWith('vid_') || /\.(mp4|mov|webm|avi|mkv)$/i.test(filename);
-                            try {
-                                if (isVid && typeof botInstance.api?.uploadVideo === 'function') {
-                                    const uploadedVid = await botInstance.api.uploadVideo({ source: filePath });
-                                    if (uploadedVid && typeof uploadedVid.toJson === 'function') {
-                                        attachments.push(uploadedVid.toJson());
-                                    } else if (uploadedVid && uploadedVid.payload) {
-                                        attachments.push({ type: 'video', payload: uploadedVid.payload });
-                                    }
-                                    continue;
-                                } else if (!isVid && typeof botInstance.api?.uploadImage === 'function') {
-                                    const uploadedImg = await botInstance.api.uploadImage({ source: filePath });
-                                    if (uploadedImg && typeof uploadedImg.toJson === 'function') {
-                                        attachments.push(uploadedImg.toJson());
-                                    } else if (uploadedImg && uploadedImg.payload) {
-                                        attachments.push({ type: 'image', payload: uploadedImg.payload });
-                                    }
-                                    continue;
-                                }
-                            } catch (uploadErr) {
-                                console.error('Upload to MAX failed for', filename, ':', uploadErr.message || uploadErr);
-                            }
+            const match = urlStr.match(/\/api\/uploads\/([^/?#]+)(?:[?#]|$)/);
+            if (match && match[1]) {
+                const filename = match[1];
+                const filePath = path.join(__dirname, 'data', 'uploads', filename);
+                if (fs.existsSync(filePath) && typeof botInstance.api?.uploadImage === 'function') {
+                    try {
+                        const uploadedImage = await botInstance.api.uploadImage({ source: filePath });
+                        if (uploadedImage && typeof uploadedImage.toJson === 'function') {
+                            attachments.push(uploadedImage.toJson());
+                        } else if (uploadedImage && uploadedImage.payload) {
+                            attachments.push({ type: 'image', payload: uploadedImage.payload });
+                        } else {
+                            throw new Error('MAX did not return an image attachment');
                         }
-                    }
-                }
-
-                if (typeof img === 'string') {
-                    if (/^https?:\/\//i.test(img)) {
-                        const isVid = /\.(mp4|mov|webm|avi|mkv)$/i.test(img);
-                        attachments.push({
-                            type: isVid ? 'video' : 'image',
-                            payload: { url: img }
-                        });
-                    }
-                } else if (typeof img === 'object') {
-                    const isVid = img.type === 'video' || (img.url && /\.(mp4|mov|webm|avi|mkv)$/i.test(img.url));
-                    const attType = isVid ? 'video' : 'image';
-
-                    if (img.photos) {
-                        attachments.push({
-                            type: 'image',
-                            payload: { photos: img.photos }
-                        });
-                    } else if (img.token) {
-                        attachments.push({
-                            type: attType,
-                            payload: { token: img.token }
-                        });
-                    } else if (img.url) {
-                        attachments.push({
-                            type: attType,
-                            payload: { url: img.url }
-                        });
+                        continue;
+                    } catch (uploadError) {
+                        console.error('Image upload to MAX failed for', filename, ':', uploadError.message || uploadError);
+                        throw uploadError;
                     }
                 }
             }
+
+            attachments.push({ type: 'image', payload: { url: urlStr } });
         }
 
-        if (Array.isArray(quickReplies) && quickReplies.length > 0) {
-            const buttons = quickReplies.map(qr => [
-                Keyboard.button.callback(qr.question, `ans:${reminderId}:${qr.answer}`)
-            ]);
-            attachments.push(Keyboard.inlineKeyboard(buttons));
-        }
+        attachments.push(Keyboard.inlineKeyboard([
+            [Keyboard.button.openApp('Подробнее', botUsername, undefined, `r_${reminderId}`)]
+        ]));
+
+        const senderId = String(sender?.id || '').trim();
+        const senderName = String(sender?.name || '').trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        const senderMarkup = senderId
+            ? '<blockquote>От кого: <a href="max://user/' + senderId.replace(/[^0-9]/g, '') + '">' + (senderName || 'Учитель') + '</a></blockquote>'
+            : '';
+        const safeMessageText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const messageText = senderMarkup + safeMessageText;
+        const messageOptions = { attachments, format: 'html' };
 
         for (const chatId of uniqueChatIds) {
             let sentSuccess = false;
@@ -367,7 +421,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const resMsg = await botInstance.api.sendMessageToUser(chatId, text, { attachments });
+                    const resMsg = await botInstance.api.sendMessageToUser(chatId, messageText, messageOptions);
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
                     if (mid) {
                         sentMessageMids[chatId + '_' + reminderId] = mid;
@@ -385,7 +439,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 
             if (!sentSuccess) {
                 try {
-                    const resMsg = await botInstance.api.sendMessageToChat(chatId, text, { attachments });
+                    const resMsg = await botInstance.api.sendMessageToChat(chatId, messageText, messageOptions);
                     const mid = resMsg && (resMsg.body?.mid || resMsg.mid || resMsg.body?.message_id);
                     if (mid) {
                         sentMessageMids[chatId + '_' + reminderId] = mid;
@@ -414,6 +468,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 module.exports = {
     botInstance,
     sendBroadcastMessage,
+    sendQuickReplyMessage,
     deleteMaxMessage,
     deleteLinkedReplyMessages,
     editMaxMessage

@@ -5,7 +5,16 @@ const TemplatesScreen = {
         const searchInput = document.getElementById('search-input');
         const emptySearch = document.getElementById('empty-search');
 
-        const templates = await App.getTemplates();
+        let templates;
+        try {
+            templates = await App.getTemplates();
+        } catch (error) {
+            if (list) list.textContent = error.message || 'Не удалось загрузить шаблоны';
+            if (count) count.textContent = '—';
+            App.showToast(error.message || 'Не удалось загрузить шаблоны');
+            return;
+        }
+
         if (count) {
             count.textContent = templates.length;
         }
@@ -18,6 +27,7 @@ const TemplatesScreen = {
             item.className = 'template-item';
             item.setAttribute('data-id', t.id);
             item.setAttribute('data-title', t.title);
+            item.setAttribute('data-description', t.description || '');
             item.innerHTML = `
                 <div class="template-item-top">
                     <div class="template-item-title">${App.escapeHtml(t.title)}</div>
@@ -29,14 +39,16 @@ const TemplatesScreen = {
                     </div>
                 </div>
             `;
+            const description = document.createElement('div');
+            description.className = 'template-item-description';
+            description.textContent = t.description || '';
+            if (description.textContent) item.appendChild(description);
 
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.template-delete-btn')) {
                     return;
                 }
-                App.selectedTemplate = t;
-                CreateScreen.populateForm(t);
-                App.showScreen('create');
+                CreateScreen.startWizard(t);
             });
 
             const deleteBtn = item.querySelector('.template-delete-btn');
@@ -74,7 +86,8 @@ const TemplatesScreen = {
 
         items.forEach(item => {
             const title = (item.getAttribute('data-title') || '').toLowerCase();
-            if (title.includes(q)) {
+            const description = (item.getAttribute('data-description') || '').toLowerCase();
+            if (title.includes(q) || description.includes(q)) {
                 item.classList.remove('hidden');
                 visibleCount++;
             } else {

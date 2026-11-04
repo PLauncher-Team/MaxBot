@@ -1,44 +1,95 @@
 const HomeScreen = {
     selectedParticipantIds: [],
+    selectedGroupIds: [],
     expandedGroupIds: {},
+    recipientGroups: [],
+    recipientParticipants: [],
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    expandedReminderSections: { scheduled: false, sent: false },
+
+    updateTemplateScrollControls: function() {
+        const container = document.getElementById('templates-scroll');
+        const leftButton = document.getElementById('scroll-left-btn');
+        const rightButton = document.getElementById('scroll-right-btn');
+        if (!container || !leftButton || !rightButton) return;
+
+        const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+        const hasOverflow = maxScroll > 2;
+        const currentScroll = container.scrollLeft;
+
+        leftButton.hidden = !hasOverflow;
+        rightButton.hidden = !hasOverflow;
+        leftButton.disabled = !hasOverflow || currentScroll <= 2;
+        rightButton.disabled = !hasOverflow || currentScroll >= maxScroll - 2;
+        leftButton.setAttribute('aria-hidden', String(!hasOverflow));
+        rightButton.setAttribute('aria-hidden', String(!hasOverflow));
+    },
 
     loadData: async function() {
         const templatesScroll = document.getElementById('templates-scroll');
         const homeTemplatesCount = document.getElementById('home-templates-count');
         const addCard = document.getElementById('home-add-template-card');
 
-        const templates = await App.getTemplates();
-        if (homeTemplatesCount) {
-            homeTemplatesCount.textContent = templates.length;
-        }
+        try {
+            const templates = await App.getTemplates();
+            if (homeTemplatesCount) {
+                homeTemplatesCount.textContent = templates.length;
+            }
 
-        if (templatesScroll) {
-            templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
-            templates.forEach(t => {
-                const card = document.createElement('div');
-                card.className = 'template-card';
-                card.setAttribute('data-id', t.id);
-                card.innerHTML = `
-                    <div class="template-card-content">
-                        <div class="template-title">${App.escapeHtml(t.title)}</div>
-                        <div class="template-badge">Шаблон</div>
-                    </div>
-                `;
-                card.addEventListener('click', () => {
-                    App.selectedTemplate = t;
-                    CreateScreen.populateForm(t);
-                    App.showScreen('create');
+            if (templatesScroll) {
+                templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
+                templates.forEach(t => {
+                    const card = document.createElement('button');
+                    card.type = 'button';
+                    card.className = 'template-card';
+                    card.setAttribute('data-id', t.id);
+                    card.innerHTML = `
+                        <div class="template-card-content">
+                            <div class="template-title">${App.escapeHtml(t.title)}</div>
+                            <div class="template-badge">Шаблон</div>
+                        </div>
+                    `;
+                    card.addEventListener('click', () => {
+                        CreateScreen.startWizard(t);
+                    });
+                    templatesScroll.insertBefore(card, addCard);
                 });
-                templatesScroll.insertBefore(card, addCard);
-            });
+            }
+        } catch (error) {
+            console.error('Failed to load templates:', error);
+            App.showToast(error.message || 'Не удалось загрузить шаблоны');
         }
 
-        await this.refreshReminders();
+        this.updateTemplateScrollControls();
 
-        this.loadRecipientsData();
+        try {
+            await this.loadRecipientsData();
+        } catch (error) {
+            console.error('Failed to load recipient names:', error);
+        }
+        await this.refreshReminders();
+    },
+
+    formatSentRecipients: function(recipients) {
+        if (!Array.isArray(recipients)) return '';
+
+        return recipients.map(value => {
+            if (value === 'Себе') return 'Себе';
+
+            const personMatch = /^person:([0-9]+)$/.exec(String(value));
+            if (personMatch) {
+                const participant = this.recipientParticipants.find(item =>
+                    String(item.id) === personMatch[1]
+                );
+                return participant && participant.name
+                    ? participant.name
+                    : 'Отдельный участник';
+            }
+
+            return String(value);
+        }).join(', ');
     },
 
     formatSentTime: function(item) {
@@ -130,13 +181,25 @@ const HomeScreen = {
             const scheduledCount = document.getElementById('scheduled-count');
             const sentList = document.getElementById('sent-list');
             const sentPlaceholder = document.getElementById('sent-placeholder');
-            const sentCount = document.getElementById('sent-count');
     
             const reminders = await App.getReminders();
-            const scheduled = reminders.filter(r => r.status === 'scheduled');
-            const sent = reminders.filter(r => r.status === 'sent');
+            const scheduled = reminders
+                .filter(r => r.status === 'scheduled')
+                .sort((a, b) => {
+                    const aTime = a.scheduled_time ? (Date.parse(String(a.scheduled_time).replace(' ', 'T')) || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+                    const bTime = b.scheduled_time ? (Date.parse(String(b.scheduled_time).replace(' ', 'T')) || Number.POSITIVE_INFINITY) : Number.POSITIVE_INFINITY;
+                    return aTime - bTime || Number(a.id) - Number(b.id);
+                });
+            const sent = reminders
+                .filter(r => r.status === 'sent')
+                .sort((a, b) => {
+                    const aTime = Date.parse(String(a.sent_at || a.created_at || '').replace(' ', 'T')) || 0;
+                    const bTime = Date.parse(String(b.sent_at || b.created_at || '').replace(' ', 'T')) || 0;
+                    return bTime - aTime || Number(b.id) - Number(a.id);
+                });
     
             if (scheduledCount) scheduledCount.textContent = scheduled.length;
+            const sentCount = document.getElementById('sent-count');
             if (sentCount) sentCount.textContent = sent.length;
     
             if (scheduledList && scheduledPlaceholder) {
@@ -147,7 +210,8 @@ const HomeScreen = {
                 } else {
                     scheduledPlaceholder.style.display = 'none';
                     scheduledList.style.display = 'flex';
-                    scheduled.forEach(item => {
+                    const recentScheduled = scheduled.slice(0, 5);
+                    recentScheduled.forEach(item => {
                         let displayTime = 'Запланировано';
                         if (item.scheduled_time) {
                             const parts = item.scheduled_time.split('T');
@@ -160,7 +224,7 @@ const HomeScreen = {
                         }
     
                         const el = document.createElement('div');
-                        el.className = 'reminder-item';
+                        el.className = 'reminder-item scheduled-reminder-item';
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
@@ -195,7 +259,7 @@ const HomeScreen = {
     
             if (sentList && sentPlaceholder) {
                 sentList.innerHTML = '';
-                const recentSent = sent.slice(0, 3);
+                const recentSent = sent.slice(0, 5);
                 if (recentSent.length === 0) {
                     sentPlaceholder.style.display = 'flex';
                     sentList.style.display = 'none';
@@ -204,9 +268,9 @@ const HomeScreen = {
                     sentList.style.display = 'flex';
                     recentSent.forEach(item => {
                         const el = document.createElement('div');
-                        el.className = 'reminder-item';
+                        el.className = 'reminder-item sent-reminder-item';
                         const sentTime = this.formatSentTime(item);
-                        const recipientsText = Array.isArray(item.recipients) ? item.recipients.join(', ') : '';
+                        const recipientsText = this.formatSentRecipients(item.recipients);
                         el.innerHTML = `
                             <div class="reminder-item-header">
                                 <span class="reminder-item-title">${App.escapeHtml(item.title)}</span>
@@ -242,6 +306,8 @@ const HomeScreen = {
     loadRecipientsData: async function() {
         const groups = await App.getGroups();
         const participants = await App.getParticipants();
+        this.recipientGroups = groups;
+        this.recipientParticipants = participants;
 
         const homeGroupsCount = document.getElementById('home-groups-count');
         const tabGroupsCount = document.getElementById('tab-groups-count');
@@ -254,137 +320,204 @@ const HomeScreen = {
         const groupsList = document.getElementById('groups-list');
         if (groupsList) {
             groupsList.innerHTML = '';
-            groups.forEach(g => {
-                const card = document.createElement('div');
-                card.className = 'group-card';
-                card.style.flexDirection = 'column';
-                card.style.alignItems = 'stretch';
-                card.style.gap = '8px';
 
-                const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
-                const isExpanded = Boolean(this.expandedGroupIds[g.id]);
-                const groupParticipants = participants.filter(p => Number(p.group_id) === Number(g.id));
+            if (groups.length === 0) {
+                groupsList.innerHTML = `
+                    <div class="recipient-empty-state">
+                        <div class="recipient-empty-icon">01</div>
+                        <strong>Пока нет ни одной группы</strong>
+                        <p>Введите название группы выше и нажмите «Создать». Затем откройте её и отправьте приглашение участникам.</p>
+                    </div>
+                `;
+            } else {
+                groups.forEach(g => {
+                    const card = document.createElement('div');
+                    card.className = 'group-card';
+                    card.style.flexDirection = 'column';
+                    card.style.alignItems = 'stretch';
+                    card.style.gap = '10px';
 
-                let participantsHtml = '';
-                if (isExpanded) {
-                    if (groupParticipants.length === 0) {
-                        participantsHtml = '<div style="font-size:12px; color:#8e8e93; padding:4px 0;">В группе пока нет участников</div>';
-                    } else {
-                        participantsHtml = '<div class="group-participants-container">';
-                        groupParticipants.forEach(gp => {
-                            participantsHtml += `
-                                <div class="group-participant-row">
-                                    <span>${App.escapeHtml(gp.name)}</span>
-                                    <button class="group-share-btn" data-remove-id="${gp.id}" style="background-color:#ffe5e5; color:#ff3b30;">Убрать</button>
+                    const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
+                    const isExpanded = Boolean(this.expandedGroupIds[g.id]);
+                    const groupParticipants = participants.filter(p => {
+                        if (Array.isArray(p.groups)) {
+                            return p.groups.some(group => Number(group.id) === Number(g.id));
+                        }
+                        return Number(p.group_id) === Number(g.id);
+                    });
+                    const participantCount = groupParticipants.length;
+
+                    let participantsHtml = '';
+                    if (isExpanded) {
+                        if (groupParticipants.length === 0) {
+                            participantsHtml = `
+                                <div class="group-empty-members">
+                                    Пока нет участников. Отправьте ссылку-приглашение выше.
                                 </div>
                             `;
-                        });
-                        participantsHtml += '</div>';
+                        } else {
+                            participantsHtml = '<div class="group-participants-container">';
+                            groupParticipants.forEach(gp => {
+                                participantsHtml += `
+                                    <div class="group-participant-row">
+                                        <span class="group-participant-name">${App.escapeHtml(gp.name)}</span>
+                                        <button type="button" class="group-remove-member-btn" data-remove-id="${gp.id}">
+                                            Убрать из группы
+                                        </button>
+                                    </div>
+                                `;
+                            });
+                            participantsHtml += '</div>';
+                        }
                     }
-                }
 
-                card.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" class="group-header-toggle" data-group-id="${g.id}">
-                        <div class="group-info">
-                            <div class="group-title">${App.escapeHtml(g.name)} ${isExpanded ? '▲' : '▼'}</div>
-                            <div class="group-sub">${g.participant_count || 0} участников</div>
+                    card.innerHTML = `
+                        <div class="group-header-toggle" data-group-id="${g.id}" role="button" tabindex="0"
+                             aria-expanded="${isExpanded}" aria-label="${isExpanded ? 'Скрыть' : 'Показать'} участников группы ${App.escapeHtml(g.name)}">
+                            <div class="group-info">
+                                <div class="group-title">${App.escapeHtml(g.name)}</div>
+                                <div class="group-sub">${participantCount} участников</div>
+                            </div>
+                            <span class="group-expand-indicator">
+                                ${isExpanded ? 'Скрыть состав' : 'Показать состав'}
+                                <span class="group-expand-chevron ${isExpanded ? 'expanded' : ''}"></span>
+                            </span>
                         </div>
+
                         <div class="group-actions">
-                            <button class="group-share-btn" data-url="${inviteUrl}">Ссылка</button>
-                            <button class="group-delete-btn" data-id="${g.id}">
+                            <button type="button" class="group-share-btn" data-url="${App.escapeHtml(inviteUrl)}">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+                                <span>Отправить приглашение</span>
+                            </button>
+                            <button type="button" class="group-delete-btn" data-id="${g.id}"
+                                    aria-label="Удалить группу ${App.escapeHtml(g.name)}" title="Удалить группу">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                             </button>
                         </div>
-                    </div>
-                    <div class="group-link-box">
-                        <input type="text" class="group-link-input" value="${App.escapeHtml(inviteUrl)}" readonly>
-                        <button class="group-copy-btn">Копировать</button>
-                    </div>
-                    ${participantsHtml}
-                `;
 
-                card.querySelector('.group-header-toggle').addEventListener('click', (e) => {
-                    if (e.target.closest('button') || e.target.closest('input')) return;
-                    this.expandedGroupIds[g.id] = !isExpanded;
-                    this.loadRecipientsData();
-                });
+                        <div class="group-invite-area">
+                            <div class="group-link-caption">Ссылка для приглашения</div>
+                            <div class="group-link-box">
+                                <input type="text" class="group-link-input" value="${App.escapeHtml(inviteUrl)}" readonly
+                                       aria-label="Пригласительная ссылка для группы ${App.escapeHtml(g.name)}">
+                                <button type="button" class="group-copy-btn">Копировать ссылку</button>
+                            </div>
+                        </div>
+                        ${participantsHtml}
+                    `;
 
-                card.querySelectorAll('[data-remove-id]').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        e.stopPropagation();
-                        const pId = btn.getAttribute('data-remove-id');
-                        await App.combineParticipantsToGroup([pId], null);
+                    const groupHeader = card.querySelector('.group-header-toggle');
+                    const toggleGroup = () => {
+                        this.expandedGroupIds[g.id] = !this.expandedGroupIds[g.id];
                         this.loadRecipientsData();
-                    });
-                });
+                    };
 
-                card.querySelector('.group-copy-btn').addEventListener('click', () => {
-                    if (navigator.clipboard && navigator.clipboard.writeText) {
-                        navigator.clipboard.writeText(inviteUrl).then(() => {
-                            App.showToast('Ссылка скопирована!');
-                        }).catch(() => {
+                    groupHeader.addEventListener('click', toggleGroup);
+                    groupHeader.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            toggleGroup();
+                        }
+                    });
+
+                    card.querySelectorAll('[data-remove-id]').forEach(btn => {
+                        btn.addEventListener('click', async event => {
+                            event.stopPropagation();
+                            const pId = btn.getAttribute('data-remove-id');
+                            await App.removeParticipantFromGroup(pId, g.id);
+                            App.showToast('Участник убран из группы');
+                            await this.loadRecipientsData();
+                        });
+                    });
+
+                    card.querySelector('.group-copy-btn').addEventListener('click', () => {
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(inviteUrl).then(() => {
+                                App.showToast('Ссылка скопирована');
+                            }).catch(() => {
+                                const linkInput = card.querySelector('.group-link-input');
+                                if (linkInput) {
+                                    linkInput.focus();
+                                    linkInput.select();
+                                }
+                                App.showToast('Ссылка выделена для копирования');
+                            });
+                        } else {
                             const linkInput = card.querySelector('.group-link-input');
                             if (linkInput) {
                                 linkInput.focus();
                                 linkInput.select();
                             }
                             App.showToast('Ссылка выделена для копирования');
-                        });
-                    } else {
-                        const linkInput = card.querySelector('.group-link-input');
-                        if (linkInput) {
-                            linkInput.focus();
-                            linkInput.select();
                         }
-                        App.showToast('Ссылка выделена для копирования');
-                    }
-                });
+                    });
 
-                card.querySelector('.group-share-btn').addEventListener('click', async () => {
-                    const shareText = 'Ссылка для присоединения к группе "' + g.name + '":';
-                    if (window.WebApp && typeof window.WebApp.shareMaxContent === 'function') {
+                    card.querySelector('.group-share-btn').addEventListener('click', async () => {
+                        const shareText = 'Приглашение в группу "' + g.name + '":';
+                        if (window.WebApp && typeof window.WebApp.shareMaxContent === 'function') {
+                            try {
+                                await window.WebApp.shareMaxContent({ text: shareText, link: inviteUrl });
+                            } catch (e) {}
+                        } else if (window.WebApp && typeof window.WebApp.openMaxLink === 'function') {
+                            window.WebApp.openMaxLink(inviteUrl);
+                        } else {
+                            const linkInput = card.querySelector('.group-link-input');
+                            if (linkInput) {
+                                linkInput.focus();
+                                linkInput.select();
+                            }
+                            App.showToast('Ссылка выделена для копирования');
+                        }
+                    });
+
+                    card.querySelector('.group-delete-btn').addEventListener('click', async () => {
                         try {
-                            await window.WebApp.shareMaxContent({ text: shareText, link: inviteUrl });
-                        } catch (e) {}
-                    } else if (window.WebApp && typeof window.WebApp.openMaxLink === 'function') {
-                        window.WebApp.openMaxLink(inviteUrl);
-                    } else {
-                        const linkInput = card.querySelector('.group-link-input');
-                        if (linkInput) {
-                            linkInput.focus();
-                            linkInput.select();
+                            await App.deleteGroup(g.id);
+                            App.showToast('Группа удалена. Участники остались в списке');
+                            await this.loadRecipientsData();
+                        } catch (error) {
+                            App.showToast(error.message || 'Не удалось удалить группу');
                         }
-                        App.showToast('Ссылка выделена для копирования');
-                    }
-                });
+                    });
 
-                card.querySelector('.group-delete-btn').addEventListener('click', async () => {
-                    try {
-                        const result = await App.deleteGroup(g.id);
-                        App.showToast('Группа удалена. Участники сохранены без группы');
-                        await this.loadRecipientsData();
-                    } catch (error) {
-                        App.showToast(error.message || 'Не удалось удалить группу');
-                    }
+                    groupsList.appendChild(card);
                 });
-
-                groupsList.appendChild(card);
-            });
+            }
         }
 
-        const combineSelect = document.getElementById('combine-group-select');
-        if (combineSelect) {
-            const currentSelectedGroup = combineSelect.value;
-            combineSelect.innerHTML = '<option value="">Выбрать группу...</option>';
-            groups.forEach(g => {
-                const opt = document.createElement('option');
-                opt.value = g.id;
-                opt.textContent = g.name;
-                if (String(g.id) === String(currentSelectedGroup)) {
-                    opt.selected = true;
-                }
-                combineSelect.appendChild(opt);
-            });
+        const assignmentGroupsList = document.getElementById('assignment-groups-list');
+        this.selectedGroupIds = this.selectedGroupIds.filter(id => groups.some(group => String(group.id) === String(id)));
+
+        if (assignmentGroupsList) {
+            assignmentGroupsList.innerHTML = '';
+            if (groups.length === 0) {
+                assignmentGroupsList.innerHTML = '<div class="assignment-groups-empty">Сначала создайте хотя бы одну группу.</div>';
+            } else {
+                groups.forEach(group => {
+                    const isChecked = this.selectedGroupIds.includes(String(group.id));
+                    const option = document.createElement('label');
+                    option.className = 'assignment-group-option' + (isChecked ? ' selected' : '');
+                    option.innerHTML = `
+                        <input type="checkbox" value="${group.id}" ${isChecked ? 'checked' : ''}>
+                        <span class="assignment-group-check" aria-hidden="true">
+                            <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </span>
+                        <span class="assignment-group-name">${App.escapeHtml(group.name)}</span>
+                    `;
+                    const checkbox = option.querySelector('input');
+                    checkbox.addEventListener('change', () => {
+                        const groupId = String(group.id);
+                        if (checkbox.checked) {
+                            if (!this.selectedGroupIds.includes(groupId)) this.selectedGroupIds.push(groupId);
+                        } else {
+                            this.selectedGroupIds = this.selectedGroupIds.filter(id => id !== groupId);
+                        }
+                        option.classList.toggle('selected', checkbox.checked);
+                        renderParticipantsList();
+                    });
+                    assignmentGroupsList.appendChild(option);
+                });
+            }
         }
 
         const renderParticipantsList = () => {
@@ -392,68 +525,82 @@ const HomeScreen = {
             if (!participantsList) return;
             participantsList.innerHTML = '';
 
-            const selectedGroupId = combineSelect ? combineSelect.value : '';
-            const filteredParticipants = participants.filter(p => {
-                if (!selectedGroupId) return true;
-                return Number(p.group_id) !== Number(selectedGroupId);
-            });
+            const selectedCount = document.getElementById('selected-participants-count');
+            const submitButton = document.getElementById('combine-submit-btn');
+            const updateSelectionSummary = () => {
+                const count = this.selectedParticipantIds.length;
+                if (selectedCount) selectedCount.textContent = count;
+                if (submitButton) submitButton.disabled = this.selectedGroupIds.length === 0 || count === 0;
+            };
 
-            if (filteredParticipants.length === 0) {
-                participantsList.innerHTML = '<div style="text-align:center; color:#8e8e93; padding:20px; font-size:13px;">Все участники уже добавлены в эту группу</div>';
+            if (participants.length === 0) {
+                participantsList.innerHTML = `
+                    <div class="recipient-empty-state">
+                        <strong>Пока нет контактов</strong>
+                        <p>Поделитесь ссылкой-приглашением любой группы. Каждый, кто перейдёт по ней, появится здесь — даже если позже группа будет удалена.</p>
+                    </div>
+                `;
+                updateSelectionSummary();
                 return;
             }
 
-            filteredParticipants.forEach(p => {
-                const isSelected = this.selectedParticipantIds.includes(String(p.id));
+            participants.forEach(participant => {
+                const isSelected = this.selectedParticipantIds.includes(String(participant.id));
                 const item = document.createElement('div');
-                item.className = 'participant-item';
+                item.className = 'participant-item' + (isSelected ? ' selected' : '');
+                const currentGroups = Array.isArray(participant.groups)
+                    ? participant.groups.map(group => group.name)
+                    : (participant.group_name ? [participant.group_name] : []);
+                const currentGroupsText = currentGroups.length
+                    ? 'Сейчас в группах: ' + currentGroups.join(', ')
+                    : 'Пока без группы';
+
                 item.innerHTML = `
-                    <div class="recipient-check ${isSelected ? '' : 'unchecked'}">
-                        <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div class="contact-modal-info" style="flex:1;">
-                        <div class="participant-name">${App.escapeHtml(p.name)}</div>
-                        <div class="participant-group">${p.group_name ? App.escapeHtml(p.group_name) : 'Без группы'}</div>
-                    </div>
-                    <button class="group-delete-btn" data-id="${p.id}">
+                    <button type="button" class="participant-select-button" aria-pressed="${isSelected}">
+                        <span class="recipient-check ${isSelected ? '' : 'unchecked'}">
+                            <svg width="12" height="12" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </span>
+                        <span class="contact-modal-info participant-main-info">
+                            <span class="participant-name">${App.escapeHtml(participant.name)}</span>
+                            <span class="participant-group">${App.escapeHtml(currentGroupsText)}</span>
+                        </span>
+                        <span class="participant-selection-label">${isSelected ? 'Выбран' : 'Выбрать'}</span>
+                    </button>
+                    <button type="button" class="group-delete-btn" data-id="${participant.id}"
+                            aria-label="Удалить участника ${App.escapeHtml(participant.name)}" title="Удалить участника">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
                 `;
 
-                item.querySelector('.recipient-check').parentElement.addEventListener('click', (e) => {
-                    if (e.target.closest('.group-delete-btn')) return;
-                    const pIdStr = String(p.id);
-                    if (this.selectedParticipantIds.includes(pIdStr)) {
-                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== pIdStr);
+                const toggleParticipant = () => {
+                    const participantId = String(participant.id);
+                    if (this.selectedParticipantIds.includes(participantId)) {
+                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== participantId);
                     } else {
-                        this.selectedParticipantIds.push(pIdStr);
+                        this.selectedParticipantIds.push(participantId);
                     }
                     renderParticipantsList();
-                });
+                };
 
-                item.querySelector('.group-delete-btn').addEventListener('click', async (e) => {
-                    e.stopPropagation();
+                item.querySelector('.participant-select-button').addEventListener('click', toggleParticipant);
+                item.querySelector('.group-delete-btn').addEventListener('click', async event => {
+                    event.stopPropagation();
                     try {
-                        await App.deleteParticipant(p.id);
-                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(p.id));
+                        await App.deleteParticipant(participant.id);
+                        this.selectedParticipantIds = this.selectedParticipantIds.filter(id => id !== String(participant.id));
                         App.showToast('Участник удалён');
                         await this.loadRecipientsData();
                     } catch (error) {
                         App.showToast(error.message || 'Не удалось удалить участника');
                     }
                 });
-
                 participantsList.appendChild(item);
             });
+
+            updateSelectionSummary();
         };
 
         renderParticipantsList();
-
-        if (combineSelect && !combineSelect.onchange) {
-            combineSelect.onchange = () => {
-                renderParticipantsList();
-            };
-        }
     },
 
     init: function() {
@@ -482,13 +629,16 @@ const HomeScreen = {
         const homeAddCard = document.getElementById('home-add-template-card');
 
         if (scrollLeftBtn && scrollRightBtn && scrollContainer) {
-            scrollLeftBtn.addEventListener('click', () => {
-                scrollContainer.scrollBy({ left: -200, behavior: 'smooth' });
-            });
+            const scrollTemplates = direction => {
+                const distance = Math.max(180, Math.round(scrollContainer.clientWidth * 0.72));
+                scrollContainer.scrollBy({ left: direction * distance, behavior: 'smooth' });
+            };
 
-            scrollRightBtn.addEventListener('click', () => {
-                scrollContainer.scrollBy({ left: 200, behavior: 'smooth' });
-            });
+            scrollLeftBtn.addEventListener('click', () => scrollTemplates(-1));
+            scrollRightBtn.addEventListener('click', () => scrollTemplates(1));
+            scrollContainer.addEventListener('scroll', () => this.updateTemplateScrollControls(), { passive: true });
+            window.addEventListener('resize', () => this.updateTemplateScrollControls(), { passive: true });
+            this.updateTemplateScrollControls();
         }
 
         if (homeAddCard) {
@@ -496,6 +646,19 @@ const HomeScreen = {
                 App.openCreateTemplateModal();
             });
         }
+
+        ['scheduled', 'sent'].forEach(section => {
+            const toggle = document.getElementById(section + '-toggle');
+            const content = document.getElementById(section + '-section-content');
+            if (!toggle || !content) return;
+
+            toggle.addEventListener('click', () => {
+                const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+                this.expandedReminderSections[section] = expanded;
+                toggle.setAttribute('aria-expanded', String(expanded));
+                content.hidden = !expanded;
+            });
+        });
 
         const showRecipientsBtn = document.getElementById('show-recipients-btn');
         if (showRecipientsBtn) {
@@ -507,7 +670,10 @@ const HomeScreen = {
         const recipientsBackBtn = document.getElementById('recipients-back-btn');
         if (recipientsBackBtn) {
             recipientsBackBtn.addEventListener('click', () => {
-                App.showScreen('home');
+                const target = App.recipientsReturnScreen || 'home';
+                App.recipientsReturnScreen = null;
+                App.showScreen(target);
+                if (target === 'create') CreateScreen.loadRecipientOptions();
             });
         }
 
@@ -520,6 +686,8 @@ const HomeScreen = {
             tabGroupsBtn.addEventListener('click', () => {
                 tabGroupsBtn.classList.add('active');
                 tabPeopleBtn.classList.remove('active');
+                tabGroupsBtn.setAttribute('aria-selected', 'true');
+                tabPeopleBtn.setAttribute('aria-selected', 'false');
                 tabGroupsContent.style.display = 'flex';
                 tabPeopleContent.style.display = 'none';
             });
@@ -527,6 +695,8 @@ const HomeScreen = {
             tabPeopleBtn.addEventListener('click', () => {
                 tabPeopleBtn.classList.add('active');
                 tabGroupsBtn.classList.remove('active');
+                tabPeopleBtn.setAttribute('aria-selected', 'true');
+                tabGroupsBtn.setAttribute('aria-selected', 'false');
                 tabPeopleContent.style.display = 'flex';
                 tabGroupsContent.style.display = 'none';
             });
@@ -549,23 +719,31 @@ const HomeScreen = {
         }
 
         const combineSubmitBtn = document.getElementById('combine-submit-btn');
-        const combineGroupSelect = document.getElementById('combine-group-select');
-        if (combineSubmitBtn && combineGroupSelect) {
+        if (combineSubmitBtn) {
             combineSubmitBtn.addEventListener('click', async () => {
-                const groupId = combineGroupSelect.value;
-                if (!groupId) {
-                    App.showToast('Выберите группу для добавления');
+                const groupIds = [...this.selectedGroupIds];
+                const participantIds = [...this.selectedParticipantIds];
+                if (groupIds.length === 0) {
+                    App.showToast('Выберите хотя бы одну группу');
                     return;
                 }
-                if (this.selectedParticipantIds.length === 0) {
-                    App.showToast('Выберите хотя бы одного человека');
+                if (participantIds.length === 0) {
+                    App.showToast('Отметьте хотя бы одного участника в списке');
                     return;
                 }
 
-                await App.combineParticipantsToGroup(this.selectedParticipantIds, groupId);
-                this.selectedParticipantIds = [];
-                App.showToast('Участники добавлены в группу');
-                this.loadRecipientsData();
+                combineSubmitBtn.disabled = true;
+                try {
+                    const result = await App.addParticipantsToGroups(participantIds, groupIds);
+                    this.selectedParticipantIds = [];
+                    App.showToast(result.memberships_added
+                        ? 'Участники добавлены в выбранные группы'
+                        : 'Эти участники уже состоят в выбранных группах');
+                    await this.loadRecipientsData();
+                } catch (error) {
+                    App.showToast(error.message || 'Не удалось назначить группы');
+                    combineSubmitBtn.disabled = false;
+                }
             });
         }
 

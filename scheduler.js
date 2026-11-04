@@ -106,13 +106,14 @@ function getTargetChatIds(reminder) {
         targetChatIds.push(String(reminder.user_id));
     }
 
-    const groupNames = validRecipients.filter(name => name !== 'Себе');
+    const groupNames = validRecipients.filter(name => name !== 'Себе' && !/^person:[0-9]+$/.test(name));
     if (groupNames.length > 0) {
         const placeholders = groupNames.map(() => '?').join(',');
         const query = `
             SELECT DISTINCT p.chat_id
             FROM participants p
-            JOIN groups g ON p.group_id = g.id
+            JOIN participant_groups pg ON pg.participant_id = p.id
+            JOIN groups g ON pg.group_id = g.id
             WHERE g.user_id = ? AND g.name IN (${placeholders})
         `;
         const rows = db.prepare(query).all(reminder.user_id, ...groupNames);
@@ -122,6 +123,22 @@ function getTargetChatIds(reminder) {
         });
     }
 
+
+    const personIds = validRecipients
+        .filter(value => /^person:[0-9]+$/.test(value))
+        .map(value => Number(value.slice(7)))
+        .filter(id => Number.isSafeInteger(id) && id > 0);
+    if (personIds.length > 0) {
+        const placeholders = personIds.map(() => '?').join(',');
+        const rows = db.prepare(`
+            SELECT chat_id FROM participants
+            WHERE teacher_id = ? AND id IN (${placeholders})
+        `).all(reminder.user_id, ...personIds);
+        rows.forEach(row => {
+            const chatId = String(row.chat_id);
+            if (!targetChatIds.includes(chatId)) targetChatIds.push(chatId);
+        });
+    }
     return targetChatIds;
 }
 
@@ -150,7 +167,8 @@ async function checkScheduledReminders() {
                         recipientsToSend,
                         reminder.title + (reminder.description ? '\n\n' + reminder.description : ''),
                         safeJsonParse(reminder.quick_replies, []),
-                        safeJsonParse(reminder.images, [])
+                        safeJsonParse(reminder.images, []),
+                        { name: reminder.sender_name || '', id: reminder.user_id }
                     );
                 }
 
