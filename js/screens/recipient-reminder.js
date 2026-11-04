@@ -236,19 +236,25 @@ const RecipientReminder = {
         container.replaceChildren();
         this.feedbackFiles = [];
         if (!reminder.feedback_enabled) { container.style.display = 'none'; return; }
+        const questions = (Array.isArray(reminder.feedback_questions) ? reminder.feedback_questions : [])
+            .filter(question => typeof question === 'string' && question.trim());
+        if (!questions.length && !reminder.feedback_allow_files) {
+            container.style.display = 'none';
+            return;
+        }
         const heading = document.createElement('div');
         heading.className = 'recipient-reminder-replies-heading';
-        heading.textContent = 'Обратная связь';
+        heading.textContent = questions.length ? 'Вопросы для опроса' : 'Прикрепить файлы';
         container.appendChild(heading);
         const fields = [];
-        (Array.isArray(reminder.quick_replies) ? reminder.quick_replies : []).forEach((question, index) => {
+        questions.forEach((question, index) => {
             const wrap = document.createElement('div');
             wrap.className = 'recipient-feedback-question';
             const label = document.createElement('label');
-            label.textContent = question.question || ('Вопрос ' + (index + 1));
+            label.textContent = question;
             const textarea = document.createElement('textarea');
             textarea.maxLength = 1000;
-            textarea.placeholder = question.answer ? 'Например: ' + question.answer : 'Ваш ответ';
+            textarea.placeholder = 'Напишите свой ответ';
             wrap.append(label, textarea);
             container.appendChild(wrap);
             fields.push({ index, textarea });
