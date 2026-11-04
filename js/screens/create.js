@@ -17,6 +17,8 @@ const CreateScreen = {
     wizardStep: 1,
     currentImages: [],
     editingSentReminder: false,
+    feedbackEnabled: false,
+    feedbackAllowFiles: false,
 
     repeatOptions: ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
     repeatIndex: 0,
@@ -492,6 +494,8 @@ const CreateScreen = {
         const repeatTimeInput = document.getElementById('repeat-time-input');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
+        const feedbackSection = document.getElementById('feedback-settings-section');
+        if (feedbackSection) feedbackSection.style.display = 'none';
         const sendNowSection = sendNowToggle?.closest('.create-section');
         const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
         if (sendNowSection) sendNowSection.style.display = 'block';
@@ -506,6 +510,8 @@ const CreateScreen = {
         if (descInput) descInput.value = reminder.description || '';
         this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
+        this.feedbackEnabled = false;
+        this.feedbackAllowFiles = false;
         const savedMedia = Array.isArray(reminder.images) ? reminder.images : [];
         this.currentImages = [
             ...savedMedia.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3),
@@ -588,6 +594,8 @@ const CreateScreen = {
 
     populateForm: function(template) {
         this.editingSentReminder = false;
+        this.feedbackEnabled = false;
+        this.feedbackAllowFiles = false;
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
@@ -653,6 +661,25 @@ const CreateScreen = {
         this.renderQuickReplies();
         this.renderSelectedRecipients();
         this.renderImagesPreview();
+        this.renderFeedbackSettings();
+    },
+
+    renderFeedbackSettings: function() {
+        const enabled = document.getElementById('feedback-enabled-toggle');
+        const files = document.getElementById('feedback-files-toggle');
+        const options = document.getElementById('feedback-settings-options');
+        const section = document.getElementById('feedback-settings-section');
+        const isNewSingle = !App.editingReminderId && !this.editingSentReminder;
+        if (section) section.style.display = isNewSingle && this.repeatIndex === 0 ? 'block' : 'none';
+        if (enabled) {
+            enabled.classList.toggle('active', this.feedbackEnabled);
+            enabled.setAttribute('aria-checked', String(this.feedbackEnabled));
+        }
+        if (files) {
+            files.classList.toggle('active', this.feedbackAllowFiles);
+            files.setAttribute('aria-checked', String(this.feedbackAllowFiles));
+        }
+        if (options) options.hidden = !this.feedbackEnabled;
     },
 
     renderQuickReplies: function() {
@@ -771,8 +798,28 @@ const CreateScreen = {
                 if (repeatTimeRow) {
                     repeatTimeRow.style.display = chosen === 'Никогда' ? 'none' : 'flex';
                 }
+                if (chosen !== 'Никогда') {
+                    this.feedbackEnabled = false;
+                    this.feedbackAllowFiles = false;
+                }
+                this.renderFeedbackSettings();
             });
         }
+
+        const bindFeedbackToggle = (element, property, dependent) => {
+            if (!element) return;
+            const toggle = () => {
+                this[property] = !this[property];
+                if (dependent && !this[property]) this.feedbackAllowFiles = false;
+                this.renderFeedbackSettings();
+            };
+            element.addEventListener('click', toggle);
+            element.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+            });
+        };
+        bindFeedbackToggle(document.getElementById('feedback-enabled-toggle'), 'feedbackEnabled', true);
+        bindFeedbackToggle(document.getElementById('feedback-files-toggle'), 'feedbackAllowFiles', false);
 
         if (addReplyBtn && qInput && aInput) {
             addReplyBtn.addEventListener('click', () => {
@@ -871,6 +918,8 @@ const CreateScreen = {
                     repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
+                    feedback_enabled: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled,
+                    feedback_allow_files: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled && this.feedbackAllowFiles,
                     images: this.currentImages.map(({ isNew, ...item }) => item)
                 };
 
