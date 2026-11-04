@@ -248,7 +248,7 @@ const RecipientReminder = {
             label.textContent = question.question || ('Вопрос ' + (index + 1));
             const textarea = document.createElement('textarea');
             textarea.maxLength = 1000;
-            textarea.placeholder = 'Ваш ответ';
+            textarea.placeholder = question.answer ? 'Например: ' + question.answer : 'Ваш ответ';
             wrap.append(label, textarea);
             container.appendChild(wrap);
             fields.push({ index, textarea });
