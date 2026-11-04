@@ -520,7 +520,7 @@ router.post('/public/:id/feedback', async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
-        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, quick_replies, message_ids, repeat_type FROM reminders WHERE id = ?').get(id);
         if (!reminder || !reminder.feedback_enabled || reminder.repeat_type && reminder.repeat_type !== 'Никогда') return res.status(404).json({ error: 'Feedback is unavailable' });
         const messageIds = safeJsonParse(reminder.message_ids, {});
         const chatId = await getRecipientChatId(reminder, messageIds, req.userId);
@@ -533,6 +533,7 @@ router.post('/public/:id/feedback', async (req, res) => {
             if (value) answers[index] = value;
         });
         const files = Array.isArray(req.body?.files) ? req.body.files : [];
+        if (Object.keys(answers).length === 0 && files.length === 0) return res.status(400).json({ error: 'Добавьте ответ или файл' });
         if (!reminder.feedback_allow_files && files.length) return res.status(400).json({ error: 'File attachments are disabled' });
         if (files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
         const preparedFiles = [];
