@@ -359,3 +359,8 @@
 .feedback-results-card { max-height: 85vh; overflow: auto; }
 .feedback-result-stat { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border, #e5e7eb); }
 .feedback-result-answer { padding: 10px; border-radius: 10px; background: var(--surface, #f5f7fb); margin: 8px 0; }
+
+.recipient-feedback-options { gap: 9px; }
+.recipient-feedback-option { display: flex; align-items: center; gap: 10px; padding: 12px 13px; border: 1px solid var(--border, #d8deea); border-radius: 12px; background: var(--surface, #fff); cursor: pointer; }
+.recipient-feedback-option input { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; accent-color: var(--accent, #4778df); }
+.recipient-feedback-option span { color: var(--text, inherit); font-weight: 550; line-height: 1.35; }
