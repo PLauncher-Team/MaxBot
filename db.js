@@ -44,6 +44,8 @@ db.exec(`
         sent_at TEXT,
         message_ids TEXT,
         reply_message_ids TEXT,
+        feedback_enabled INTEGER NOT NULL DEFAULT 0,
+        feedback_allow_files INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -81,6 +83,25 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS feedback_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL,
+        answers TEXT NOT NULL DEFAULT '{}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reminder_id, chat_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS feedback_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        mime_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS uploaded_media (
         filename TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -108,5 +129,12 @@ db.exec(`
     CREATE INDEX IF NOT EXISTS idx_recipient_download_tickets_expires_at
         ON recipient_download_tickets(expires_at);
 `);
+
+const reminderColumns = db.prepare('PRAGMA table_info(reminders)').all().map(column => column.name);
+if (!reminderColumns.includes('feedback_enabled')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_enabled INTEGER NOT NULL DEFAULT 0');
+if (!reminderColumns.includes('feedback_allow_files')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_allow_files INTEGER NOT NULL DEFAULT 0');
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedback_submissions(reminder_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
 
 module.exports = db;
