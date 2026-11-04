@@ -1,6 +1,7 @@
 const RecipientReminder = {
     reminderId: null,
     mediaObjectUrls: [],
+    feedbackFiles: [],
 
     revokeMediaObjectUrls: function() {
         this.mediaObjectUrls.forEach(url => URL.revokeObjectURL(url));
@@ -56,6 +57,8 @@ const RecipientReminder = {
         const description = document.getElementById('reminder-view-description');
         const sender = document.getElementById('reminder-view-sender');
         const repliesSection = document.getElementById('reminder-view-replies');
+        const feedbackForm = document.getElementById('recipient-feedback-form');
+        if (feedbackForm) feedbackForm.style.display = 'none';
         const repliesList = document.getElementById('reminder-view-replies-list');
 
         title.textContent = reminder.title || '';
@@ -224,8 +227,90 @@ const RecipientReminder = {
         });
 
         repliesSection.style.display = repliesList.childElementCount > 0 ? 'block' : 'none';
+        if (feedbackForm) this.renderFeedbackForm(feedbackForm, reminder);
         state.style.display = 'none';
         card.style.display = 'block';
+    },
+
+    renderFeedbackForm: function(container, reminder) {
+        container.replaceChildren();
+        this.feedbackFiles = [];
+        if (!reminder.feedback_enabled) { container.style.display = 'none'; return; }
+        const heading = document.createElement('div');
+        heading.className = 'recipient-reminder-replies-heading';
+        heading.textContent = 'Обратная связь';
+        container.appendChild(heading);
+        const fields = [];
+        (Array.isArray(reminder.quick_replies) ? reminder.quick_replies : []).forEach((question, index) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'recipient-feedback-question';
+            const label = document.createElement('label');
+            label.textContent = question.question || ('Вопрос ' + (index + 1));
+            const textarea = document.createElement('textarea');
+            textarea.maxLength = 1000;
+            textarea.placeholder = 'Ваш ответ';
+            wrap.append(label, textarea);
+            container.appendChild(wrap);
+            fields.push({ index, textarea });
+        });
+        if (reminder.feedback_allow_files) {
+            const fileWrap = document.createElement('div');
+            fileWrap.className = 'recipient-feedback-files';
+            const label = document.createElement('label');
+            label.textContent = 'Файлы (до 3, не более 10 МБ каждый)';
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.multiple = true;
+            input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip';
+            const names = document.createElement('div');
+            input.addEventListener('change', () => {
+                const files = Array.from(input.files || []);
+                if (files.length > 3) { App.showToast('Можно прикрепить не более 3 файлов'); input.value = ''; return; }
+                if (files.some(file => file.size > 10 * 1024 * 1024)) { App.showToast('Каждый файл должен быть не больше 10 МБ'); input.value = ''; return; }
+                this.feedbackFiles = files;
+                names.textContent = files.map(file => file.name).join(', ');
+            });
+            fileWrap.append(label, input, names);
+            container.appendChild(fileWrap);
+        }
+        const submit = document.createElement('button');
+        submit.type = 'button';
+        submit.className = 'quick-reply-submit-btn recipient-feedback-submit';
+        submit.textContent = 'Отправить ответы';
+        submit.addEventListener('click', async () => {
+            submit.disabled = true;
+            submit.textContent = 'Отправка…';
+            try {
+                const answers = {};
+                fields.forEach(field => { if (field.textarea.value.trim()) answers[field.index] = field.textarea.value.trim(); });
+                const files = [];
+                for (const file of this.feedbackFiles) {
+                    const data = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(String(reader.result || ''));
+                        reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+                        reader.readAsDataURL(file);
+                    });
+                    const response = await fetch('/api/reminders/upload-file', { method: 'POST', headers: { 'Content-Type': 'application/json', ...App.getAuthHeaders() }, body: JSON.stringify({ media_data: data, file_name: file.name }) });
+                    const uploaded = await response.json().catch(() => null);
+                    if (!response.ok) throw new Error(uploaded?.error || 'Не удалось загрузить файл');
+                    files.push({ filename: uploaded.filename, name: uploaded.name });
+                }
+                const response = await fetch('/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', ...App.getAuthHeaders() }, body: JSON.stringify({ answers, files }) });
+                const result = await response.json().catch(() => null);
+                if (!response.ok) throw new Error(result?.error || 'Не удалось отправить ответы');
+                App.showToast('Обратная связь отправлена');
+                submit.textContent = 'Ответы отправлены';
+                fields.forEach(field => field.textarea.disabled = true);
+                container.querySelectorAll('input').forEach(input => input.disabled = true);
+            } catch (error) {
+                App.showToast(error.message || 'Не удалось отправить обратную связь');
+                submit.disabled = false;
+                submit.textContent = 'Отправить ответы';
+            }
+        });
+        container.appendChild(submit);
+        container.style.display = 'block';
     },
 
 };
