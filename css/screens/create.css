@@ -540,3 +540,6 @@
 .recipient-summary-empty {
     padding: 8px 0;
 }
+
+.feedback-settings-options[hidden] { display: none; }
+#feedback-settings-section .create-row { margin-top: 10px; }
