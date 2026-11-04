@@ -124,6 +124,20 @@ const App = {
         return data;
     },
 
+    markFeedbackRead: async function(id, lastSeenSubmissionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ last_seen_submission_id: Number(lastSeenSubmissionId) || 0 })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отметить обратную связь просмотренной');
+        return data;
+    },
+
     getReminders: async function() {
         const res = await fetch('/api/reminders', {
             headers: this.getAuthHeaders()
