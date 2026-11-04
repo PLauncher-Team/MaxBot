@@ -539,7 +539,7 @@ router.post('/public/:id/feedback', async (req, res) => {
         const preparedFiles = [];
         for (const item of files) {
             const filename = typeof item?.filename === 'string' ? item.filename : '';
-            const match = /^file_[a-f0-9]{32}\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename);
+            const match = /^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename);
             if (!match) return res.status(400).json({ error: 'Некорректный файл' });
             const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
             const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
@@ -610,7 +610,7 @@ router.get('/:id/feedback/files/:filename', (req, res) => {
         const filename = String(req.params.filename || '');
         const reminder = db.prepare('SELECT user_id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         const file = db.prepare('SELECT f.name, f.mime_type FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND f.filename = ?').get(id, filename);
-        if (!reminder || !file || !/^file_[a-f0-9]{32}\\.[a-z0-9]+$/i.test(filename)) return res.status(404).json({ error: 'File not found' });
+        if (!reminder || !file || !/^file_[a-f0-9]{32}\.[a-z0-9]+$/i.test(filename)) return res.status(404).json({ error: 'File not found' });
         const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
         if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
         res.setHeader('Cache-Control', 'private, no-store');
