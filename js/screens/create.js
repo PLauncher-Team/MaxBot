@@ -11,7 +11,7 @@ const CreateScreen = {
     recipientFilter: 'all',
     recipientLoadError: null,
     recipientLoadRequestId: 0,
-    sendToSelf: true,
+    sendToSelf: false,
     wizardActive: false,
     startedFromTemplate: false,
     wizardStep: 1,
@@ -624,7 +624,7 @@ const CreateScreen = {
         if (sendNowToggle) {
             sendNowToggle.classList.add('active');
         }
-        this.sendToSelf = true;
+        this.sendToSelf = false;
         if (sendTimeRow) {
             sendTimeRow.style.display = 'none';
         }
