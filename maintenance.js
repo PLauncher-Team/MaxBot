@@ -77,7 +77,8 @@ function cleanupTemporaryUploads(nowMs = Date.now()) {
             try {
                 const stat = fs.lstatSync(path.join(UPLOADS_DIR, filename));
                 if (!stat.isFile() || stat.mtimeMs > nowMs - DAY_MS) return;
-                if (fs.unlinkSync(path.join(UPLOADS_DIR, filename)) === undefined) removed++;
+                fs.unlinkSync(path.join(UPLOADS_DIR, filename));
+                removed++;
             } catch (error) {
                 if (error.code !== 'ENOENT') {
                     console.error('Failed to remove orphaned uploaded file:', filename, error.message);
