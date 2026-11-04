@@ -108,6 +108,15 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS feedback_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        last_seen_submission_id INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, reminder_id)
+    );
+
     CREATE TABLE IF NOT EXISTS uploaded_media (
         filename TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -140,3 +149,5 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedbac
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
 
 module.exports = db;
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_views_reminder_user ON feedback_views(reminder_id, user_id)');
