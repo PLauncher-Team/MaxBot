@@ -476,11 +476,29 @@ const App = {
         if (aInput) aInput.value = '';
         this.modalReplies = [];
         this.modalFeedbackOptions = [];
+        this.modalFeedbackEnabled = false;
+        this.modalFeedbackAllowFiles = false;
+        this.renderModalFeedbackSettings();
         const optionInput = document.getElementById('modal-feedback-option-input');
         if (optionInput) optionInput.value = '';
         this.renderModalReplies();
         this.renderModalFeedbackOptions();
         if (modal) modal.style.display = 'flex';
+    },
+
+    renderModalFeedbackSettings: function() {
+        const enabled = document.getElementById('modal-feedback-enabled-toggle');
+        const files = document.getElementById('modal-feedback-files-toggle');
+        const settings = document.getElementById('modal-feedback-settings');
+        if (enabled) {
+            enabled.classList.toggle('active', this.modalFeedbackEnabled);
+            enabled.setAttribute('aria-checked', String(this.modalFeedbackEnabled));
+        }
+        if (files) {
+            files.classList.toggle('active', this.modalFeedbackAllowFiles);
+            files.setAttribute('aria-checked', String(this.modalFeedbackAllowFiles));
+        }
+        if (settings) settings.hidden = !this.modalFeedbackEnabled;
     },
 
     closeCreateTemplateModal: function() {
@@ -593,6 +611,24 @@ const App = {
             });
         }
 
+        const bindModalFeedbackToggle = (element, property, disableFiles = false) => {
+            if (!element) return;
+            const toggle = () => {
+                this[property] = !this[property];
+                if (disableFiles && !this[property]) this.modalFeedbackAllowFiles = false;
+                this.renderModalFeedbackSettings();
+            };
+            element.addEventListener('click', toggle);
+            element.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggle();
+                }
+            });
+        };
+        bindModalFeedbackToggle(document.getElementById('modal-feedback-enabled-toggle'), 'modalFeedbackEnabled', true);
+        bindModalFeedbackToggle(document.getElementById('modal-feedback-files-toggle'), 'modalFeedbackAllowFiles');
+
         const modalFeedbackOptionAddBtn = document.getElementById('modal-feedback-option-add-btn');
         if (modalFeedbackOptionAddBtn) {
             modalFeedbackOptionAddBtn.addEventListener('click', () => {
@@ -645,7 +681,9 @@ const App = {
                         title,
                         description,
                         quick_replies: this.modalReplies,
-                        feedback_options: this.modalFeedbackOptions || []
+                        feedback_enabled: this.modalFeedbackEnabled,
+                        feedback_allow_files: this.modalFeedbackEnabled && this.modalFeedbackAllowFiles,
+                        feedback_options: this.modalFeedbackEnabled ? (this.modalFeedbackOptions || []) : []
                     });
                 } catch (error) {
                     this.showToast(error.message || 'Не удалось сохранить шаблон');
