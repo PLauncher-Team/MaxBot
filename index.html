@@ -52,7 +52,7 @@
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/screens/home.css?v=13">
     <link rel="stylesheet" href="css/screens/templates.css">
-    <link rel="stylesheet" href="css/screens/create.css?v=3">
+    <link rel="stylesheet" href="css/screens/create.css?v=4">
     <link rel="stylesheet" href="css/redesign.css?v=10">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
     <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=6">
@@ -349,20 +349,32 @@
                 <div class="create-section-title">Обратная связь</div>
                 <div class="create-row"><div class="create-row-left">Разрешить ответы получателей</div><div class="toggle-switch" id="feedback-enabled-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
                 <div class="feedback-settings-options" id="feedback-settings-options" hidden>
-                    <div class="create-row"><div class="create-row-left">Разрешить прикреплять файлы</div><div class="toggle-switch" id="feedback-files-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
-                    <p class="wizard-step-description">Получатели смогут прикрепить до 3 файлов размером до 10 МБ каждый.</p>
+                    <div class="feedback-poll-builder">
+                        <div class="feedback-poll-builder-title">Вопросы для опроса</div>
+                        <p class="wizard-step-description">Напишите вопросы, на которые получатели ответят своими словами. Без вопросов форма опроса не появится.</p>
+                        <div class="feedback-question-editor-list" id="feedback-questions-list"></div>
+                        <div class="feedback-question-add-row">
+                            <input type="text" class="quick-reply-input" id="feedback-question-input" maxlength="200" placeholder="Например: Всё ли понятно по заданию?">
+                            <button type="button" class="quick-reply-submit-btn" id="feedback-question-add-btn">Добавить вопрос</button>
+                        </div>
+                    </div>
+                    <div class="feedback-files-option">
+                        <div class="create-row"><div class="create-row-left">Разрешить прикреплять файлы</div><div class="toggle-switch" id="feedback-files-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
+                        <p class="wizard-step-description">Получатели смогут прикрепить до 3 файлов размером до 10 МБ каждый.</p>
+                    </div>
                 </div>
             </div>
 
             <div class="create-section">
-                <div class="create-section-title">Вопросы для опроса</div>
+                <div class="create-section-title">Быстрые ответы учителя</div>
+                <p class="wizard-step-description">Это готовые подсказки: получатель нажимает на пункт и видит подготовленный вами ответ.</p>
                 <div class="quick-replies-list" id="quick-replies-list"></div>
                 <div class="quick-reply-add-box">
                     <div class="quick-reply-inputs">
-                        <input type="text" class="quick-reply-input" id="quick-reply-q-input" placeholder="Вопрос, например: Где?">
-                        <input type="text" class="quick-reply-input" id="quick-reply-a-input" placeholder="Ответ, например: В актовом зале">
+                        <input type="text" class="quick-reply-input" id="quick-reply-q-input" placeholder="Короткий заголовок, например: Где встречаемся?">
+                        <input type="text" class="quick-reply-input" id="quick-reply-a-input" placeholder="Готовый ответ, например: В актовом зале">
                     </div>
-                    <button class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить ответ</button>
+                    <button class="quick-reply-submit-btn" id="quick-reply-add-btn">Добавить быстрый ответ</button>
                 </div>
             </div>
             </section>
@@ -470,9 +482,9 @@
 </div>
 
 <script src="js/app.js?v=21"></script>
-<script src="js/screens/recipient-reminder.js?v=10"></script>
-<script src="js/screens/home.js?v=31"></script>
+<script src="js/screens/recipient-reminder.js?v=11"></script>
+<script src="js/screens/home.js?v=32"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=27"></script>
+<script src="js/screens/create.js?v=28"></script>
 </body>
 </html>
