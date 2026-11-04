@@ -163,23 +163,16 @@ const RecipientReminder = {
                     const platform = String(window.WebApp?.platform || '').toLowerCase();
                     if (!['ios', 'android', 'desktop'].includes(platform)) return;
                     event.preventDefault();
-                    if (typeof window.WebApp?.downloadFile !== 'function') {
-                        App.showToast('Не удалось запустить скачивание. Обновите приложение MAX');
+                    if (typeof window.WebApp?.openLink !== 'function') {
+                        App.showToast('Не удалось открыть ссылку. Обновите приложение MAX');
                         return;
                     }
                     try {
-                        const download = window.WebApp.downloadFile(item.download_url, item.name || 'Файл');
-                        Promise.resolve(download).then(result => {
-                            if (result?.status === 'cancelled') App.showToast('Скачивание отменено');
-                        }).catch(error => {
-                            const code = error?.error?.code || error?.code || 'unknown';
-                            console.error('MAX file download failed:', code, error);
-                            App.showToast('MAX не смог скачать файл: ' + code);
-                        });
+                        window.WebApp.openLink(item.download_url);
                     } catch (error) {
                         const code = error?.error?.code || error?.code || 'unknown';
-                        console.error('MAX file download failed:', code, error);
-                        App.showToast('MAX не смог скачать файл: ' + code);
+                        console.error('MAX link opening failed:', code, error);
+                        App.showToast('MAX не смог открыть ссылку: ' + code);
                     }
                 });
                 const icon = document.createElement('span');
