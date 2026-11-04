@@ -19,6 +19,7 @@ db.exec(`
         title TEXT NOT NULL,
         description TEXT NOT NULL,
         quick_replies TEXT NOT NULL,
+        feedback_options TEXT NOT NULL DEFAULT '[]',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -47,6 +48,7 @@ db.exec(`
         feedback_enabled INTEGER NOT NULL DEFAULT 0,
         feedback_allow_files INTEGER NOT NULL DEFAULT 0,
         feedback_questions TEXT NOT NULL DEFAULT '[]',
+        feedback_options TEXT NOT NULL DEFAULT '[]',
         status TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -135,6 +137,9 @@ const reminderColumns = db.prepare('PRAGMA table_info(reminders)').all().map(col
 if (!reminderColumns.includes('feedback_enabled')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_enabled INTEGER NOT NULL DEFAULT 0');
 if (!reminderColumns.includes('feedback_allow_files')) db.exec('ALTER TABLE reminders ADD COLUMN feedback_allow_files INTEGER NOT NULL DEFAULT 0');
 if (!reminderColumns.includes('feedback_questions')) db.exec("ALTER TABLE reminders ADD COLUMN feedback_questions TEXT NOT NULL DEFAULT '[]'");
+if (!reminderColumns.includes('feedback_options')) db.exec("ALTER TABLE reminders ADD COLUMN feedback_options TEXT NOT NULL DEFAULT '[]'");
+const templateColumns = db.prepare('PRAGMA table_info(templates)').all().map(column => column.name);
+if (!templateColumns.includes('feedback_options')) db.exec("ALTER TABLE templates ADD COLUMN feedback_options TEXT NOT NULL DEFAULT '[]'");
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedback_submissions(reminder_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
