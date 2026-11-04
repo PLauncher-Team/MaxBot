@@ -440,6 +440,30 @@ const App = {
         });
     },
 
+    renderModalFeedbackOptions: function() {
+        const list = document.getElementById('modal-feedback-options-list');
+        if (!list) return;
+        list.replaceChildren();
+        (this.modalFeedbackOptions || []).forEach((option, index) => {
+            const row = document.createElement('div');
+            row.className = 'feedback-question-editor-row';
+            const label = document.createElement('span');
+            label.className = 'feedback-question-editor-text';
+            label.textContent = option;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'feedback-question-editor-remove';
+            remove.textContent = '×';
+            remove.setAttribute('aria-label', 'Удалить вариант');
+            remove.addEventListener('click', () => {
+                this.modalFeedbackOptions.splice(index, 1);
+                this.renderModalFeedbackOptions();
+            });
+            row.append(label, remove);
+            list.appendChild(row);
+        });
+    },
+
     openCreateTemplateModal: function() {
         const modal = document.getElementById('template-modal');
         const titleInput = document.getElementById('modal-template-title');
@@ -451,7 +475,11 @@ const App = {
         if (qInput) qInput.value = '';
         if (aInput) aInput.value = '';
         this.modalReplies = [];
+        this.modalFeedbackOptions = [];
+        const optionInput = document.getElementById('modal-feedback-option-input');
+        if (optionInput) optionInput.value = '';
         this.renderModalReplies();
+        this.renderModalFeedbackOptions();
         if (modal) modal.style.display = 'flex';
     },
 
@@ -565,6 +593,21 @@ const App = {
             });
         }
 
+        const modalFeedbackOptionAddBtn = document.getElementById('modal-feedback-option-add-btn');
+        if (modalFeedbackOptionAddBtn) {
+            modalFeedbackOptionAddBtn.addEventListener('click', () => {
+                const input = document.getElementById('modal-feedback-option-input');
+                const option = input?.value.trim();
+                if (!option) return;
+                if (!this.modalFeedbackOptions) this.modalFeedbackOptions = [];
+                if (this.modalFeedbackOptions.length >= 20) { this.showToast('Можно добавить максимум 20 вариантов'); return; }
+                if (this.modalFeedbackOptions.some(item => item.toLowerCase() === option.toLowerCase())) { this.showToast('Такой вариант уже добавлен'); return; }
+                this.modalFeedbackOptions.push(option.slice(0, 200));
+                input.value = '';
+                this.renderModalFeedbackOptions();
+            });
+        }
+
         const modalReplyAddBtn = document.getElementById('modal-reply-add-btn');
         if (modalReplyAddBtn) {
             modalReplyAddBtn.addEventListener('click', () => {
@@ -601,7 +644,8 @@ const App = {
                     await this.saveTemplate({
                         title,
                         description,
-                        quick_replies: this.modalReplies
+                        quick_replies: this.modalReplies,
+                        feedback_options: this.modalFeedbackOptions || []
                     });
                 } catch (error) {
                     this.showToast(error.message || 'Не удалось сохранить шаблон');
