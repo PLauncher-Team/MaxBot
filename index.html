@@ -350,12 +350,12 @@
                 <div class="create-row"><div class="create-row-left">Разрешить ответы получателей</div><div class="toggle-switch" id="feedback-enabled-toggle" role="switch" aria-checked="false" tabindex="0"></div></div>
                 <div class="feedback-settings-options" id="feedback-settings-options" hidden>
                     <div class="feedback-poll-builder">
-                        <div class="feedback-poll-builder-title">Вопросы для опроса</div>
-                        <p class="wizard-step-description">Напишите вопросы, на которые получатели ответят своими словами. Без вопросов форма опроса не появится.</p>
-                        <div class="feedback-question-editor-list" id="feedback-questions-list"></div>
+                        <div class="feedback-poll-builder-title">Варианты ответа в опросе</div>
+                        <p class="wizard-step-description">Добавьте готовые варианты, из которых получатель выберет один ответ. Например: «Да», «Нет», «Не знаю».</p>
+                        <div class="feedback-question-editor-list" id="feedback-options-list"></div>
                         <div class="feedback-question-add-row">
-                            <input type="text" class="quick-reply-input" id="feedback-question-input" maxlength="200" placeholder="Например: Всё ли понятно по заданию?">
-                            <button type="button" class="quick-reply-submit-btn" id="feedback-question-add-btn">Добавить вопрос</button>
+                            <input type="text" class="quick-reply-input" id="feedback-option-input" maxlength="200" placeholder="Например: Да">
+                            <button type="button" class="quick-reply-submit-btn" id="feedback-option-add-btn">Добавить вариант</button>
                         </div>
                     </div>
                     <div class="feedback-files-option">
@@ -453,6 +453,14 @@
                 <button type="button" class="modal-reply-add-btn" id="modal-reply-add-btn">Добавить ответ</button>
             </div>
         </div>
+        <div class="modal-field">
+            <div class="modal-field-label">Варианты ответа в опросе</div>
+            <div class="feedback-question-editor-list" id="modal-feedback-options-list"></div>
+            <div class="modal-reply-add">
+                <input type="text" id="modal-feedback-option-input" placeholder="Например: Да">
+                <button type="button" class="modal-reply-add-btn" id="modal-feedback-option-add-btn">Добавить вариант</button>
+            </div>
+        </div>
         <div class="modal-actions">
             <button class="modal-cancel-btn" id="modal-template-cancel">Отмена</button>
             <button class="modal-save-btn" id="modal-template-save">Создать шаблон</button>
@@ -481,10 +489,10 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=21"></script>
-<script src="js/screens/recipient-reminder.js?v=11"></script>
-<script src="js/screens/home.js?v=34"></script>
+<script src="js/app.js?v=22"></script>
+<script src="js/screens/recipient-reminder.js?v=12"></script>
+<script src="js/screens/home.js?v=35"></script>
 <script src="js/screens/templates.js?v=11"></script>
-<script src="js/screens/create.js?v=28"></script>
+<script src="js/screens/create.js?v=29"></script>
 </body>
 </html>
