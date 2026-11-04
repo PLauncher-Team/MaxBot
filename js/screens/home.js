@@ -640,6 +640,10 @@ const HomeScreen = {
     },
 
     init: function() {
+        const feedbackModal = document.getElementById('feedback-results-modal');
+        const feedbackClose = document.getElementById('feedback-results-close');
+        if (feedbackClose) feedbackClose.addEventListener('click', () => { if (feedbackModal) feedbackModal.style.display = 'none'; });
+        if (feedbackModal) feedbackModal.addEventListener('click', event => { if (event.target === feedbackModal) feedbackModal.style.display = 'none'; });
         const sentDeleteModal = document.getElementById('sent-delete-modal');
         const sentDeleteCancel = document.getElementById('sent-delete-cancel');
         const sentDeleteConfirm = document.getElementById('sent-delete-confirm');
