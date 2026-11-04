@@ -571,6 +571,8 @@ router.post('/public/:id/feedback', async (req, res) => {
         if (Object.keys(answers).length === 0 && files.length === 0) return res.status(400).json({ error: 'Добавьте ответ или файл' });
         if (!reminder.feedback_allow_files && files.length) return res.status(400).json({ error: 'File attachments are disabled' });
         if (files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
+        const rawRecipient = req.body?.recipient_name;
+        const recipientName = typeof rawRecipient === 'string' ? rawRecipient.trim().slice(0, 150) : '';
         const preparedFiles = [];
         for (const item of files) {
             const filename = typeof item?.filename === 'string' ? item.filename : '';
@@ -594,9 +596,11 @@ router.post('/public/:id/feedback', async (req, res) => {
             let submissionId;
             if (existing) {
                 submissionId = existing.id;
-                db.prepare('UPDATE feedback_submissions SET answers = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(answers), submissionId);
+                db.prepare("UPDATE feedback_submissions SET answers = ?, recipient_name = CASE WHEN ? <> '' THEN ? ELSE recipient_name END, created_at = CURRENT_TIMESTAMP WHERE id = ?")
+                    .run(JSON.stringify(answers), recipientName, recipientName, submissionId);
             } else {
-                submissionId = db.prepare('INSERT INTO feedback_submissions (reminder_id, chat_id, answers) VALUES (?, ?, ?)').run(id, chatId, JSON.stringify(answers)).lastInsertRowid;
+                submissionId = db.prepare('INSERT INTO feedback_submissions (reminder_id, chat_id, recipient_name, answers) VALUES (?, ?, ?, ?)')
+                    .run(id, chatId, recipientName, JSON.stringify(answers)).lastInsertRowid;
             }
             db.prepare('DELETE FROM feedback_files WHERE submission_id = ?').run(submissionId);
             preparedFiles.forEach(file => {
@@ -704,7 +708,7 @@ router.get('/:id/feedback', (req, res) => {
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
         const reminder = db.prepare('SELECT id, user_id, recipients, feedback_options, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
-        const submissions = db.prepare('SELECT id, chat_id, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
+        const submissions = db.prepare('SELECT id, chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
         const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
         const participantByIdentity = new Map();
         participants.forEach(participant => {
@@ -736,7 +740,7 @@ router.get('/:id/feedback', (req, res) => {
                 const participant = participantByIdentity.get(String(row.chat_id));
                 return {
                     chat_id: row.chat_id,
-                    name: participant?.name || '',
+                    name: row.recipient_name || participant?.name || '',
                     answers: safeJsonParse(row.answers, {}),
                     created_at: row.created_at
                 };
