@@ -308,35 +308,223 @@ const HomeScreen = {
     },
 
     openFeedbackResults: async function(item) {
-        const modal = document.getElementById('feedback-results-modal');
         const content = document.getElementById('feedback-results-content');
-        if (!modal || !content) return;
-        modal.style.display = 'flex';
-        content.textContent = 'Загрузка…';
+        const title = document.getElementById('feedback-results-reminder-title');
+        const subtitle = document.getElementById('feedback-results-reminder-subtitle');
+        const pageContent = document.querySelector('.feedback-page-content');
+        if (!content) return;
+
+        this.feedbackReminderId = item.id;
+        if (title) title.textContent = item.title || 'Ответы получателей';
+        if (subtitle) subtitle.textContent = 'Статистика и ответы по отправленному напоминанию';
+        if (pageContent) pageContent.scrollTop = 0;
+        content.replaceChildren();
+        const loading = document.createElement('div');
+        loading.className = 'feedback-loading-state';
+        loading.textContent = 'Загружаем ответы…';
+        content.appendChild(loading);
+        App.showScreen('feedbackResults');
+
         try {
             const data = await App.getFeedback(item.id);
+            if (String(this.feedbackReminderId) !== String(item.id)) return;
+            this.renderFeedbackResults(data);
+        } catch (error) {
             content.replaceChildren();
-            const addStat = (label, value) => { const row = document.createElement('div'); row.className = 'feedback-result-stat'; row.textContent = label + ': ' + value; content.appendChild(row); };
-            addStat('Ответили', data.responded + ' из ' + data.total_recipients + ' (' + data.response_percent + '%)');
-            addStat('Отправили файлы', data.file_percent + '%');
-            (data.questions || []).forEach(question => addStat(question.question, question.answered + ' (' + question.percent + '%)'));
-            const heading = document.createElement('h3'); heading.textContent = 'Ответы получателей'; content.appendChild(heading);
-            (data.submissions || []).forEach(submission => {
-                const card = document.createElement('div'); card.className = 'feedback-result-answer';
+            const state = document.createElement('div');
+            state.className = 'feedback-empty-state feedback-error-state';
+            const heading = document.createElement('strong');
+            heading.textContent = 'Не удалось загрузить обратную связь';
+            const description = document.createElement('p');
+            description.textContent = error.message || 'Проверьте соединение и попробуйте ещё раз.';
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'feedback-retry-btn';
+            retry.textContent = 'Повторить';
+            retry.addEventListener('click', () => this.openFeedbackResults(item));
+            state.append(heading, description, retry);
+            content.appendChild(state);
+        }
+    },
+
+    renderFeedbackResults: function(data) {
+        const content = document.getElementById('feedback-results-content');
+        if (!content) return;
+        content.replaceChildren();
+
+        const total = Math.max(0, Number(data.total_recipients) || 0);
+        const responded = Math.max(0, Number(data.responded) || 0);
+        const responsePercent = Math.max(0, Math.min(100, Number(data.response_percent) || 0));
+        const questions = Array.isArray(data.questions) ? data.questions : [];
+        const submissions = Array.isArray(data.submissions) ? data.submissions : [];
+        const files = Array.isArray(data.files) ? data.files : [];
+        const uniqueFileRecipients = new Set(files.map(entry => String(entry.chat_id))).size;
+        const filePercent = Math.max(0, Math.min(100, Number(data.file_percent) || 0));
+
+        const createNode = (tag, className, text) => {
+            const node = document.createElement(tag);
+            if (className) node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
+        };
+
+        const createProgress = value => {
+            const track = createNode('div', 'feedback-progress-track');
+            const fill = createNode('div', 'feedback-progress-fill');
+            fill.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + '%';
+            track.appendChild(fill);
+            return track;
+        };
+
+        const overview = createNode('section', 'feedback-overview-grid');
+        const responseCard = createNode('article', 'feedback-stat-card feedback-stat-card-primary');
+        responseCard.appendChild(createNode('span', 'feedback-stat-label', 'ОТВЕТИЛИ'));
+        responseCard.appendChild(createNode('strong', 'feedback-stat-value', responsePercent + '%'));
+        responseCard.appendChild(createNode('span', 'feedback-stat-description', responded + ' из ' + total + ' получателей'));
+        responseCard.appendChild(createProgress(responsePercent));
+        overview.appendChild(responseCard);
+
+        const filesCard = createNode('article', 'feedback-stat-card');
+        filesCard.appendChild(createNode('span', 'feedback-stat-label', 'ПРИКРЕПИЛИ ФАЙЛЫ'));
+        filesCard.appendChild(createNode('strong', 'feedback-stat-value', filePercent + '%'));
+        filesCard.appendChild(createNode('span', 'feedback-stat-description', uniqueFileRecipients + ' получателей'));
+        filesCard.appendChild(createProgress(filePercent));
+        overview.appendChild(filesCard);
+
+        const submissionsCard = createNode('article', 'feedback-stat-card');
+        submissionsCard.appendChild(createNode('span', 'feedback-stat-label', 'ПОЛУЧЕНО ОТВЕТОВ'));
+        submissionsCard.appendChild(createNode('strong', 'feedback-stat-value', String(responded)));
+        submissionsCard.appendChild(createNode('span', 'feedback-stat-description', 'из ' + total + ' адресатов'));
+        submissionsCard.appendChild(createProgress(responsePercent));
+        overview.appendChild(submissionsCard);
+        content.appendChild(overview);
+
+        const questionsSection = createNode('section', 'feedback-section');
+        const questionsHeading = createNode('div', 'feedback-section-heading');
+        const questionsHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+        questionsHeadingCopy.appendChild(createNode('h2', '', 'Результаты опроса'));
+        questionsHeadingCopy.appendChild(createNode('p', '', 'Доля получателей, ответивших на каждый вопрос'));
+        questionsHeading.appendChild(questionsHeadingCopy);
+        questionsSection.appendChild(questionsHeading);
+
+        if (questions.length) {
+            questions.forEach((question, index) => {
+                const card = createNode('article', 'feedback-question-card');
+                const questionText = createNode('div', 'feedback-question-text', question.question || ('Вопрос ' + (index + 1)));
+                const stats = createNode('div', 'feedback-question-stats');
+                stats.appendChild(createNode('strong', '', (Number(question.percent) || 0) + '%'));
+                stats.appendChild(createNode('span', '', (Number(question.answered) || 0) + ' из ' + total + ' ответили'));
+                card.append(questionText, stats, createProgress(question.percent));
+                questionsSection.appendChild(card);
+            });
+        } else {
+            const empty = createNode('div', 'feedback-inline-empty', 'В этой рассылке не было вопросов для опроса. Здесь отображаются текстовые ответы и прикреплённые файлы.');
+            questionsSection.appendChild(empty);
+        }
+        content.appendChild(questionsSection);
+
+        const answersSection = createNode('section', 'feedback-section feedback-answers-section');
+        const answersHeading = createNode('div', 'feedback-section-heading');
+        const answersHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+        answersHeadingCopy.appendChild(createNode('h2', '', 'Ответы получателей'));
+        answersHeadingCopy.appendChild(createNode('p', '', 'Индивидуальные ответы и вложения'));
+        answersHeading.appendChild(answersHeadingCopy);
+        answersHeading.appendChild(createNode('span', 'feedback-count-badge', String(submissions.length)));
+        answersSection.appendChild(answersHeading);
+
+        if (!submissions.length) {
+            const empty = createNode('div', 'feedback-empty-state');
+            const icon = createNode('div', 'feedback-empty-icon', '…');
+            empty.appendChild(icon);
+            empty.appendChild(createNode('strong', '', 'Пока нет ответов'));
+            empty.appendChild(createNode('p', '', 'Когда получатели отправят обратную связь, их ответы появятся в этом разделе.'));
+            answersSection.appendChild(empty);
+        } else {
+            submissions.forEach(submission => {
+                const card = createNode('article', 'feedback-respondent-card');
+                const header = createNode('div', 'feedback-respondent-header');
                 const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(submission.chat_id));
-                const title = document.createElement('strong'); title.textContent = person?.name || ('Получатель ' + submission.chat_id); card.appendChild(title);
-                Object.entries(submission.answers || {}).forEach(([index, answer]) => { const line = document.createElement('p'); line.textContent = (data.questions.find(question => String(question.index) === String(index))?.question || 'Ответ') + ': ' + answer; card.appendChild(line); });
-                content.appendChild(card);
+                const personCopy = createNode('div', 'feedback-respondent-copy');
+                personCopy.appendChild(createNode('strong', 'feedback-respondent-name', person?.name || 'Получатель'));
+                const submittedAt = submission.created_at ? new Date(String(submission.created_at).replace(' ', 'T')) : null;
+                const dateLabel = submittedAt && !Number.isNaN(submittedAt.getTime())
+                    ? submittedAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : 'Ответ отправлен';
+                personCopy.appendChild(createNode('span', 'feedback-respondent-date', dateLabel));
+                header.appendChild(personCopy);
+                card.appendChild(header);
+
+                const answerList = createNode('div', 'feedback-answer-list');
+                let hasAnswers = false;
+                const answers = submission.answers && typeof submission.answers === 'object' ? submission.answers : {};
+                Object.entries(answers).forEach(([questionIndex, answer]) => {
+                    if (typeof answer !== 'string' || !answer.trim()) return;
+                    hasAnswers = true;
+                    const question = questions.find(entry => String(entry.index) === String(questionIndex));
+                    const answerItem = createNode('div', 'feedback-answer-item');
+                    answerItem.appendChild(createNode('span', 'feedback-answer-question', question?.question || 'Ответ'));
+                    answerItem.appendChild(createNode('p', 'feedback-answer-text', answer));
+                    answerList.appendChild(answerItem);
+                });
+                if (hasAnswers) {
+                    card.appendChild(answerList);
+                }
+
+                const respondentFiles = files
+                    .filter(entry => String(entry.chat_id) === String(submission.chat_id))
+                    .flatMap(entry => Array.isArray(entry.files) ? entry.files : []);
+                if (respondentFiles.length) {
+                    const attachmentSection = createNode('div', 'feedback-attachments');
+                    attachmentSection.appendChild(createNode('span', 'feedback-attachments-title', 'Прикреплённые файлы'));
+                    respondentFiles.forEach(file => {
+                        const row = createNode('div', 'feedback-file-row');
+                        const extension = String(file.name || '').split('.').pop().slice(0, 5).toUpperCase() || 'FILE';
+                        row.appendChild(createNode('span', 'feedback-file-type', extension));
+                        const fileCopy = createNode('div', 'feedback-file-copy');
+                        fileCopy.appendChild(createNode('strong', '', file.name || 'Файл'));
+                        const fileSize = Number(file.size) || 0;
+                        const sizeLabel = fileSize >= 1024 * 1024
+                            ? (fileSize / (1024 * 1024)).toFixed(1) + ' МБ'
+                            : Math.max(1, Math.round(fileSize / 1024)) + ' КБ';
+                        fileCopy.appendChild(createNode('span', '', sizeLabel));
+                        row.appendChild(fileCopy);
+                        const download = createNode('button', 'feedback-file-download', 'Скачать');
+                        download.type = 'button';
+                        download.addEventListener('click', async () => {
+                            download.disabled = true;
+                            download.textContent = 'Загрузка…';
+                            try {
+                                const response = await fetch(file.download_url, { headers: App.getAuthHeaders() });
+                                if (!response.ok) throw new Error('Не удалось скачать файл');
+                                const objectUrl = URL.createObjectURL(await response.blob());
+                                const link = document.createElement('a');
+                                link.href = objectUrl;
+                                link.download = file.name || 'attachment';
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                            } catch (error) {
+                                App.showToast(error.message || 'Не удалось скачать файл');
+                            } finally {
+                                download.disabled = false;
+                                download.textContent = 'Скачать';
+                            }
+                        });
+                        row.appendChild(download);
+                        attachmentSection.appendChild(row);
+                    });
+                    card.appendChild(attachmentSection);
+                }
+
+                if (!hasAnswers && !respondentFiles.length) {
+                    card.appendChild(createNode('p', 'feedback-no-answer', 'Получатель отправил пустой ответ.'));
+                }
+                answersSection.appendChild(card);
             });
-            const filesHeading = document.createElement('h3'); filesHeading.textContent = 'Файлы получателей'; content.appendChild(filesHeading);
-            (data.files || []).forEach(entry => {
-                const group = document.createElement('div'); group.className = 'feedback-result-answer';
-                const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(entry.chat_id));
-                const title = document.createElement('strong'); title.textContent = person?.name || ('Получатель ' + entry.chat_id); group.appendChild(title);
-                entry.files.forEach(file => { const button = document.createElement('button'); button.type = 'button'; button.className = 'group-share-btn'; button.textContent = 'Скачать ' + file.name; button.addEventListener('click', async () => { try { const response = await fetch(file.download_url, { headers: App.getAuthHeaders() }); if (!response.ok) throw new Error('Не удалось скачать файл'); const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a'); link.href = url; link.download = file.name; link.click(); URL.revokeObjectURL(url); } catch (error) { App.showToast(error.message); } }); group.appendChild(button); });
-                content.appendChild(group);
-            });
-        } catch (error) { content.textContent = error.message || 'Не удалось загрузить обратную связь'; }
+        }
+
+        content.appendChild(answersSection);
     },
 
     loadRecipientsData: async function() {
@@ -640,10 +828,10 @@ const HomeScreen = {
     },
 
     init: function() {
-        const feedbackModal = document.getElementById('feedback-results-modal');
-        const feedbackClose = document.getElementById('feedback-results-close');
-        if (feedbackClose) feedbackClose.addEventListener('click', () => { if (feedbackModal) feedbackModal.style.display = 'none'; });
-        if (feedbackModal) feedbackModal.addEventListener('click', event => { if (event.target === feedbackModal) feedbackModal.style.display = 'none'; });
+        const feedbackBackButton = document.getElementById('feedback-results-back-btn');
+        if (feedbackBackButton) {
+            feedbackBackButton.addEventListener('click', () => App.showScreen('home'));
+        }
         const sentDeleteModal = document.getElementById('sent-delete-modal');
         const sentDeleteCancel = document.getElementById('sent-delete-cancel');
         const sentDeleteConfirm = document.getElementById('sent-delete-confirm');
