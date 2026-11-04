@@ -516,6 +516,101 @@ router.get('/public/:id/media/:filename', async (req, res) => {
     }
 });
 
+router.post('/public/:id/feedback', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, quick_replies, message_ids FROM reminders WHERE id = ?').get(id);
+        if (!reminder || !reminder.feedback_enabled || reminder.repeat_type && reminder.repeat_type !== 'Никогда') return res.status(404).json({ error: 'Feedback is unavailable' });
+        const messageIds = safeJsonParse(reminder.message_ids, {});
+        const chatId = await getRecipientChatId(reminder, messageIds, req.userId);
+        if (!chatId) return res.status(404).json({ error: 'Reminder not found' });
+        const questions = safeJsonParse(reminder.quick_replies, []).filter(item => item && typeof item.question === 'string' && item.question.trim());
+        const incoming = req.body?.answers && typeof req.body.answers === 'object' && !Array.isArray(req.body.answers) ? req.body.answers : {};
+        const answers = {};
+        questions.forEach((question, index) => {
+            const value = typeof incoming[index] === 'string' ? incoming[index].trim().slice(0, 1000) : '';
+            if (value) answers[index] = value;
+        });
+        const files = Array.isArray(req.body?.files) ? req.body.files : [];
+        if (!reminder.feedback_allow_files && files.length) return res.status(400).json({ error: 'File attachments are disabled' });
+        if (files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
+        const save = db.transaction(() => {
+            const existing = db.prepare('SELECT id FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?').get(id, chatId);
+            let submissionId;
+            if (existing) {
+                submissionId = existing.id;
+                db.prepare('UPDATE feedback_submissions SET answers = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?').run(JSON.stringify(answers), submissionId);
+            } else {
+                submissionId = db.prepare('INSERT INTO feedback_submissions (reminder_id, chat_id, answers) VALUES (?, ?, ?)').run(id, chatId, JSON.stringify(answers)).lastInsertRowid;
+            }
+            return submissionId;
+        });
+        const submissionId = save();
+        const stored = db.prepare('SELECT filename FROM feedback_files WHERE submission_id = ?').all(submissionId).map(item => item.filename);
+        if (files.length) {
+            if (stored.length + files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
+            for (const file of files) {
+                const media = decodeUploadedMedia(file.data, 'file', file.name);
+                const saved = storeUploadedMedia(media, req.userId);
+                db.prepare('INSERT INTO feedback_files (submission_id, filename, name, size, mime_type) VALUES (?, ?, ?, ?, ?)')
+                    .run(submissionId, saved.filename, saved.name, saved.size, saved.mime_type);
+            }
+        }
+        res.json({ success: true });
+    } catch (error) {
+        if (error.message === 'FILE_TOO_LARGE') return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+        if (error.message === 'INVALID_FILE' || error.message === 'INVALID_UPLOAD') return res.status(400).json({ error: 'Формат файла не поддерживается' });
+        console.error('Failed to save recipient feedback:', error.message);
+        res.status(500).json({ error: 'Не удалось сохранить обратную связь' });
+    }
+});
+
+router.get('/:id/feedback', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT id, user_id, recipients, quick_replies, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
+        const submissions = db.prepare('SELECT id, chat_id, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
+        const recipients = getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, []));
+        const questions = safeJsonParse(reminder.quick_replies, []).filter(item => item && item.question).map((item, index) => {
+            const count = submissions.filter(row => {
+                const answers = safeJsonParse(row.answers, {});
+                return typeof answers[index] === 'string' && answers[index].trim();
+            }).length;
+            return { index, question: item.question, answered: count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
+        });
+        const files = submissions.map(row => ({
+            chat_id: row.chat_id,
+            files: db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id').all(row.id)
+                .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
+        })).filter(row => row.files.length);
+        res.json({ total_recipients: recipients.length, responded: submissions.length, response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0, file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0, questions, submissions: submissions.map(row => ({ chat_id: row.chat_id, answers: safeJsonParse(row.answers, {}), created_at: row.created_at })), files });
+    } catch (error) {
+        console.error('Failed to load feedback:', error.message);
+        res.status(500).json({ error: 'Не удалось загрузить обратную связь' });
+    }
+});
+
+router.get('/:id/feedback/files/:filename', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const filename = String(req.params.filename || '');
+        const reminder = db.prepare('SELECT user_id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const file = db.prepare('SELECT f.name, f.mime_type FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND f.filename = ?').get(id, filename);
+        if (!reminder || !file || !/^file_[a-f0-9]{32}\\.[a-z0-9]+$/i.test(filename)) return res.status(404).json({ error: 'File not found' });
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.type(file.mime_type || 'application/octet-stream');
+        return res.download(filePath, file.name);
+    } catch (error) {
+        res.status(500).json({ error: 'Не удалось скачать файл' });
+    }
+});
+
 router.get('/public/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -523,7 +618,7 @@ router.get('/public/:id', async (req, res) => {
             return res.status(400).json({ error: 'Invalid reminder id' });
         }
 
-        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, images, message_ids, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
         const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
         if (!reminder || !chatId) {
@@ -565,7 +660,9 @@ router.get('/public/:id', async (req, res) => {
                 id: String(reminder.user_id)
             },
             images: publicImages,
-            quick_replies: publicReplies
+            quick_replies: publicReplies,
+            feedback_enabled: Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда',
+            feedback_allow_files: Boolean(reminder.feedback_allow_files)
         });
     } catch (error) {
         console.error('Failed to fetch recipient reminder:', error.message);
@@ -768,7 +865,9 @@ router.post('/', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images
+            images,
+            feedback_enabled,
+            feedback_allow_files
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -811,6 +910,8 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
 
+        const cleanFeedbackEnabled = cleanRepeatType === 'Никогда' && feedback_enabled === true;
+        const cleanFeedbackAllowFiles = cleanFeedbackEnabled && feedback_allow_files === true;
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
             return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
@@ -818,8 +919,8 @@ router.post('/', async (req, res) => {
 
         const stmt = db.prepare(`
             INSERT INTO reminders (
-                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, feedback_enabled, feedback_allow_files, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const info = stmt.run(
@@ -834,6 +935,8 @@ router.post('/', async (req, res) => {
             JSON.stringify(validRecipients),
             JSON.stringify(validReplies),
             JSON.stringify(validImages),
+            cleanFeedbackEnabled ? 1 : 0,
+            cleanFeedbackAllowFiles ? 1 : 0,
             status
         );
 
