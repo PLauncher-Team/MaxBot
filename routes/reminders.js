@@ -805,21 +805,8 @@ router.get('/', (req, res) => {
         // Keep only five sent reminders and five upcoming scheduled reminders.
         // Remove stored responses with pruned records to avoid orphaned database rows.
         const pruneReminderHistory = db.transaction(userId => {
-            const oldSent = db.prepare("
-                SELECT id, images FROM reminders
-                WHERE user_id = ? AND status = 'sent'
-                ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC
-                LIMIT -1 OFFSET 5
-            ").all(userId);
-            const oldScheduled = db.prepare("
-                SELECT id, images FROM reminders
-                WHERE user_id = ? AND status = 'scheduled'
-                ORDER BY
-                    CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END,
-                    scheduled_time ASC,
-                    id ASC
-                LIMIT -1 OFFSET 5
-            ").all(userId);
+            const oldSent = db.prepare("SELECT id, images FROM reminders WHERE user_id = ? AND status = 'sent' ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC LIMIT -1 OFFSET 5").all(userId);
+            const oldScheduled = db.prepare("SELECT id, images FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END, scheduled_time ASC, id ASC LIMIT -1 OFFSET 5").all(userId);
             const removed = oldSent.concat(oldScheduled);
             if (!removed.length) return [];
 
