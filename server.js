@@ -105,6 +105,8 @@ app.get('/api/uploads/:filename', (req, res) => {
 
 // Authenticate before parsing request bodies so unauthenticated clients cannot make the
 // JSON parser process large payloads. No client-supplied user ID is trusted.
+app.get('/api/media-download/:token', remindersRouter.handleRecipientMediaDownload);
+
 app.use('/api', (req, res, next) => {
     const authenticate = req.path.startsWith('/reminders/public/')
         ? recipientAuthMiddleware

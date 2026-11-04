@@ -528,7 +528,7 @@ router.get('/public/:id', async (req, res) => {
             ? validImages.map(({ filename, type, name, size, mime_type, width, height }) => ({
                 url: '/api/reminders/public/' + id + '/media/' + encodeURIComponent(filename),
                 download_url: type === 'file'
-                    ? PUBLIC_BASE_URL + '/media-download/' + createRecipientDownloadToken(id, filename, req.userId)
+                    ? PUBLIC_BASE_URL + '/api/media-download/' + createRecipientDownloadToken(id, filename, req.userId)
                     : null,
                 type,
                 name,
