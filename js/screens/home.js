@@ -417,11 +417,8 @@ const HomeScreen = {
                 card.append(questionText, stats, createProgress(question.percent));
                 questionsSection.appendChild(card);
             });
-        } else {
-            const empty = createNode('div', 'feedback-inline-empty', 'В этой рассылке не было вопросов для опроса. Здесь отображаются текстовые ответы и прикреплённые файлы.');
-            questionsSection.appendChild(empty);
+            content.appendChild(questionsSection);
         }
-        content.appendChild(questionsSection);
 
         const answersSection = createNode('section', 'feedback-section feedback-answers-section');
         const answersHeading = createNode('div', 'feedback-section-heading');
