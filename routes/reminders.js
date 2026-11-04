@@ -896,7 +896,7 @@ router.get('/', (req, res) => {
         });
         cleanupUnreferencedUploadedMedia(pruneReminderHistory(req.userId));
 
-        const rows = db.prepare('SELECT * FROM reminders WHERE user_id = ? ORDER BY id DESC').all(req.userId);
+        const rows = db.prepare("SELECT reminders.*, (SELECT COUNT(*) FROM feedback_submissions WHERE feedback_submissions.reminder_id = reminders.id) AS feedback_response_count FROM reminders WHERE user_id = ? ORDER BY id DESC").all(req.userId);
         const parsed = rows.map(r => ({
             ...r,
             recipients: safeJsonParse(r.recipients, []),
