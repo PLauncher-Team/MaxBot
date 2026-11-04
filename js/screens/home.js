@@ -7,6 +7,7 @@ const HomeScreen = {
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    expandedReminderSections: { scheduled: false, sent: false },
 
     updateTemplateScrollControls: function() {
         const container = document.getElementById('templates-scroll');
@@ -198,6 +199,8 @@ const HomeScreen = {
                 });
     
             if (scheduledCount) scheduledCount.textContent = scheduled.length;
+            const sentCount = document.getElementById('sent-count');
+            if (sentCount) sentCount.textContent = sent.length;
     
             if (scheduledList && scheduledPlaceholder) {
                 scheduledList.innerHTML = '';
@@ -643,6 +646,19 @@ const HomeScreen = {
                 App.openCreateTemplateModal();
             });
         }
+
+        ['scheduled', 'sent'].forEach(section => {
+            const toggle = document.getElementById(section + '-toggle');
+            const content = document.getElementById(section + '-section-content');
+            if (!toggle || !content) return;
+
+            toggle.addEventListener('click', () => {
+                const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+                this.expandedReminderSections[section] = expanded;
+                toggle.setAttribute('aria-expanded', String(expanded));
+                content.hidden = !expanded;
+            });
+        });
 
         const showRecipientsBtn = document.getElementById('show-recipients-btn');
         if (showRecipientsBtn) {

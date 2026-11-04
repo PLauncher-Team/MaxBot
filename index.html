@@ -101,11 +101,12 @@
             </button>
 
             <div class="section-header">
-                <div class="section-header-left">
-                    Запланированные
-                    <span class="count" id="scheduled-count">0</span>
-                </div>
+                <button type="button" class="section-toggle" id="scheduled-toggle" aria-expanded="false" aria-controls="scheduled-section-content">
+                    <span class="section-header-left">Запланированные <span class="count" id="scheduled-count">0</span></span>
+                    <svg class="section-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
             </div>
+            <div class="home-collapsible-content" id="scheduled-section-content" hidden>
             <div class="placeholder-box" id="scheduled-placeholder">
                 <div class="placeholder-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -113,6 +114,7 @@
                 <span>Здесь появятся напоминания, которые ожидают отправки.</span>
             </div>
             <div class="reminders-list" id="scheduled-list" style="display: none;"></div>
+            </div>
 
             <div class="section-header">
                 <div class="section-header-left">
@@ -132,10 +134,12 @@
             </div>
 
             <div class="section-header">
-                <div class="section-header-left">
-                    Отправленные
-                </div>
+                <button type="button" class="section-toggle" id="sent-toggle" aria-expanded="false" aria-controls="sent-section-content">
+                    <span class="section-header-left">Отправленные <span class="count" id="sent-count">0</span></span>
+                    <svg class="section-toggle-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg>
+                </button>
             </div>
+            <div class="home-collapsible-content" id="sent-section-content" hidden>
             <div class="placeholder-box" id="sent-placeholder">
                 <div class="placeholder-icon">
                     <svg width="16" height="16" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path></svg>
@@ -143,6 +147,7 @@
                 <span>История отправленных напоминаний будет храниться здесь.</span>
             </div>
             <div class="reminders-list" id="sent-list" style="display: none;"></div>
+            </div>
         </div>
         <div class="bottom-button-container">
             <button class="bottom-button" id="add-reminder-btn">Создать напоминание</button>
