@@ -486,7 +486,8 @@ const App = {
             templates: document.getElementById('templates-screen'),
             create: document.getElementById('create-screen'),
             recipients: document.getElementById('recipients-screen'),
-            reminderView: document.getElementById('reminder-view-screen')
+            reminderView: document.getElementById('reminder-view-screen'),
+            feedbackResults: document.getElementById('feedback-results-screen')
         };
 
         if (window.WebApp) {
@@ -503,7 +504,7 @@ const App = {
                         this.recipientsReturnScreen = null;
                         this.showScreen(target);
                         if (target === 'create') CreateScreen.loadRecipientOptions();
-                    } else if (this.currentScreen === 'templates') {
+                    } else if (this.currentScreen === 'templates' || this.currentScreen === 'feedbackResults') {
                         this.showScreen('home');
                     }
                 });
