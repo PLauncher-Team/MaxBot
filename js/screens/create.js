@@ -45,7 +45,7 @@ const CreateScreen = {
         if (!list) return;
         list.innerHTML = '';
 
-        const addOption = (title, description, template, isEmpty = false) => {
+        const addOption = (title, template, isEmpty = false) => {
             const option = document.createElement('button');
             option.type = 'button';
             option.className = 'wizard-template-option' + (isEmpty ? ' wizard-template-option-empty' : '');
@@ -53,17 +53,11 @@ const CreateScreen = {
             name.className = 'wizard-template-option-title';
             name.textContent = title;
             option.appendChild(name);
-            if (description) {
-                const detail = document.createElement('span');
-                detail.className = 'wizard-template-option-description';
-                detail.textContent = description;
-                option.appendChild(detail);
-            }
             option.addEventListener('click', () => this.selectWizardTemplate(template));
             list.appendChild(option);
         };
 
-        addOption('Без шаблона', 'Создать напоминание с пустой формой', null, true);
+        addOption('Без шаблона', null, true);
         const loading = document.createElement('div');
         loading.className = 'wizard-template-loading';
         loading.textContent = 'Загрузка шаблонов...';
@@ -72,7 +66,7 @@ const CreateScreen = {
         try {
             const templates = await App.getTemplates();
             loading.remove();
-            templates.forEach(template => addOption(template.title || 'Без названия', template.description || '', template));
+            templates.forEach(template => addOption(template.title || 'Без названия', template));
         } catch (error) {
             loading.textContent = 'Не удалось загрузить шаблоны';
         }
