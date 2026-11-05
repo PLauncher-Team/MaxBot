@@ -172,7 +172,11 @@
 }
 
 .template-edit-btn {
-    color: #737782;
+    position: static;
+    top: auto;
+    right: auto;
+    background: var(--accent-soft, #edf1ff);
+    color: var(--accent, #4263eb);
 }
 
 .template-edit-btn svg {
