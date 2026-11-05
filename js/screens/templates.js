@@ -33,7 +33,10 @@ const TemplatesScreen = {
                     <div class="template-item-title">${App.escapeHtml(t.title)}</div>
                     <div class="template-item-right">
                         <div class="template-item-badge">Шаблон</div>
-                        <button class="template-delete-btn">
+                        <button type="button" class="template-edit-btn" aria-label="Редактировать шаблон ${App.escapeHtml(t.title)}" title="Редактировать">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
+                        </button>
+                        <button type="button" class="template-delete-btn" aria-label="Удалить шаблон ${App.escapeHtml(t.title)}" title="Удалить">
                             <svg width="14" height="14" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
@@ -45,11 +48,19 @@ const TemplatesScreen = {
             if (description.textContent) item.appendChild(description);
 
             item.addEventListener('click', (e) => {
-                if (e.target.closest('.template-delete-btn')) {
+                if (e.target.closest('.template-delete-btn, .template-edit-btn')) {
                     return;
                 }
                 CreateScreen.startWizard(t);
             });
+
+            const editBtn = item.querySelector('.template-edit-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    App.openEditTemplateModal(t);
+                });
+            }
 
             const deleteBtn = item.querySelector('.template-delete-btn');
             if (deleteBtn) {
