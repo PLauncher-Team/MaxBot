@@ -42,18 +42,23 @@ const HomeScreen = {
             if (templatesScroll) {
                 templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
                 templates.forEach(t => {
-                    const card = document.createElement('button');
-                    card.type = 'button';
+                    const card = document.createElement('div');
                     card.className = 'template-card';
                     card.setAttribute('data-id', t.id);
                     card.innerHTML = `
-                        <div class="template-card-content">
+                        <button type="button" class="template-card-open">
                             <div class="template-title">${App.escapeHtml(t.title)}</div>
                             <div class="template-badge">Шаблон</div>
-                        </div>
+                        </button>
+                        <button type="button" class="template-edit-btn" aria-label="Редактировать шаблон ${App.escapeHtml(t.title)}" title="Редактировать">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
+                        </button>
                     `;
-                    card.addEventListener('click', () => {
+                    card.querySelector('.template-card-open').addEventListener('click', () => {
                         CreateScreen.startWizard(t);
+                    });
+                    card.querySelector('.template-edit-btn').addEventListener('click', () => {
+                        App.openEditTemplateModal(t);
                     });
                     templatesScroll.insertBefore(card, addCard);
                 });
