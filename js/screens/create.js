@@ -66,10 +66,7 @@ const CreateScreen = {
         try {
             const templates = await App.getTemplates();
             loading.remove();
-            templates.forEach(template => {
-                const displayTitle = String(template.title || '').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || String(template.title || '');
-                addOption(displayTitle || 'Без названия', template);
-            });
+            templates.forEach(template => addOption(template.title || 'Без названия', template));
         } catch (error) {
             loading.textContent = 'Не удалось загрузить шаблоны';
         }
