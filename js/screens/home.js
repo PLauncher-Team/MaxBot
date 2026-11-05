@@ -45,12 +45,13 @@ const HomeScreen = {
                     const card = document.createElement('div');
                     card.className = 'template-card';
                     card.setAttribute('data-id', t.id);
+                    const displayTitle = String(t.title || '').replace(/\\s*\\[[^\\]]+\\]\\s*$/, '').trim() || String(t.title || '');
                     card.innerHTML = `
                         <button type="button" class="template-card-open">
-                            <div class="template-title">${App.escapeHtml(t.title)}</div>
+                            <div class="template-title">${App.escapeHtml(displayTitle)}</div>
                             <div class="template-badge">Шаблон</div>
                         </button>
-                        <button type="button" class="template-edit-btn" aria-label="Редактировать шаблон ${App.escapeHtml(t.title)}" title="Редактировать">
+                        <button type="button" class="template-edit-btn" aria-label="Редактировать шаблон ${App.escapeHtml(displayTitle)}" title="Редактировать">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
                         </button>
                     `;
