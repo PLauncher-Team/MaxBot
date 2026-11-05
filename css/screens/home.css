@@ -407,3 +407,10 @@
     max-height: 74px;
     padding: 7px 36px 7px 10px;
 }
+
+.templates-scroll > .template-add-card {
+    height: 92px;
+    min-height: 92px;
+    max-height: 92px;
+    box-sizing: border-box;
+}
