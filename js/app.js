@@ -7,6 +7,7 @@ const App = {
     selectedTemplate: null,
 
     modalReplies: [],
+    editingTemplateId: null,
 
     escapeHtml: function(str) {
         if (str === null || str === undefined) return '';
@@ -100,6 +101,22 @@ const App = {
         const data = await res.json().catch(() => null);
         if (!res.ok) {
             throw new Error(data?.error || 'Не удалось сохранить шаблон');
+        }
+        return data;
+    },
+
+    updateTemplate: async function(id, template) {
+        const res = await fetch('/api/templates/' + encodeURIComponent(id), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(template)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось обновить шаблон');
         }
         return data;
     },
@@ -484,10 +501,15 @@ const App = {
         const descInput = document.getElementById('modal-template-desc');
         const qInput = document.getElementById('modal-reply-q');
         const aInput = document.getElementById('modal-reply-a');
+        const heading = document.getElementById('modal-template-heading');
+        const saveButton = document.getElementById('modal-template-save');
+        this.editingTemplateId = null;
         if (titleInput) titleInput.value = '';
         if (descInput) descInput.value = '';
         if (qInput) qInput.value = '';
         if (aInput) aInput.value = '';
+        if (heading) heading.textContent = 'Новый шаблон';
+        if (saveButton) saveButton.textContent = 'Создать шаблон';
         this.modalReplies = [];
         this.modalFeedbackOptions = [];
         this.modalFeedbackEnabled = false;
@@ -495,6 +517,33 @@ const App = {
         this.renderModalFeedbackSettings();
         const optionInput = document.getElementById('modal-feedback-option-input');
         if (optionInput) optionInput.value = '';
+        this.renderModalReplies();
+        this.renderModalFeedbackOptions();
+        if (modal) modal.style.display = 'flex';
+    },
+
+    openEditTemplateModal: function(template) {
+        const modal = document.getElementById('template-modal');
+        const titleInput = document.getElementById('modal-template-title');
+        const descInput = document.getElementById('modal-template-desc');
+        const qInput = document.getElementById('modal-reply-q');
+        const aInput = document.getElementById('modal-reply-a');
+        const heading = document.getElementById('modal-template-heading');
+        const saveButton = document.getElementById('modal-template-save');
+        const optionInput = document.getElementById('modal-feedback-option-input');
+        this.editingTemplateId = template.id;
+        if (titleInput) titleInput.value = template.title || '';
+        if (descInput) descInput.value = template.description || '';
+        if (qInput) qInput.value = '';
+        if (aInput) aInput.value = '';
+        if (heading) heading.textContent = 'Редактировать шаблон';
+        if (saveButton) saveButton.textContent = 'Сохранить изменения';
+        this.modalReplies = Array.isArray(template.quick_replies) ? template.quick_replies.map(reply => ({ ...reply })) : [];
+        this.modalFeedbackOptions = Array.isArray(template.feedback_options) ? [...template.feedback_options] : [];
+        this.modalFeedbackEnabled = Boolean(template.feedback_enabled);
+        this.modalFeedbackAllowFiles = this.modalFeedbackEnabled && Boolean(template.feedback_allow_files);
+        if (optionInput) optionInput.value = '';
+        this.renderModalFeedbackSettings();
         this.renderModalReplies();
         this.renderModalFeedbackOptions();
         if (modal) modal.style.display = 'flex';
@@ -518,6 +567,7 @@ const App = {
     closeCreateTemplateModal: function() {
         const modal = document.getElementById('template-modal');
         if (modal) modal.style.display = 'none';
+        this.editingTemplateId = null;
     },
 
     init: function() {
@@ -690,22 +740,29 @@ const App = {
                     return;
                 }
 
+                const template = {
+                    title,
+                    description,
+                    quick_replies: this.modalReplies,
+                    feedback_enabled: this.modalFeedbackEnabled,
+                    feedback_allow_files: this.modalFeedbackEnabled && this.modalFeedbackAllowFiles,
+                    feedback_options: this.modalFeedbackEnabled ? (this.modalFeedbackOptions || []) : []
+                };
+                const isEditing = this.editingTemplateId !== null;
+
                 try {
-                    await this.saveTemplate({
-                        title,
-                        description,
-                        quick_replies: this.modalReplies,
-                        feedback_enabled: this.modalFeedbackEnabled,
-                        feedback_allow_files: this.modalFeedbackEnabled && this.modalFeedbackAllowFiles,
-                        feedback_options: this.modalFeedbackEnabled ? (this.modalFeedbackOptions || []) : []
-                    });
+                    if (isEditing) {
+                        await this.updateTemplate(this.editingTemplateId, template);
+                    } else {
+                        await this.saveTemplate(template);
+                    }
                 } catch (error) {
-                    this.showToast(error.message || 'Не удалось сохранить шаблон');
+                    this.showToast(error.message || (isEditing ? 'Не удалось обновить шаблон' : 'Не удалось сохранить шаблон'));
                     return;
                 }
 
                 this.closeCreateTemplateModal();
-                this.showToast('Шаблон сохранён');
+                this.showToast(isEditing ? 'Шаблон обновлён' : 'Шаблон сохранён');
                 if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
                     HomeScreen.loadData();
                 }
