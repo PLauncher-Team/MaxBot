@@ -171,7 +171,7 @@
     justify-content: center;
 }
 
-.template-edit-btn {
+.template-item-right .template-edit-btn {
     position: static;
     top: auto;
     right: auto;
