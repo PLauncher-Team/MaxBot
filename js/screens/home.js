@@ -45,7 +45,7 @@ const HomeScreen = {
                     const card = document.createElement('div');
                     card.className = 'template-card';
                     card.setAttribute('data-id', t.id);
-                    const displayTitle = String(t.title || '').replace(/\s*\[[^\]]+\]\s*$/, '').trim() || String(t.title || '');
+                    const displayTitle = String(t.title || '');
                     card.innerHTML = `
                         <button type="button" class="template-card-open">
                             <div class="template-title">${App.escapeHtml(displayTitle)}</div>
