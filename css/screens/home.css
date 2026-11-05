@@ -70,7 +70,7 @@
     flex-shrink: 0;
 }
 
-.template-edit-btn {
+.template-card .template-edit-btn {
     position: absolute;
     top: 8px;
     right: 8px;
