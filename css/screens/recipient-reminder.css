@@ -704,7 +704,8 @@
 }
 
 .recipient-question-trigger {
-    display: inline-flex;
+    display: flex;
+    width: fit-content;
     min-height: 34px;
     align-items: center;
     justify-content: center;
