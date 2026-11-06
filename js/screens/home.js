@@ -609,7 +609,7 @@ const HomeScreen = {
         const dailyCounts = new Map();
         submissions.forEach(submission => {
             const rawDate = String(submission.created_at || '').slice(0, 10);
-            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(rawDate)) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) return;
             dailyCounts.set(rawDate, (dailyCounts.get(rawDate) || 0) + 1);
         });
         const dailyEntries = [...dailyCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-10);
