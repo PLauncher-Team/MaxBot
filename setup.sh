@@ -11,11 +11,6 @@ docker compose version >/dev/null 2>&1 || { echo "Требуется Docker Comp
 read -r -s -p "Токен MAX-бота: " BOT_TOKEN
 printf '\n'
 [[ -n "$BOT_TOKEN" ]] || { echo "Токен не может быть пустым"; exit 1; }
-read -r -p "MAX user ID владельца для команды очистки БД (можно оставить пустым): " MAX_BOT_OWNER_ID
-if [[ -n "$MAX_BOT_OWNER_ID" && ! "$MAX_BOT_OWNER_ID" =~ ^[0-9]{1,32}$ ]]; then
-  echo "MAX user ID должен содержать только цифры"
-  exit 1
-fi
 read -r -p "Домен приложения: " MAXBOT_DOMAIN
 MAXBOT_DOMAIN="${MAXBOT_DOMAIN,,}"
 [[ "$MAXBOT_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "Некорректный домен"; exit 1; }
@@ -28,9 +23,6 @@ unset BOT_TOKEN
 chown 1000:1000 secrets/bot_token
 chmod 400 secrets/bot_token
 printf 'MAXBOT_DOMAIN=%s\n' "$MAXBOT_DOMAIN" > .env
-if [[ -n "$MAX_BOT_OWNER_ID" ]]; then
-  printf 'MAX_BOT_OWNER_ID=%s\n' "$MAX_BOT_OWNER_ID" >> .env
-fi
 chmod 600 .env
 IP="$(getent ahostsv4 "$MAXBOT_DOMAIN" | awk 'NR==1 {print $1}')"
 [[ -n "$IP" ]] || { echo "Домен не разрешается в IPv4"; exit 1; }
