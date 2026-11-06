@@ -932,7 +932,7 @@ router.post('/:id/feedback/read', (req, res) => {
     }
 });
 
-router.get('/:id/feedback/export', (req, res) => {
+router.get('/:id/feedback/export', async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
@@ -1107,7 +1107,7 @@ router.get('/:id/feedback/export', (req, res) => {
         });
 
         const dataSheetName = 'Данные графиков';
-        const workbook = createWorkbook([
+        const workbook = await createWorkbook([
             { name: 'Ответы', rows: answerRows },
             { name: 'Статистика', rows: statisticsRows },
             { name: 'Варианты ответов', rows: optionRows },
