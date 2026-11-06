@@ -6,6 +6,7 @@ const db = require('../db');
 const { sendBroadcastMessage, sendQuickReplyMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
 const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
+const { createWorkbook } = require('../xlsx');
 
 const router = express.Router();
 
@@ -928,6 +929,145 @@ router.post('/:id/feedback/read', (req, res) => {
     } catch (error) {
         console.error('Failed to mark feedback as read:', error.message);
         res.status(500).json({ error: 'Не удалось отметить обратную связь просмотренной' });
+    }
+});
+
+router.get('/:id/feedback/export', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT id, title, recipients, feedback_options, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+        if (!reminder.feedback_enabled || reminder.repeat_type !== 'Никогда') {
+            return res.status(404).json({ error: 'Экспорт ответов недоступен для этого напоминания' });
+        }
+
+        const selectedRecipients = safeJsonParse(reminder.recipients, []);
+        const recipientIds = getTargetChatIds(req.userId, Array.isArray(selectedRecipients) ? selectedRecipients : []);
+        const submissions = db.prepare('SELECT chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at, id').all(id);
+        const fileRows = db.prepare('SELECT s.chat_id, f.name FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? ORDER BY f.id').all(id);
+        const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
+        const participantByIdentity = new Map();
+        participants.forEach(participant => {
+            if (participant.chat_id !== null && participant.chat_id !== undefined) participantByIdentity.set(String(participant.chat_id), participant);
+            if (participant.user_id !== null && participant.user_id !== undefined) participantByIdentity.set(String(participant.user_id), participant);
+        });
+
+        const submissionByChatId = new Map(submissions.map(row => [String(row.chat_id), row]));
+        const filesByChatId = new Map();
+        fileRows.forEach(file => {
+            const key = String(file.chat_id);
+            if (!filesByChatId.has(key)) filesByChatId.set(key, []);
+            filesByChatId.get(key).push(file.name);
+        });
+        const allRecipientIds = [...new Set([
+            ...recipientIds.map(String),
+            ...submissions.map(row => String(row.chat_id)),
+            ...fileRows.map(row => String(row.chat_id))
+        ])];
+
+        const answerRows = [[
+            'Получатель',
+            'ID MAX',
+            'Статус ответа',
+            'Выбранный вариант',
+            'Текстовый ответ',
+            'Прикрепил файл',
+            'Названия файлов',
+            'Количество файлов',
+            'Дата ответа'
+        ]];
+        allRecipientIds.forEach(chatId => {
+            const submission = submissionByChatId.get(chatId);
+            const participant = participantByIdentity.get(chatId);
+            const name = submission?.recipient_name || participant?.name || (chatId === String(req.userId) ? 'Вы' : 'Получатель');
+            const answers = submission ? safeJsonParse(submission.answers, {}) : {};
+            const recipientFiles = filesByChatId.get(chatId) || [];
+            const hasFiles = recipientFiles.length > 0;
+            const fileStatus = reminder.feedback_allow_files ? (hasFiles ? 'Да' : 'Нет') : 'Не запрашивались';
+            answerRows.push([
+                name,
+                chatId,
+                submission ? 'Ответил' : 'Не ответил',
+                typeof answers.choice === 'string' ? answers.choice : '',
+                typeof answers.text === 'string' ? answers.text : (typeof answers.answer === 'string' ? answers.answer : ''),
+                fileStatus,
+                recipientFiles.join('; '),
+                recipientFiles.length,
+                submission?.created_at || ''
+            ]);
+        });
+
+        const totalRecipients = allRecipientIds.length;
+        const respondedIds = new Set(submissions.map(row => String(row.chat_id)));
+        const responded = respondedIds.size;
+        const attachedRecipientIds = new Set(fileRows.map(row => String(row.chat_id)));
+        const attached = [...attachedRecipientIds].filter(chatId => allRecipientIds.includes(chatId)).length;
+        const notAttached = Math.max(0, totalRecipients - attached);
+        const responsePercent = totalRecipients ? Math.round(responded / totalRecipients * 1000) / 10 : 0;
+        const filePercent = totalRecipients ? Math.round(attached / totalRecipients * 1000) / 10 : 0;
+
+        const statisticsRows = [
+            ['Показатель', 'Значение'],
+            ['Напоминание', reminder.title || ('Напоминание #' + id)],
+            ['Всего получателей', totalRecipients],
+            ['Ответили', responded],
+            ['Не ответили', Math.max(0, totalRecipients - responded)],
+            ['Доля ответивших', responsePercent + '%'],
+            ['Разрешено прикреплять файлы', reminder.feedback_allow_files ? 'Да' : 'Нет'],
+            ['Получателей с файлами', reminder.feedback_allow_files ? attached : 'Не применимо'],
+            ['Получателей без файлов', reminder.feedback_allow_files ? notAttached : 'Не применимо'],
+            ['Всего прикреплённых файлов', reminder.feedback_allow_files ? fileRows.length : 'Не применимо'],
+            ['Доля получателей с файлами', reminder.feedback_allow_files ? filePercent + '%' : 'Не применимо']
+        ];
+
+        const configuredOptions = safeJsonParse(reminder.feedback_options, []);
+        const optionMap = new Map();
+        (Array.isArray(configuredOptions) ? configuredOptions : []).forEach(option => {
+            if (typeof option !== 'string' || !option.trim()) return;
+            const key = option.trim().toLocaleLowerCase('ru');
+            if (!optionMap.has(key)) optionMap.set(key, option.trim());
+        });
+        submissions.forEach(row => {
+            const answers = safeJsonParse(row.answers, {});
+            if (typeof answers.choice !== 'string' || !answers.choice.trim()) return;
+            const option = answers.choice.trim();
+            const key = option.toLocaleLowerCase('ru');
+            if (!optionMap.has(key)) optionMap.set(key, option);
+        });
+        const optionCounts = new Map();
+        submissions.forEach(row => {
+            const answers = safeJsonParse(row.answers, {});
+            if (typeof answers.choice !== 'string' || !answers.choice.trim()) return;
+            const key = answers.choice.trim().toLocaleLowerCase('ru');
+            optionCounts.set(key, (optionCounts.get(key) || 0) + 1);
+        });
+        const optionRows = [['Вариант ответа', 'Количество', '% от всех получателей', '% от ответивших']];
+        optionMap.forEach((option, key) => {
+            const count = optionCounts.get(key) || 0;
+            const shareOfRecipients = totalRecipients ? Math.round(count / totalRecipients * 1000) / 10 : 0;
+            const shareOfRespondents = responded ? Math.round(count / responded * 1000) / 10 : 0;
+            optionRows.push([option, count, shareOfRecipients + '%', shareOfRespondents + '%']);
+        });
+        if (!optionMap.size) optionRows.push(['Варианты ответа не настроены', 0, '0%', '0%']);
+
+        const workbook = createWorkbook([
+            { name: 'Ответы', rows: answerRows },
+            { name: 'Статистика', rows: statisticsRows },
+            { name: 'Варианты ответов', rows: optionRows }
+        ]);
+        const safeTitle = String(reminder.title || 'feedback')
+            .replace(/[\\/:*?"<>|]+/g, ' ')
+            .trim()
+            .slice(0, 70) || 'feedback';
+        const fileName = 'Ответы - ' + safeTitle + '.xlsx';
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename="feedback-' + id + '.xlsx"; filename*=UTF-8\'\'' + encodeURIComponent(fileName));
+        res.setHeader('Content-Length', workbook.length);
+        return res.send(workbook);
+    } catch (error) {
+        console.error('Failed to export feedback workbook:', error.message);
+        return res.status(500).json({ error: 'Не удалось экспортировать ответы' });
     }
 });
 
