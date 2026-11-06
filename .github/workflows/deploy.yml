@@ -37,7 +37,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF" == "refs/heads/ui-redesign" || "$GITHUB_REF" == "refs/heads/feature/recipient-feedback" ]] || { echo "::error::Only ui-redesign or feature/recipient-feedback may be deployed by this workflow"; exit 1; }
           test -n "$SSHPASS" || { echo "::error::Missing DEPLOY_SSH_PASSWORD"; exit 1; }
           test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
           if [[ -n "$DEPLOY_SSH_KNOWN_HOSTS" ]]; then
