@@ -335,14 +335,13 @@ const CreateScreen = {
     },
 
     getMinDateTimeString: function() {
-        const d = new Date();
-        d.setMinutes(d.getMinutes() + 1);
+        const d = new Date(Date.now() + 60 * 1000 + 3 * 60 * 60 * 1000);
         const pad = (n) => String(n).padStart(2, '0');
-        const year = d.getFullYear();
-        const month = pad(d.getMonth() + 1);
-        const day = pad(d.getDate());
-        const hours = pad(d.getHours());
-        const mins = pad(d.getMinutes());
+        const year = d.getUTCFullYear();
+        const month = pad(d.getUTCMonth() + 1);
+        const day = pad(d.getUTCDate());
+        const hours = pad(d.getUTCHours());
+        const mins = pad(d.getUTCMinutes());
         return `${year}-${month}-${day}T${hours}:${mins}`;
     },
 
@@ -641,10 +640,9 @@ const CreateScreen = {
         if (sendDateTime) {
             const minStr = this.getMinDateTimeString();
             sendDateTime.min = minStr;
-            const defDate = new Date();
-            defDate.setMinutes(defDate.getMinutes() + 30);
+            const defDate = new Date(Date.now() + 30 * 60 * 1000 + 3 * 60 * 60 * 1000);
             const pad = (n) => String(n).padStart(2, '0');
-            sendDateTime.value = `${defDate.getFullYear()}-${pad(defDate.getMonth() + 1)}-${pad(defDate.getDate())}T${pad(defDate.getHours())}:${pad(defDate.getMinutes())}`;
+            sendDateTime.value = `${defDate.getUTCFullYear()}-${pad(defDate.getUTCMonth() + 1)}-${pad(defDate.getUTCDate())}T${pad(defDate.getUTCHours())}:${pad(defDate.getUTCMinutes())}`;
         }
 
         this.repeatIndex = 0;
