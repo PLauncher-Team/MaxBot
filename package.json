@@ -10,6 +10,7 @@
     "@maxhub/max-bot-api": "^1.0.2",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.6",
-    "express": "^4.22.3"
+    "express": "^4.22.3",
+    "@node-projects/excelforge": "3.8.0"
   }
 }
