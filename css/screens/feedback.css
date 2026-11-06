@@ -27,11 +27,12 @@
 }
 
 .feedback-page-hero {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 15px;
     margin: 0 0 20px;
-    padding: 19px;
+    padding: 19px 19px 70px;
     border: 1px solid rgba(66, 99, 235, .12);
     border-radius: 22px;
     background: linear-gradient(135deg, var(--surface, #fff) 0%, var(--accent-soft, #edf1ff) 100%);
@@ -625,9 +626,12 @@
 }
 
 .feedback-export-toolbar {
+    position: absolute;
+    right: 16px;
+    bottom: 14px;
     display: flex;
     justify-content: flex-end;
-    margin: -7px 0 -3px;
+    margin: 0;
 }
 
 .feedback-export-button {
@@ -655,4 +659,277 @@
 .feedback-export-button:disabled {
     opacity: .6;
     cursor: wait;
+}
+
+.feedback-charts-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.feedback-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 11px;
+}
+
+.feedback-chart-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border: 1px solid var(--line, #e6eaf1);
+    border-radius: 18px;
+    background: var(--surface, #fff);
+    box-shadow: 0 6px 20px rgba(27, 43, 78, .035);
+}
+
+.feedback-chart-card-wide {
+    grid-column: 1 / -1;
+}
+
+.feedback-chart-title {
+    color: var(--text, #172033);
+    font-size: 13px;
+    font-weight: 780;
+    line-height: 1.35;
+}
+
+.feedback-donut-layout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.feedback-donut {
+    display: grid;
+    width: 104px;
+    height: 104px;
+    flex: 0 0 104px;
+    place-items: center;
+    border-radius: 50%;
+    position: relative;
+}
+
+.feedback-donut::before {
+    content: "";
+    position: absolute;
+    inset: 11px;
+    border-radius: 50%;
+    background: var(--surface, #fff);
+}
+
+.feedback-donut-center {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+}
+
+.feedback-donut-center strong {
+    color: var(--text, #172033);
+    font-size: 20px;
+    font-weight: 820;
+    letter-spacing: -.5px;
+}
+
+.feedback-donut-center span {
+    color: var(--muted, #778196);
+    font-size: 9px;
+}
+
+.feedback-donut.is-response {
+    --feedback-chart-accent: #4263eb;
+    --feedback-chart-track: #e9edf5;
+}
+
+.feedback-donut.is-files {
+    --feedback-chart-accent: #1d9b72;
+    --feedback-chart-track: #e9edf5;
+}
+
+.feedback-chart-legend {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.feedback-chart-legend-item {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 7px;
+}
+
+.feedback-chart-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 8px;
+    margin-top: 4px;
+    border-radius: 50%;
+}
+
+.feedback-chart-dot.is-primary {
+    background: var(--accent, #4263eb);
+}
+
+.feedback-chart-dot.is-muted {
+    background: #aeb7c7;
+}
+
+.feedback-chart-legend-copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.feedback-chart-legend-copy span {
+    color: var(--muted, #778196);
+    font-size: 10px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.feedback-chart-legend-copy strong {
+    color: var(--text, #172033);
+    font-size: 14px;
+    font-weight: 780;
+}
+
+.feedback-option-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.feedback-option-chart-row {
+    display: grid;
+    gap: 6px;
+}
+
+.feedback-option-chart-label {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text, #273247);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.feedback-option-chart-label span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.feedback-option-chart-label strong {
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.feedback-option-chart-track {
+    height: 9px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: var(--surface-muted, #edf0f5);
+}
+
+.feedback-option-chart-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent, #4263eb), #8ba0ff);
+    transition: width .35s ease;
+}
+
+.feedback-daily-chart {
+    display: flex;
+    min-height: 142px;
+    align-items: flex-end;
+    gap: 7px;
+    padding-top: 8px;
+    border-bottom: 1px solid var(--line, #e6eaf1);
+}
+
+.feedback-daily-chart-item {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.feedback-daily-chart-item strong {
+    color: var(--text, #273247);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.feedback-daily-chart-track {
+    display: flex;
+    width: 100%;
+    height: 88px;
+    align-items: flex-end;
+    overflow: hidden;
+    border-radius: 7px 7px 2px 2px;
+    background: var(--surface-muted, #f1f4f9);
+}
+
+.feedback-daily-chart-fill {
+    width: 100%;
+    min-height: 3px;
+    border-radius: 7px 7px 0 0;
+    background: linear-gradient(180deg, #7890ff, var(--accent, #4263eb));
+}
+
+.feedback-daily-chart-item span {
+    padding-bottom: 7px;
+    color: var(--muted, #778196);
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.feedback-chart-empty {
+    margin: 0;
+    color: var(--muted, #778196);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+@media (max-width: 380px) {
+    .feedback-charts-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .feedback-chart-card-wide {
+        grid-column: auto;
+    }
+
+    .feedback-donut-layout {
+        justify-content: flex-start;
+        gap: 18px;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .feedback-donut.is-response {
+        --feedback-chart-track: #2c3546;
+    }
+
+    .feedback-donut.is-files {
+        --feedback-chart-track: #2c3546;
+    }
+}
+
+html[data-theme="dark"] .feedback-donut::before {
+    background: var(--surface, #1b2433);
 }
