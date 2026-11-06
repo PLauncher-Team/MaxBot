@@ -10,7 +10,9 @@ const { createWorkbook } = require('../xlsx');
 
 const router = express.Router();
 
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, '');
+
+if (!PUBLIC_BASE_URL) throw new Error('PUBLIC_BASE_URL is required');
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 7680;
 const MEDIA_TYPES = {
