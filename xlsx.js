@@ -202,7 +202,7 @@ function chartXml(chart, index) {
     let plot;
     if (chart.type === 'doughnut') {
         plot = '<c:doughnutChart><c:varyColors val="1"/>' + series +
-            '<c:firstSliceAng val="270"/><c:holeSize val="62"/><c:showLegendKey val="0"/><c:extLst/>' +
+            '<c:firstSliceAng val="270"/><c:holeSize val="62"/>' +
             '</c:doughnutChart><c:spPr><a:solidFill><a:schemeClr val="lt1"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr>';
     } else if (chart.type === 'line') {
         plot = '<c:lineChart><c:grouping val="standard"/><c:varyColors val="0"/>' +
