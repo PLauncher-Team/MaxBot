@@ -737,8 +737,11 @@ const HomeScreen = {
     },
 
     loadRecipientsData: async function() {
-        const groups = await App.getGroups();
-        const participants = await App.getParticipants();
+        const [groups, participants, botInfo] = await Promise.all([
+            App.getGroups(),
+            App.getParticipants(),
+            App.getBotInfo()
+        ]);
         this.recipientGroups = groups;
         this.recipientParticipants = participants;
 
@@ -770,7 +773,7 @@ const HomeScreen = {
                     card.style.alignItems = 'stretch';
                     card.style.gap = '10px';
 
-                    const inviteUrl = 'https://max.ru/se14850760_bot?start=group_' + g.unique_id;
+                    const inviteUrl = 'https://max.ru/' + encodeURIComponent(botInfo.username) + '?start=group_' + g.unique_id;
                     const isExpanded = Boolean(this.expandedGroupIds[g.id]);
                     const groupParticipants = participants.filter(p => {
                         if (Array.isArray(p.groups)) {
