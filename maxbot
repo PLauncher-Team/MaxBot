@@ -2,7 +2,22 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 case "${1:-}" in
-  status) docker compose ps ;;
+  status)
+    printf '\n=== Состояние системы ===\n'
+    printf 'Время работы: '
+    uptime -p
+    printf 'CPU: %s ядер\n' "$(nproc)"
+    printf 'Средняя нагрузка (1, 5, 15 мин): '
+    awk '{print $1 ", " $2 ", " $3}' /proc/loadavg
+    printf '\n=== Использование памяти ===\n'
+    free -h
+    printf '\n=== Использование диска ===\n'
+    df -h /
+    printf '\n=== Контейнеры проекта ===\n'
+    docker compose ps
+    printf '\n=== Потребление ресурсов контейнерами ===\n'
+    docker stats --no-stream --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}'
+    ;;
   logs) docker compose logs -f --tail=200 ;;
   restart) docker compose restart ;;
   stop) docker compose down ;;
