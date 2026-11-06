@@ -1169,7 +1169,7 @@ router.get('/:id/feedback/export', async (req, res) => {
                     }
                 ]
             },
-            { name: dataSheetName, rows: chartDataRows, hidden: true }
+            { name: dataSheetName, rows: chartDataRows }
         ]);
         const safeTitle = String(reminder.title || 'feedback')
             .replace(/[\\/:*?"<>|]+/g, ' ')
