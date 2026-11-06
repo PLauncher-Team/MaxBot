@@ -936,14 +936,20 @@ router.get('/:id/feedback/export', (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
-        const reminder = db.prepare('SELECT id, title, recipients, feedback_options, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const reminder = db.prepare('SELECT id, title, recipients, message_ids, feedback_options, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
         if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
         if (!reminder.feedback_enabled || reminder.repeat_type !== 'Никогда') {
             return res.status(404).json({ error: 'Экспорт ответов недоступен для этого напоминания' });
         }
 
         const selectedRecipients = safeJsonParse(reminder.recipients, []);
-        const recipientIds = getTargetChatIds(req.userId, Array.isArray(selectedRecipients) ? selectedRecipients : []);
+        const sentMessageIds = safeJsonParse(reminder.message_ids, {});
+        const storedRecipientIds = sentMessageIds && typeof sentMessageIds === 'object' && !Array.isArray(sentMessageIds)
+            ? Object.keys(sentMessageIds).filter(chatId => chatId)
+            : [];
+        const recipientIds = storedRecipientIds.length
+            ? storedRecipientIds
+            : getTargetChatIds(req.userId, Array.isArray(selectedRecipients) ? selectedRecipients : []);
         const submissions = db.prepare('SELECT chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at, id').all(id);
         const fileRows = db.prepare('SELECT s.chat_id, f.name FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? ORDER BY f.id').all(id);
         const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
@@ -984,7 +990,7 @@ router.get('/:id/feedback/export', (req, res) => {
             const answers = submission ? safeJsonParse(submission.answers, {}) : {};
             const recipientFiles = filesByChatId.get(chatId) || [];
             const hasFiles = recipientFiles.length > 0;
-            const fileStatus = reminder.feedback_allow_files ? (hasFiles ? 'Да' : 'Нет') : 'Не запрашивались';
+            const fileStatus = hasFiles ? 'Да' : (reminder.feedback_allow_files ? 'Нет' : 'Не запрашивались');
             answerRows.push([
                 name,
                 chatId,
@@ -1015,10 +1021,10 @@ router.get('/:id/feedback/export', (req, res) => {
             ['Не ответили', Math.max(0, totalRecipients - responded)],
             ['Доля ответивших', responsePercent + '%'],
             ['Разрешено прикреплять файлы', reminder.feedback_allow_files ? 'Да' : 'Нет'],
-            ['Получателей с файлами', reminder.feedback_allow_files ? attached : 'Не применимо'],
-            ['Получателей без файлов', reminder.feedback_allow_files ? notAttached : 'Не применимо'],
-            ['Всего прикреплённых файлов', reminder.feedback_allow_files ? fileRows.length : 'Не применимо'],
-            ['Доля получателей с файлами', reminder.feedback_allow_files ? filePercent + '%' : 'Не применимо']
+            ['Получателей с файлами', attached],
+            ['Получателей без файлов', reminder.feedback_allow_files || attached > 0 ? notAttached : 'Не применимо'],
+            ['Всего прикреплённых файлов', fileRows.length],
+            ['Доля получателей с файлами', reminder.feedback_allow_files || attached > 0 ? filePercent + '%' : 'Не применимо']
         ];
 
         const configuredOptions = safeJsonParse(reminder.feedback_options, []);
