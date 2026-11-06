@@ -83,7 +83,7 @@ function xmlEscape(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&apos;')
-        .replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g, '');
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 }
 
 function columnName(index) {
