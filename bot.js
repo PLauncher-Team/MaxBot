@@ -288,22 +288,18 @@ async function getMiniAppBotUsername() {
     if (botUsernamePromise) return botUsernamePromise;
 
     botUsernamePromise = (async () => {
-        let username = process.env.MAX_BOT_USERNAME;
-        if (!username) {
-            let botInfo = botInstance?.botInfo;
-            if (!botInfo?.username) {
-                botInfo = await botInstance.api.getMyInfo();
-            }
-            username = botInfo?.username || botInfo?.user?.username;
+        if (!botInstance?.api || typeof botInstance.api.getMyInfo !== 'function') {
+            throw new Error('MAX Bot API is not initialized');
         }
 
-        const normalized = String(username || '').replace(/^@/, '').trim();
-        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(normalized)) {
-            throw new Error('MAX bot username is unavailable. Set MAX_BOT_USERNAME or configure a public bot name.');
+        const botInfo = await botInstance.api.getMyInfo();
+        const username = String(botInfo?.username || '').replace(/^@/, '').trim();
+        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(username)) {
+            throw new Error('MAX bot username is not available');
         }
 
-        cachedBotUsername = normalized;
-        return normalized;
+        cachedBotUsername = username;
+        return username;
     })();
 
     try {
@@ -467,6 +463,7 @@ async function sendBroadcastMessage(reminderId, chatIds, text, quickReplies, ima
 }
 module.exports = {
     botInstance,
+    getMiniAppBotUsername,
     sendBroadcastMessage,
     sendQuickReplyMessage,
     deleteMaxMessage,
