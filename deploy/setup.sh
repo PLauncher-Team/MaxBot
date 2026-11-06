@@ -36,7 +36,7 @@ server {
 CONF
 docker compose build
 docker compose up -d nginx
-docker compose run --rm --no-deps certbot certonly --webroot -w /var/www/certbot -d "$MAXBOT_DOMAIN" --email "admin@$MAXBOT_DOMAIN" --agree-tos --non-interactive
+docker compose run --rm --no-deps certbot certonly --webroot -w /var/www/certbot -d "$MAXBOT_DOMAIN" --agree-tos --register-unsafely-without-email --non-interactive
 sed "s/__DOMAIN__/$MAXBOT_DOMAIN/g" nginx/default.conf.template > nginx/default.conf
 docker compose build nginx
 docker compose up -d --force-recreate app nginx
