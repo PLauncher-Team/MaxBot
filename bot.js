@@ -5,7 +5,6 @@ const { BOT_TOKEN } = require('./auth');
 
 let botInstance = null;
 const sentMessageMids = {};
-const sentMessageMids = {};
 
 function getStoredReplyMessages(reminderId) {
     const row = db.prepare('SELECT reply_message_ids FROM reminders WHERE id = ?').get(reminderId);
