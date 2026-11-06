@@ -40,4 +40,27 @@ docker compose run --rm --no-deps certbot certonly --webroot -w /var/www/certbot
 sed "s/__DOMAIN__/$MAXBOT_DOMAIN/g" nginx/default.conf.template > nginx/default.conf
 docker compose build nginx
 docker compose up -d --force-recreate app nginx
+cat > /etc/systemd/system/maxbot-certbot-renew.service <<UNIT
+[Unit]
+Description=Renew MAXBot Let's Encrypt certificate
+
+[Service]
+Type=oneshot
+WorkingDirectory=$PWD
+ExecStart=/usr/bin/bash -lc 'docker compose run --rm --no-deps certbot renew --webroot -w /var/www/certbot && docker compose exec -T nginx nginx -s reload'
+UNIT
+cat > /etc/systemd/system/maxbot-certbot-renew.timer <<'UNIT'
+[Unit]
+Description=Twice-daily MAXBot certificate renewal check
+
+[Timer]
+OnCalendar=*-*-* 03,15:17:00
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now maxbot-certbot-renew.timer
 echo "Установка завершена: https://$MAXBOT_DOMAIN"
