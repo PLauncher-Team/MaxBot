@@ -155,6 +155,20 @@ const App = {
         return data;
     },
 
+    markRecipientQuestionsRead: async function(id, lastSeenQuestionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ last_seen_question_id: Number(lastSeenQuestionId) || 0 })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отметить вопросы просмотренными');
+        return data;
+    },
+
     answerRecipientQuestion: async function(id, questionId, answer) {
         const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/' + encodeURIComponent(questionId) + '/answer', {
             method: 'POST',
