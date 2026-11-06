@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: production
+      MAX_BOT_OWNER_ID: ${MAX_BOT_OWNER_ID:-}
       PORT: 3000
       BOT_TOKEN_FILE: /run/secrets/bot_token
       PUBLIC_BASE_URL: https://${MAXBOT_DOMAIN}
