@@ -623,3 +623,36 @@
 .feedback-question-submit {
     justify-self: end;
 }
+
+.feedback-export-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    margin: -7px 0 -3px;
+}
+
+.feedback-export-button {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 0 16px;
+    border: 1px solid rgba(66, 99, 235, .16);
+    border-radius: 13px;
+    background: var(--accent-soft, #edf1ff);
+    color: var(--accent, #4263eb);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    cursor: pointer;
+    transition: transform .16s ease, opacity .16s ease;
+}
+
+.feedback-export-button:active {
+    transform: scale(.98);
+}
+
+.feedback-export-button:disabled {
+    opacity: .6;
+    cursor: wait;
+}
