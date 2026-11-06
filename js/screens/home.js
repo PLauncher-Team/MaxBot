@@ -478,13 +478,14 @@ const HomeScreen = {
             return;
         }
 
-        if (data.feedback_enabled !== false) {
+        if (data.feedback_enabled !== false && hero) {
+            hero.querySelector('.feedback-export-toolbar')?.remove();
             const exportToolbar = createNode('div', 'feedback-export-toolbar');
             const exportButton = createNode('button', 'feedback-export-button', 'Скачать Excel');
             exportButton.type = 'button';
             exportButton.addEventListener('click', () => this.exportFeedbackWorkbook());
             exportToolbar.appendChild(exportButton);
-            content.appendChild(exportToolbar);
+            hero.appendChild(exportToolbar);
         }
 
         const createProgress = value => {
@@ -519,6 +520,121 @@ const HomeScreen = {
         submissionsCard.appendChild(createProgress(responsePercent));
         overview.appendChild(submissionsCard);
         content.appendChild(overview);
+
+        const chartsSection = createNode('section', 'feedback-charts-section');
+        const chartsHeading = createNode('div', 'feedback-section-heading');
+        const chartsHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+        chartsHeadingCopy.appendChild(createNode('h2', '', 'Аналитика рассылки'));
+        chartsHeadingCopy.appendChild(createNode('p', '', 'Наглядная сводка по ответам, вложениям и активности'));
+        chartsHeading.appendChild(chartsHeadingCopy);
+        chartsSection.appendChild(chartsHeading);
+
+        const chartGrid = createNode('div', 'feedback-charts-grid');
+        const makeDonutCard = (titleText, primaryText, primaryValue, secondaryText, secondaryValue, percent, accentClass) => {
+            const card = createNode('article', 'feedback-chart-card');
+            card.appendChild(createNode('strong', 'feedback-chart-title', titleText));
+            const body = createNode('div', 'feedback-donut-layout');
+            const donut = createNode('div', 'feedback-donut ' + accentClass);
+            const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+            donut.style.background = 'conic-gradient(var(--feedback-chart-accent) 0 ' + safePercent + '%, var(--feedback-chart-track) ' + safePercent + '% 100%)';
+            const center = createNode('div', 'feedback-donut-center');
+            center.appendChild(createNode('strong', '', Math.round(safePercent) + '%'));
+            center.appendChild(createNode('span', '', 'доля'));
+            donut.appendChild(center);
+            body.appendChild(donut);
+            const legend = createNode('div', 'feedback-chart-legend');
+            const addLegend = (label, value, dotClass) => {
+                const item = createNode('div', 'feedback-chart-legend-item');
+                item.appendChild(createNode('span', 'feedback-chart-dot ' + dotClass));
+                const copy = createNode('span', 'feedback-chart-legend-copy');
+                copy.appendChild(createNode('span', '', label));
+                copy.appendChild(createNode('strong', '', String(value)));
+                item.appendChild(copy);
+                legend.appendChild(item);
+            };
+            addLegend(primaryText, primaryValue, 'is-primary');
+            addLegend(secondaryText, secondaryValue, 'is-muted');
+            body.appendChild(legend);
+            card.appendChild(body);
+            return card;
+        };
+
+        chartGrid.appendChild(makeDonutCard(
+            'Ответы получателей',
+            'Ответили',
+            responded,
+            'Ожидают',
+            Math.max(0, total - responded),
+            total ? responded / total * 100 : 0,
+            'is-response'
+        ));
+
+        if (data.feedback_allow_files === true) {
+            chartGrid.appendChild(makeDonutCard(
+                'Прикрепление файлов',
+                'С файлами',
+                uniqueFileRecipients,
+                'Без файлов',
+                Math.max(0, total - uniqueFileRecipients),
+                total ? uniqueFileRecipients / total * 100 : 0,
+                'is-files'
+            ));
+        }
+
+        const optionChart = createNode('article', 'feedback-chart-card feedback-chart-card-wide');
+        optionChart.appendChild(createNode('strong', 'feedback-chart-title', 'Популярность вариантов ответа'));
+        if (options.length) {
+            const optionBars = createNode('div', 'feedback-option-chart');
+            const maxOptionCount = Math.max(1, ...options.map(option => Number(option.count) || 0));
+            options.forEach(option => {
+                const row = createNode('div', 'feedback-option-chart-row');
+                const label = createNode('div', 'feedback-option-chart-label');
+                label.appendChild(createNode('span', '', option.option || 'Без названия'));
+                label.appendChild(createNode('strong', '', String(Number(option.count) || 0)));
+                const track = createNode('div', 'feedback-option-chart-track');
+                const fill = createNode('div', 'feedback-option-chart-fill');
+                fill.style.width = Math.max(0, (Number(option.count) || 0) / maxOptionCount * 100) + '%';
+                track.appendChild(fill);
+                row.append(label, track);
+                optionBars.appendChild(row);
+            });
+            optionChart.appendChild(optionBars);
+        } else {
+            optionChart.appendChild(createNode('p', 'feedback-chart-empty', 'Варианты ответа для этого напоминания не настроены.'));
+        }
+        chartGrid.appendChild(optionChart);
+
+        const dailyChart = createNode('article', 'feedback-chart-card feedback-chart-card-wide');
+        dailyChart.appendChild(createNode('strong', 'feedback-chart-title', 'Активность по дням'));
+        const dailyCounts = new Map();
+        submissions.forEach(submission => {
+            const rawDate = String(submission.created_at || '').slice(0, 10);
+            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(rawDate)) return;
+            dailyCounts.set(rawDate, (dailyCounts.get(rawDate) || 0) + 1);
+        });
+        const dailyEntries = [...dailyCounts.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-10);
+        if (dailyEntries.length) {
+            const dailyBars = createNode('div', 'feedback-daily-chart');
+            const maxDaily = Math.max(1, ...dailyEntries.map(entry => entry[1]));
+            dailyEntries.forEach(([date, count]) => {
+                const item = createNode('div', 'feedback-daily-chart-item');
+                const value = createNode('strong', '', String(count));
+                const track = createNode('div', 'feedback-daily-chart-track');
+                const fill = createNode('div', 'feedback-daily-chart-fill');
+                fill.style.height = Math.max(5, count / maxDaily * 100) + '%';
+                track.appendChild(fill);
+                const dateLabel = createNode('span', '', date.slice(8, 10) + '.' + date.slice(5, 7));
+                item.append(value, track, dateLabel);
+                dailyBars.appendChild(item);
+            });
+            dailyChart.appendChild(dailyBars);
+        } else {
+            dailyChart.appendChild(createNode('p', 'feedback-chart-empty', 'График появится после первых ответов.'));
+        }
+        chartGrid.appendChild(dailyChart);
+
+        chartsSection.appendChild(chartGrid);
+        content.appendChild(chartsSection);
 
         if (options.length) {
             const optionsSection = createNode('section', 'feedback-section');
