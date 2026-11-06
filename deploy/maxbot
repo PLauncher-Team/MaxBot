@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+case "${1:-}" in
+  status) docker compose ps ;;
+  logs) docker compose logs -f --tail=200 ;;
+  restart) docker compose restart ;;
+  stop) docker compose down ;;
+  update) docker compose build && docker compose up -d ;;
+  backup)
+    mkdir -p backups
+    docker run --rm -v "$(basename "$PWD")_maxbot_data:/data:ro" -v "$PWD/backups:/backup" alpine sh -c 'tar czf /backup/maxbot-data-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .'
+    ;;
+  *) echo "Использование: ./deploy/maxbot {status|logs|restart|stop|update|backup}"; exit 2 ;;
+esac
