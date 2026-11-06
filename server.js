@@ -5,7 +5,7 @@ const fs = require('fs');
 
 const db = require('./db');
 const { authMiddleware, recipientAuthMiddleware, apiRateLimit, uploadRateLimit, reminderWriteRateLimit } = require('./auth');
-const { botInstance } = require('./bot');
+const { getMiniAppBotUsername } = require('./bot');
 const { startScheduler } = require('./scheduler');
 
 const templatesRouter = require('./routes/templates');
@@ -15,13 +15,17 @@ const remindersRouter = require('./routes/reminders');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://mymaxapp.duckdns.org').replace(/\/+$/, '');
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL?.replace(/\/+$/, '');
+const APP_ALLOWED_ORIGINS = process.env.APP_ALLOWED_ORIGINS;
+
+if (!PUBLIC_BASE_URL) throw new Error('PUBLIC_BASE_URL is required');
+if (!APP_ALLOWED_ORIGINS) throw new Error('APP_ALLOWED_ORIGINS is required');
+
 const allowedOrigins = new Set(
-    (process.env.APP_ALLOWED_ORIGINS || 'https://mymaxapp.duckdns.org')
-        .split(',')
-        .map(origin => origin.trim())
-        .filter(Boolean)
+    APP_ALLOWED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
 );
+
+if (allowedOrigins.size === 0) throw new Error('APP_ALLOWED_ORIGINS must contain at least one origin');
 
 const publicMediaTypes = {
     png: 'image/png',
@@ -123,6 +127,17 @@ app.use('/api/reminders', (req, res, next) => {
     return next();
 });
 app.use(express.json({ limit: '20mb', strict: true }));
+
+app.get('/api/bot-info', async (req, res) => {
+    try {
+        const username = await getMiniAppBotUsername();
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        res.json({ username });
+    } catch (error) {
+        console.error('Failed to get MAX bot info:', error.message);
+        res.status(503).json({ error: 'MAX bot information is unavailable' });
+    }
+});
 
 app.use('/api/templates', templatesRouter);
 app.use('/api/groups', groupsRouter);
