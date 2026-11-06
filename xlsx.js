@@ -120,10 +120,8 @@ async function createWorkbook(inputSheets) {
                     dataRange: chartRange(chart.values.range),
                     catRange: chartRange(chart.categories.range)
                 }],
-                position: {
-                    from: { col: startColumn, row: startRow },
-                    to: { col: startColumn + 8, row: startRow + 15 }
-                },
+                from: { col: startColumn, row: startRow },
+                to: { col: startColumn + 8, row: startRow + 15 },
                 legend: { position: 'bottom' },
                 colorPalette: type === 'doughnut' ? 'green' : 'blue',
                 roundedCorners: true,
