@@ -112,7 +112,10 @@ async function createWorkbook(inputSheets) {
                 'Invalid ' + description + ' chart range. Expected sheet, column, startRow and endRow.'
             );
         }
-        return quotedSheetName(sheetName) + '!
+        const dollar = String.fromCharCode(36);
+        return quotedSheetName(sheetName) + '!' + dollar + column + dollar +
+            startRow + ':' + dollar + column + dollar + endRow;
+    }
 
     for (const inputSheet of inputSheets) {
         if (!Array.isArray(inputSheet.charts) || inputSheet.charts.length === 0) continue;
