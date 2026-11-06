@@ -383,11 +383,9 @@ const HomeScreen = {
             return node;
         };
 
+        const hero = document.querySelector('.feedback-page-hero');
+        if (hero) hero.style.display = data.feedback_enabled === false ? 'none' : '';
         if (data.feedback_enabled === false) {
-            const heading = document.getElementById('feedback-results-reminder-title');
-            const subtitle = document.getElementById('feedback-results-reminder-subtitle');
-            if (heading) heading.textContent = 'Вопросы получателей';
-            if (subtitle) subtitle.textContent = 'Вопросы, которые получатели задали по этому напоминанию.';
             this.renderRecipientQuestionsSection(content, questions, createNode);
             return;
         }

@@ -273,6 +273,7 @@ const RecipientReminder = {
             repliesList.appendChild(item);
         });
 
+        repliesSection.querySelectorAll('.recipient-question-trigger').forEach(button => button.remove());
         const askQuestionButton = document.createElement('button');
         askQuestionButton.type = 'button';
         askQuestionButton.className = 'recipient-question-trigger';
