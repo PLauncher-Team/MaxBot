@@ -1,6 +1,8 @@
 const crypto = require('crypto');
+const fs = require('fs');
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
+const tokenFile = process.env.BOT_TOKEN_FILE;
+const BOT_TOKEN = process.env.BOT_TOKEN || (tokenFile && fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').trim() : '');
 const DEFAULT_INIT_DATA_TTL_SECONDS = 24 * 60 * 60;
 const MAX_FUTURE_CLOCK_SKEW_SECONDS = 60;
 const MAX_INIT_DATA_LENGTH = 16 * 1024;
