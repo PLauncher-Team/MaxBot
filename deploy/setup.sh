@@ -13,12 +13,15 @@ printf '\n'
 [[ -n "$BOT_TOKEN" ]] || { echo "Токен не может быть пустым"; exit 1; }
 read -r -p "Домен приложения: " MAXBOT_DOMAIN
 MAXBOT_DOMAIN="${MAXBOT_DOMAIN,,}"
-[[ "$MAXBOT_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "Некорректный домен"; exit 1; }
+[[ "$MAXBOT_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$ ]] || { echo "Некорректный домен"; exit 1; }
 mkdir -p secrets
 umask 077
 printf '%s' "$BOT_TOKEN" > secrets/bot_token
 unset BOT_TOKEN
-chmod 600 secrets/bot_token
+# The app runs as UID/GID 1000 (the "node" user in the Dockerfile).
+# Local Compose secrets are bind-mounted, so host ownership and mode matter.
+chown 1000:1000 secrets/bot_token
+chmod 400 secrets/bot_token
 printf 'MAXBOT_DOMAIN=%s\n' "$MAXBOT_DOMAIN" > .env
 chmod 600 .env
 IP="$(getent ahostsv4 "$MAXBOT_DOMAIN" | awk 'NR==1 {print $1}')"
