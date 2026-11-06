@@ -117,6 +117,15 @@ db.exec(`
         UNIQUE(user_id, reminder_id)
     );
 
+    CREATE TABLE IF NOT EXISTS recipient_question_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        last_seen_question_id INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, reminder_id)
+    );
+
     CREATE TABLE IF NOT EXISTS recipient_questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
