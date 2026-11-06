@@ -5,6 +5,43 @@ const { BOT_TOKEN } = require('./auth');
 
 let botInstance = null;
 const sentMessageMids = {};
+const MAX_BOT_OWNER_ID = String(process.env.MAX_BOT_OWNER_ID || '').trim();
+const pendingDatabaseClear = new Map();
+
+function getCommandUserId(ctx) {
+    const update = ctx.update || {};
+    const sender = update.message?.sender || {};
+    const user = update.user || update.message?.user || update.callback?.user || ctx.user || {};
+    const userId = sender.user_id || sender.id || user.user_id || user.id;
+    return userId ? String(userId) : null;
+}
+
+function clearDatabase() {
+    const clear = db.transaction(() => {
+        db.exec(`
+            DELETE FROM recipient_download_tickets;
+            DELETE FROM feedback_files;
+            DELETE FROM feedback_views;
+            DELETE FROM recipient_question_views;
+            DELETE FROM recipient_questions;
+            DELETE FROM feedback_submissions;
+            DELETE FROM responses;
+            DELETE FROM participant_groups;
+            DELETE FROM participants;
+            DELETE FROM groups;
+            DELETE FROM reminders;
+            DELETE FROM templates;
+            DELETE FROM template_seed_state;
+            DELETE FROM uploaded_media;
+            DELETE FROM sqlite_sequence;
+        `);
+    });
+    clear();
+
+    const uploadsDir = path.join(__dirname, 'data', 'uploads');
+    fs.rmSync(uploadsDir, { recursive: true, force: true });
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 function getStoredReplyMessages(reminderId) {
     const row = db.prepare('SELECT reply_message_ids FROM reminders WHERE id = ?').get(reminderId);
@@ -233,6 +270,45 @@ try {
         botInstance = new Bot(BOT_TOKEN);
         if (typeof botInstance.command === 'function') {
             botInstance.command('start', handleBotStart);
+            botInstance.command('clear_db', async (ctx) => {
+                const userId = getCommandUserId(ctx);
+                if (!MAX_BOT_OWNER_ID || userId !== MAX_BOT_OWNER_ID) {
+                    if (typeof ctx.reply === 'function') await ctx.reply('Команда недоступна.');
+                    return;
+                }
+
+                pendingDatabaseClear.set(userId, Date.now() + 60 * 1000);
+                if (typeof ctx.reply === 'function') {
+                    await ctx.reply('ВНИМАНИЕ: будут удалены все группы, участники, напоминания, шаблоны, ответы и загруженные файлы. Для подтверждения в течение 60 секунд отправьте /confirm_clear_db. Для отмены — /cancel_clear_db.');
+                }
+            });
+            botInstance.command('confirm_clear_db', async (ctx) => {
+                const userId = getCommandUserId(ctx);
+                if (!MAX_BOT_OWNER_ID || userId !== MAX_BOT_OWNER_ID) {
+                    if (typeof ctx.reply === 'function') await ctx.reply('Команда недоступна.');
+                    return;
+                }
+
+                const expiresAt = pendingDatabaseClear.get(userId);
+                pendingDatabaseClear.delete(userId);
+                if (!expiresAt || expiresAt < Date.now()) {
+                    if (typeof ctx.reply === 'function') await ctx.reply('Подтверждение не найдено или истекло. Сначала отправьте /clear_db.');
+                    return;
+                }
+
+                try {
+                    clearDatabase();
+                    if (typeof ctx.reply === 'function') await ctx.reply('База данных очищена. Все данные удалены.');
+                } catch (error) {
+                    console.error('Database clear failed:', error);
+                    if (typeof ctx.reply === 'function') await ctx.reply('Не удалось очистить базу данных. Проверьте журнал сервера.');
+                }
+            });
+            botInstance.command('cancel_clear_db', async (ctx) => {
+                const userId = getCommandUserId(ctx);
+                if (userId) pendingDatabaseClear.delete(userId);
+                if (typeof ctx.reply === 'function') await ctx.reply('Очистка базы данных отменена.');
+            });
         }
         if (typeof botInstance.on === 'function') {
             botInstance.on('bot_started', handleBotStart);
