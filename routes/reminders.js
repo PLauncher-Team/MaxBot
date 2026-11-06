@@ -1055,7 +1055,14 @@ router.get('/:id/feedback/export', (req, res) => {
             const shareOfRespondents = responded ? Math.round(count / responded * 1000) / 10 : 0;
             optionRows.push([option, count, shareOfRecipients + '%', shareOfRespondents + '%']);
         });
-        if (!optionMap.size) optionRows.push(['Варианты ответа не настроены', 0, '0%', '0%']);
+        const selectedOptionTotal = [...optionCounts.values()].reduce((sum, count) => sum + count, 0);
+        const noChoiceCount = Math.max(0, responded - selectedOptionTotal);
+        if (noChoiceCount > 0) {
+            const noChoiceRecipientsPercent = totalRecipients ? Math.round(noChoiceCount / totalRecipients * 1000) / 10 : 0;
+            const noChoiceRespondentsPercent = responded ? Math.round(noChoiceCount / responded * 1000) / 10 : 0;
+            optionRows.push(['Ответили без выбора варианта', noChoiceCount, noChoiceRecipientsPercent + '%', noChoiceRespondentsPercent + '%']);
+        }
+        if (!optionMap.size && noChoiceCount === 0) optionRows.push(['Варианты ответа не настроены', 0, '0%', '0%']);
 
         const workbook = createWorkbook([
             { name: 'Ответы', rows: answerRows },
