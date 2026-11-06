@@ -3,7 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../db');
-const { sendBroadcastMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
+const { sendBroadcastMessage, sendQuickReplyMessage, deleteMaxMessage, deleteLinkedReplyMessages, editMaxMessage } = require('../bot');
 const { BOT_TOKEN } = require('../auth');
 const { getMoscowDateTimeString, calculateNextScheduledTime } = require('../scheduler');
 
@@ -554,6 +554,33 @@ router.get('/public/:id/media/:filename', async (req, res) => {
     }
 });
 
+router.post('/public/:id/questions', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const questionText = typeof req.body?.question === 'string' ? req.body.question.trim().slice(0, 500) : '';
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        if (!questionText) return res.status(400).json({ error: 'Введите вопрос' });
+
+        const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
+        const messageIds = safeJsonParse(reminder?.message_ids, {});
+        const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
+        if (!reminder || !chatId) return res.status(404).json({ error: 'Reminder not found' });
+
+        const participant = db.prepare('SELECT name FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?) LIMIT 1')
+            .get(reminder.user_id, chatId, String(req.userId));
+        const suppliedName = typeof req.body?.recipient_name === 'string' ? req.body.recipient_name.trim().slice(0, 150) : '';
+        const recipientName = suppliedName || participant?.name || 'Получатель';
+        const result = db.prepare('INSERT INTO recipient_questions (reminder_id, chat_id, recipient_user_id, recipient_name, question) VALUES (?, ?, ?, ?, ?)')
+            .run(id, chatId, String(req.userId), recipientName, questionText);
+
+        res.setHeader('Cache-Control', 'no-store');
+        return res.json({ success: true, id: result.lastInsertRowid });
+    } catch (error) {
+        console.error('Failed to save recipient question:', error.message);
+        return res.status(500).json({ error: 'Не удалось отправить вопрос' });
+    }
+});
+
 router.post('/public/:id/feedback/profile', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -725,9 +752,13 @@ router.get('/:id/feedback', (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
-        const reminder = db.prepare('SELECT id, user_id, recipients, feedback_options, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
-        if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
-        const submissions = db.prepare('SELECT id, chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
+        const reminder = db.prepare('SELECT id, user_id, recipients, feedback_options, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+
+        const feedbackEnabled = Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда';
+        const submissions = feedbackEnabled
+            ? db.prepare('SELECT id, chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id)
+            : [];
         const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
         const participantByIdentity = new Map();
         participants.forEach(participant => {
@@ -738,22 +769,39 @@ router.get('/:id/feedback', (req, res) => {
                 participantByIdentity.set(String(participant.user_id), participant);
             }
         });
-        const recipients = getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, []));
-        const options = safeJsonParse(reminder.feedback_options, []).filter(item => typeof item === 'string' && item.trim()).map(option => {
-            const count = submissions.filter(row => safeJsonParse(row.answers, {}).choice === option).length;
-            return { option, count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
-        });
+        const recipients = feedbackEnabled ? getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, [])) : [];
+        const options = feedbackEnabled
+            ? safeJsonParse(reminder.feedback_options, []).filter(item => typeof item === 'string' && item.trim()).map(option => {
+                const count = submissions.filter(row => safeJsonParse(row.answers, {}).choice === option).length;
+                return { option, count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
+            })
+            : [];
         const files = submissions.map(row => ({
             chat_id: row.chat_id,
             files: db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id').all(row.id)
                 .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
         })).filter(row => row.files.length);
+        const questions = db.prepare('SELECT id, chat_id, recipient_name, question, answer, created_at, answered_at FROM recipient_questions WHERE reminder_id = ? ORDER BY created_at DESC, id DESC')
+            .all(id)
+            .map(row => ({
+                id: row.id,
+                chat_id: row.chat_id,
+                recipient_name: row.recipient_name || participantByIdentity.get(String(row.chat_id))?.name || 'Получатель',
+                question: row.question,
+                answer: row.answer || '',
+                created_at: row.created_at,
+                answered_at: row.answered_at
+            }));
+
         res.json({
+            reminder_id: id,
+            feedback_enabled: feedbackEnabled,
+            questions,
             latest_submission_id: submissions.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0),
             total_recipients: recipients.length,
             responded: submissions.length,
             response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0,
-            feedback_allow_files: Boolean(reminder.feedback_allow_files),
+            feedback_allow_files: feedbackEnabled && Boolean(reminder.feedback_allow_files),
             file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0,
             options,
             submissions: submissions.map(row => {
@@ -773,6 +821,57 @@ router.get('/:id/feedback', (req, res) => {
     }
 });
 
+router.post('/:id/questions/:questionId/answer', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const questionId = Number(req.params.questionId);
+        const answer = typeof req.body?.answer === 'string' ? req.body.answer.trim().slice(0, 1000) : '';
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(questionId) || questionId <= 0) {
+            return res.status(400).json({ error: 'Invalid question id' });
+        }
+        if (!answer) return res.status(400).json({ error: 'Введите ответ' });
+        const reminder = db.prepare('SELECT id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+        const question = db.prepare('SELECT id, chat_id, recipient_user_id, question, answer FROM recipient_questions WHERE id = ? AND reminder_id = ?')
+            .get(questionId, id);
+        if (!question) return res.status(404).json({ error: 'Вопрос не найден' });
+        if (question.answer) return res.status(409).json({ error: 'На этот вопрос уже ответили' });
+
+        const sent = await sendQuickReplyMessage(
+            id,
+            question.chat_id,
+            question.recipient_user_id,
+            'Ответ на ваш вопрос:\n' + answer
+        );
+        if (!sent) return res.status(502).json({ error: 'Не удалось отправить сообщение получателю' });
+
+        const updated = db.prepare("UPDATE recipient_questions SET answer = ?, answered_at = CURRENT_TIMESTAMP WHERE id = ? AND reminder_id = ? AND answer = ''")
+            .run(answer, questionId, id);
+        if (!updated.changes) return res.status(409).json({ error: 'На этот вопрос уже ответили' });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to answer recipient question:', error.message);
+        return res.status(500).json({ error: 'Не удалось отправить ответ' });
+    }
+});
+
+router.delete('/:id/questions/:questionId', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const questionId = Number(req.params.questionId);
+        if (!Number.isSafeInteger(id) || id <= 0 || !Number.isSafeInteger(questionId) || questionId <= 0) {
+            return res.status(400).json({ error: 'Invalid question id' });
+        }
+        const reminder = db.prepare('SELECT id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+        const deleted = db.prepare('DELETE FROM recipient_questions WHERE id = ? AND reminder_id = ?').run(questionId, id);
+        if (!deleted.changes) return res.status(404).json({ error: 'Вопрос не найден' });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete recipient question:', error.message);
+        return res.status(500).json({ error: 'Не удалось удалить вопрос' });
+    }
+});
 router.post('/:id/feedback/read', (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -846,6 +945,7 @@ router.get('/public/:id', async (req, res) => {
             })).filter(reply => reply.question && reply.answer)
                 .map(({ index, question, answer }) => ({ index, question, answer }))
             : [];
+        const recipientQuestions = db.prepare('SELECT id, question, answer FROM recipient_questions WHERE reminder_id = ? ORDER BY created_at, id').all(id);
         const savedImages = safeJsonParse(reminder.images, []);
         const validImages = sanitizeUploadedMedia(savedImages, reminder.user_id);
         const publicImages = Array.isArray(validImages)
@@ -884,6 +984,7 @@ router.get('/public/:id', async (req, res) => {
             },
             images: publicImages,
             quick_replies: publicReplies,
+            questions: recipientQuestions.map(row => ({ id: row.id, question: row.question, answer: row.answer || '' })),
             feedback_options: sanitizeFeedbackOptions(safeJsonParse(reminder.feedback_options, [])) || [],
             feedback_enabled: Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда',
             feedback_allow_files: Boolean(reminder.feedback_allow_files),

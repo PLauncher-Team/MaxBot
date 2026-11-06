@@ -507,3 +507,119 @@
         font-size: 24px;
     }
 }
+
+
+.feedback-recipient-question-card {
+    gap: 12px;
+}
+
+.feedback-recipient-question-card.is-unanswered {
+    border-color: rgba(66, 99, 235, .3);
+    background: linear-gradient(145deg, var(--surface, #fff), var(--accent-soft, #edf1ff));
+}
+
+.feedback-recipient-question-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.feedback-question-status {
+    align-self: flex-start;
+    padding: 5px 9px;
+    border-radius: 9px;
+    background: var(--surface-muted, #f1f4f9);
+    color: var(--muted, #778196);
+    font-size: 10px;
+    font-weight: 750;
+}
+
+.feedback-question-status.is-unanswered {
+    background: var(--accent-soft, #edf1ff);
+    color: var(--accent, #4263eb);
+}
+
+.feedback-question-status.is-answered {
+    color: #23845d;
+    background: rgba(35, 132, 93, .1);
+}
+
+.feedback-recipient-question-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 11px 12px;
+    border-radius: 12px;
+    background: var(--surface-muted, #f1f4f9);
+}
+
+.feedback-recipient-question-answer strong {
+    color: var(--muted, #778196);
+    font-size: 10px;
+}
+
+.feedback-recipient-question-answer p {
+    margin: 0;
+}
+
+.feedback-recipient-question-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.feedback-question-action {
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 1px solid var(--line, #e1e6ef);
+    border-radius: 11px;
+    background: var(--surface, #fff);
+    color: var(--text, #273247);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 750;
+    cursor: pointer;
+}
+
+.feedback-question-answer-button,
+.feedback-question-submit {
+    border-color: transparent;
+    background: var(--accent, #4263eb);
+    color: #fff;
+}
+
+.feedback-question-delete {
+    color: var(--muted, #778196);
+}
+
+.feedback-question-action:disabled {
+    opacity: .55;
+    cursor: wait;
+}
+
+.feedback-question-answer-form {
+    display: grid;
+    gap: 8px;
+}
+
+.feedback-question-answer-input {
+    width: 100%;
+    min-height: 86px;
+    padding: 11px 12px;
+    border: 1px solid var(--line, #dce2ec);
+    border-radius: 12px;
+    background: var(--surface, #fff);
+    color: var(--text, #172033);
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+    resize: vertical;
+}
+
+.feedback-question-submit {
+    justify-self: end;
+}

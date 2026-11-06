@@ -155,6 +155,30 @@ const App = {
         return data;
     },
 
+    answerRecipientQuestion: async function(id, questionId, answer) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/' + encodeURIComponent(questionId) + '/answer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ answer })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отправить ответ');
+        return data;
+    },
+
+    deleteRecipientQuestion: async function(id, questionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/' + encodeURIComponent(questionId), {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось удалить вопрос');
+        return data;
+    },
+
     getReminders: async function() {
         const res = await fetch('/api/reminders', {
             headers: this.getAuthHeaders()

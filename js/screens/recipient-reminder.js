@@ -2,6 +2,7 @@ const RecipientReminder = {
     reminderId: null,
     mediaObjectUrls: [],
     feedbackFiles: [],
+    questionModal: null,
 
     revokeMediaObjectUrls: function() {
         this.mediaObjectUrls.forEach(url => URL.revokeObjectURL(url));
@@ -209,6 +210,7 @@ const RecipientReminder = {
             filesContainer.style.display = files.length ? 'grid' : 'none';
         }
 
+        if (this.questionModal) this.closeQuestionModal();
         repliesList.replaceChildren();
         const quickReplies = Array.isArray(reminder.quick_replies) ? reminder.quick_replies : [];
         quickReplies.forEach(reply => {
@@ -240,10 +242,138 @@ const RecipientReminder = {
             repliesList.appendChild(item);
         });
 
-        repliesSection.style.display = repliesList.childElementCount > 0 ? 'block' : 'none';
+        const recipientQuestions = Array.isArray(reminder.questions) ? reminder.questions : [];
+        recipientQuestions.forEach(question => {
+            if (!question || typeof question.question !== 'string') return;
+            const answered = typeof question.answer === 'string' && question.answer.trim().length > 0;
+            const item = document.createElement('div');
+            item.className = 'recipient-reminder-reply-item recipient-reminder-question-item' + (answered ? '' : ' is-unanswered');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'recipient-reminder-reply-button recipient-reminder-question-button';
+            button.textContent = question.question;
+            const answer = document.createElement('div');
+            answer.className = 'recipient-reminder-reply-answer';
+            const answerLabel = document.createElement('div');
+            answerLabel.className = 'recipient-reminder-reply-answer-label';
+            answerLabel.textContent = answered ? 'Ответ' : 'Ответ пока не получен';
+            const answerText = document.createElement('div');
+            answerText.className = 'recipient-reminder-reply-answer-text';
+            answerText.textContent = answered ? question.answer : 'Автор напоминания ещё не ответил на этот вопрос.';
+            answer.append(answerLabel, answerText);
+            answer.hidden = true;
+            button.setAttribute('aria-expanded', 'false');
+            button.addEventListener('click', () => {
+                const expanded = answer.hidden;
+                answer.hidden = !expanded;
+                button.setAttribute('aria-expanded', String(expanded));
+                button.classList.toggle('is-expanded', expanded);
+            });
+            item.append(button, answer);
+            repliesList.appendChild(item);
+        });
+
+        const askQuestionButton = document.createElement('button');
+        askQuestionButton.type = 'button';
+        askQuestionButton.className = 'recipient-question-trigger';
+        askQuestionButton.textContent = 'Задать вопрос';
+        askQuestionButton.addEventListener('click', () => this.openQuestionModal());
+        repliesSection.appendChild(askQuestionButton);
+        repliesSection.style.display = 'block';
         if (feedbackForm) this.renderFeedbackForm(feedbackForm, reminder);
         state.style.display = 'none';
         card.style.display = 'block';
+    },
+
+    openQuestionModal: function() {
+        if (this.questionModal) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'recipient-question-modal';
+        const panel = document.createElement('section');
+        panel.className = 'recipient-question-modal-card';
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-modal', 'true');
+        panel.setAttribute('aria-labelledby', 'recipient-question-modal-title');
+
+        const header = document.createElement('div');
+        header.className = 'recipient-question-modal-header';
+        const title = document.createElement('h2');
+        title.id = 'recipient-question-modal-title';
+        title.textContent = 'Задать вопрос';
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'recipient-question-modal-close';
+        close.setAttribute('aria-label', 'Закрыть');
+        close.textContent = '×';
+        close.addEventListener('click', () => this.closeQuestionModal());
+        header.append(title, close);
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'recipient-question-modal-input';
+        textarea.maxLength = 500;
+        textarea.rows = 4;
+        textarea.placeholder = 'Напишите ваш вопрос';
+
+        const note = document.createElement('p');
+        note.className = 'recipient-question-modal-note';
+        note.textContent = 'Ваш вопрос будет виден всем получателям этого напоминания.';
+
+        const actions = document.createElement('div');
+        actions.className = 'recipient-question-modal-actions';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'recipient-question-modal-cancel';
+        cancel.textContent = 'Отмена';
+        cancel.addEventListener('click', () => this.closeQuestionModal());
+        const submit = document.createElement('button');
+        submit.type = 'button';
+        submit.className = 'recipient-question-modal-submit';
+        submit.textContent = 'Отправить';
+        submit.addEventListener('click', async () => {
+            const question = textarea.value.trim();
+            if (!question) {
+                App.showToast('Введите вопрос');
+                textarea.focus();
+                return;
+            }
+            submit.disabled = true;
+            submit.textContent = 'Отправка…';
+            const maxUser = window.WebApp?.initDataUnsafe?.user || {};
+            const recipientName = [maxUser.first_name, maxUser.last_name]
+                .filter(value => typeof value === 'string' && value.trim())
+                .join(' ')
+                .trim() || (typeof maxUser.name === 'string' ? maxUser.name.trim() : '');
+            try {
+                const response = await fetch('/api/reminders/public/' + encodeURIComponent(this.reminderId) + '/questions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...App.getAuthHeaders() },
+                    body: JSON.stringify({ question, recipient_name: recipientName })
+                });
+                const result = await response.json().catch(() => null);
+                if (!response.ok) throw new Error(result?.error || 'Не удалось отправить вопрос');
+                this.closeQuestionModal();
+                App.showToast('Вопрос опубликован');
+                await this.load(this.reminderId);
+            } catch (error) {
+                App.showToast(error.message || 'Не удалось отправить вопрос');
+                submit.disabled = false;
+                submit.textContent = 'Отправить';
+            }
+        });
+        actions.append(cancel, submit);
+        panel.append(header, textarea, note, actions);
+        overlay.appendChild(panel);
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) this.closeQuestionModal();
+        });
+        document.body.appendChild(overlay);
+        this.questionModal = overlay;
+        textarea.focus();
+    },
+
+    closeQuestionModal: function() {
+        if (this.questionModal) this.questionModal.remove();
+        this.questionModal = null;
     },
 
     formatFeedbackFileSize: function(bytes) {
