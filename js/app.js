@@ -364,6 +364,20 @@ const App = {
         return data;
     },
 
+    getBotInfo: async function() {
+        const res = await fetch('/api/bot-info', {
+            headers: this.getAuthHeaders()
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось получить информацию о боте');
+        }
+        if (!data || typeof data.username !== 'string' || !data.username) {
+            throw new Error('Сервер вернул некорректную информацию о боте');
+        }
+        return data;
+    },
+
     getGroups: async function() {
         const res = await fetch('/api/groups', {
             headers: this.getAuthHeaders()
