@@ -1074,12 +1074,12 @@ router.get('/:id/feedback/export', (req, res) => {
         const dailyCountMap = new Map();
         submissions.forEach(row => {
             const date = String(row.created_at || '').slice(0, 10);
-            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
             dailyCountMap.set(date, (dailyCountMap.get(date) || 0) + 1);
         });
         const dailyEntries = [...dailyCountMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
         const chartDailyEntries = dailyEntries.length ? dailyEntries : [['Нет данных', 0]];
-        const chartDataLength = Math.max(2, chartOptionEntries.length + 1, chartDailyEntries.length + 1);
+        const chartDataLength = Math.max(3, chartOptionEntries.length + 1, chartDailyEntries.length + 1);
         const chartDataRows = Array.from({ length: chartDataLength }, () => Array(11).fill(''));
         chartDataRows[0][0] = 'Статус ответа';
         chartDataRows[0][1] = 'Количество';
