@@ -286,7 +286,7 @@ const HomeScreen = {
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
                             <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
-                                ${'<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;"><span>Обратная связь</span>' + (item.feedback_enabled && Number(item.feedback_unread_count) > 0 ? '<span class="feedback-response-count">' + Number(item.feedback_unread_count) + '</span>' : '') + '</button>'}
+                                ${'<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;"><span>Обратная связь</span>' + (Number(item.feedback_unread_count) + Number(item.question_unread_count) > 0 ? '<span class="feedback-response-count">' + (Number(item.feedback_unread_count) + Number(item.question_unread_count)) + '</span>' : '') + '</button>'}
                                 <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
                                 <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
                             </div>
@@ -335,14 +335,24 @@ const HomeScreen = {
             const data = await App.getFeedback(item.id);
             if (String(this.feedbackReminderId) !== String(item.id)) return;
             this.renderFeedbackResults(data);
+            let shouldRefreshReminders = false;
+            if (data.latest_question_id > 0) {
+                try {
+                    await App.markRecipientQuestionsRead(item.id, data.latest_question_id);
+                    shouldRefreshReminders = true;
+                } catch (readError) {
+                    console.error('Failed to mark recipient questions as read:', readError);
+                }
+            }
             if (data.feedback_enabled) {
                 try {
                     await App.markFeedbackRead(item.id, data.latest_submission_id);
-                    await this.refreshReminders();
+                    shouldRefreshReminders = true;
                 } catch (readError) {
                     console.error('Failed to mark feedback as read:', readError);
                 }
             }
+            if (shouldRefreshReminders) await this.refreshReminders();
         } catch (error) {
             content.replaceChildren();
             const state = document.createElement('div');
