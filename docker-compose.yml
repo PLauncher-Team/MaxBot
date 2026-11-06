@@ -1,0 +1,52 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BOT_TOKEN_FILE: /run/secrets/bot_token
+      PUBLIC_BASE_URL: https://${MAXBOT_DOMAIN}
+      APP_ALLOWED_ORIGINS: https://${MAXBOT_DOMAIN}
+      NODE_EXTRA_CA_CERTS: /app/russian_trusted_root_ca.pem
+    secrets:
+      - bot_token
+    volumes:
+      - maxbot_data:/app/data
+    networks:
+      - internal
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+    networks:
+      - internal
+  certbot:
+    image: certbot/certbot:latest
+    profiles:
+      - tools
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: certbot
+volumes:
+  maxbot_data:
+  letsencrypt:
+  certbot_webroot:
+secrets:
+  bot_token:
+    file: ./secrets/bot_token
+networks:
+  internal:
+    internal: false
