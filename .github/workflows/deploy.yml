@@ -50,12 +50,12 @@ jobs:
             printf '%s\n' 'SSH_HOST_KEY_OPTIONS=-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null' >> "$GITHUB_ENV"
           fi
 
-      - name: Install production dependencies for tests
-        run: npm install --omit=dev
-
       - name: Run security tests and syntax checks
         run: |
           set -euo pipefail
+          npm install --omit=dev @node-projects/excelforge@3.8.0
+          npm ls --omit=dev @node-projects/excelforge
+          node --input-type=module -e "await import('@node-projects/excelforge'); console.log('ExcelForge is available')"
           npm test
           for file in auth.js server.js bot.js scheduler.js xlsx.js routes/*.js js/*.js js/screens/*.js test/*.js; do
             node --check "$file"
