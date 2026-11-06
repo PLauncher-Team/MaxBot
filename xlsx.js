@@ -107,7 +107,7 @@ function worksheetXml(rows, hasDrawing) {
     const sheetRows = rows.map((row, rowIndex) => {
         const cells = row.map((value, columnIndex) => {
             const reference = columnName(columnIndex) + (rowIndex + 1);
-            const style = rowIndex === 0 ? ' s="1"' : '';
+            const style = rowIndex === 0 ? ' s="1"' : (rowIndex % 2 === 0 ? ' s="2"' : ' s="3"');
             if (typeof value === 'number' && Number.isFinite(value)) {
                 return '<c r="' + reference + '"' + style + '><v>' + value + '</v></c>';
             }
@@ -137,10 +137,11 @@ function workbookStylesXml() {
         '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF4263EB"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF1F4FA"/><bgColor indexed="64"/></patternFill></fill></fills>' +
         '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFE3E8F0"/></left><right style="thin"><color rgb="FFE3E8F0"/></right><top style="thin"><color rgb="FFE3E8F0"/></top><bottom style="thin"><color rgb="FFE3E8F0"/></bottom><diagonal/></border></borders>' +
         '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-        '<cellXfs count="3">' +
+        '<cellXfs count="4">' +
         '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
         '<xf numFmtId="0" fontId="1" fillId="1" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
         '<xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>' +
         '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
 }
 
@@ -185,7 +186,7 @@ function axisXml(chartId, categoryPosition, valuePosition) {
     const catAxis = 100000 + chartId * 2;
     const valAxis = catAxis + 1;
     return '<c:catAx><c:axId val="' + catAxis + '"/><c:scaling><c:orientation val="' +
-        (chartId === 2 ? 'minMax' : 'maxMin') + '"/></c:scaling><c:delete val="0"/><c:axPos val="' + categoryPosition +
+        (categoryPosition === 'b' ? 'minMax' : 'maxMin') + '"/></c:scaling><c:delete val="0"/><c:axPos val="' + categoryPosition +
         '"/><c:tickLblPos val="nextTo"/><c:crossAx val="' + valAxis + '"/><c:crosses val="autoZero"/><c:auto val="1"/><c:lblAlgn val="ctr"/><c:lblOffset val="100"/></c:catAx>' +
         '<c:valAx><c:axId val="' + valAxis + '"/><c:scaling><c:orientation val="minMax"/><c:min val="0"/></c:scaling><c:delete val="0"/><c:axPos val="' +
         valuePosition + '"/><c:majorGridlines/><c:numFmt formatCode="0" sourceLinked="0"/><c:tickLblPos val="nextTo"/><c:crossAx val="' +
