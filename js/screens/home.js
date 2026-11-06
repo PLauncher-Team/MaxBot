@@ -7,6 +7,8 @@ const HomeScreen = {
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    pendingRecipientQuestionDeleteId: null,
+    recipientQuestionDeleteInProgress: false,
     feedbackReminderId: null,
     expandedReminderSections: { scheduled: false, sent: false },
 
@@ -286,7 +288,7 @@ const HomeScreen = {
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
                             <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
-                                ${item.feedback_enabled ? '<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;"><span>Обратная связь</span>' + (Number(item.feedback_unread_count) > 0 ? '<span class="feedback-response-count">' + Number(item.feedback_unread_count) + '</span>' : '') + '</button>' : ''}
+                                ${'<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;"><span>Обратная связь</span>' + (Number(item.feedback_unread_count) > 0 ? '<span class="feedback-response-count">' + Number(item.feedback_unread_count) + '</span>' : '') + (Number(item.question_unread_count) > 0 ? '<span class="feedback-question-count">' + Number(item.question_unread_count) + '</span>' : '') + '</button>'}
                                 <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
                                 <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
                             </div>
@@ -335,12 +337,24 @@ const HomeScreen = {
             const data = await App.getFeedback(item.id);
             if (String(this.feedbackReminderId) !== String(item.id)) return;
             this.renderFeedbackResults(data);
-            try {
-                await App.markFeedbackRead(item.id, data.latest_submission_id);
-                await this.refreshReminders();
-            } catch (readError) {
-                console.error('Failed to mark feedback as read:', readError);
+            let shouldRefreshReminders = false;
+            if (data.latest_question_id > 0) {
+                try {
+                    await App.markRecipientQuestionsRead(item.id, data.latest_question_id);
+                    shouldRefreshReminders = true;
+                } catch (readError) {
+                    console.error('Failed to mark recipient questions as read:', readError);
+                }
             }
+            if (data.feedback_enabled) {
+                try {
+                    await App.markFeedbackRead(item.id, data.latest_submission_id);
+                    shouldRefreshReminders = true;
+                } catch (readError) {
+                    console.error('Failed to mark feedback as read:', readError);
+                }
+            }
+            if (shouldRefreshReminders) await this.refreshReminders();
         } catch (error) {
             content.replaceChildren();
             const state = document.createElement('div');
@@ -359,6 +373,81 @@ const HomeScreen = {
         }
     },
 
+    openRecipientQuestionDeleteModal: function(questionId) {
+        const modal = document.getElementById('recipient-question-delete-modal');
+        if (!modal || this.recipientQuestionDeleteInProgress) return;
+        this.pendingRecipientQuestionDeleteId = questionId;
+        modal.style.display = 'flex';
+    },
+
+    closeRecipientQuestionDeleteModal: function() {
+        if (this.recipientQuestionDeleteInProgress) return;
+        const modal = document.getElementById('recipient-question-delete-modal');
+        if (modal) modal.style.display = 'none';
+        this.pendingRecipientQuestionDeleteId = null;
+    },
+
+    confirmRecipientQuestionDelete: async function() {
+        if (this.pendingRecipientQuestionDeleteId === null || this.recipientQuestionDeleteInProgress) return;
+        const modal = document.getElementById('recipient-question-delete-modal');
+        const confirmButton = document.getElementById('recipient-question-delete-confirm');
+        const cancelButton = document.getElementById('recipient-question-delete-cancel');
+        const buttonText = confirmButton ? confirmButton.textContent : '';
+        this.recipientQuestionDeleteInProgress = true;
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.textContent = 'Удаление…';
+        }
+        if (cancelButton) cancelButton.disabled = true;
+        try {
+            await App.deleteRecipientQuestion(this.feedbackReminderId, this.pendingRecipientQuestionDeleteId);
+            if (modal) modal.style.display = 'none';
+            this.pendingRecipientQuestionDeleteId = null;
+            App.showToast('Вопрос удалён');
+            const currentTitle = document.getElementById('feedback-results-reminder-title')?.textContent || '';
+            await this.openFeedbackResults({ id: this.feedbackReminderId, title: currentTitle });
+        } catch (error) {
+            App.showToast(error.message || 'Не удалось удалить вопрос');
+        } finally {
+            this.recipientQuestionDeleteInProgress = false;
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.textContent = buttonText || 'Удалить';
+            }
+            if (cancelButton) cancelButton.disabled = false;
+        }
+    },
+
+    exportFeedbackWorkbook: async function() {
+        if (!this.feedbackReminderId || this.feedbackExportInProgress) return;
+        const button = document.querySelector('.feedback-export-button');
+        this.feedbackExportInProgress = true;
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Готовим Excel…';
+        }
+        try {
+            const result = await App.getFeedbackExport(this.feedbackReminderId);
+            const objectUrl = URL.createObjectURL(result.blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = result.filename || ('feedback-' + this.feedbackReminderId + '.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            App.showToast('Excel-файл подготовлен');
+        } catch (error) {
+            App.showToast(error.message || 'Не удалось экспортировать ответы');
+        } finally {
+            this.feedbackExportInProgress = false;
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Скачать Excel';
+            }
+        }
+    },
+
     renderFeedbackResults: function(data) {
         const content = document.getElementById('feedback-results-content');
         if (!content) return;
@@ -368,10 +457,12 @@ const HomeScreen = {
         const responded = Math.max(0, Number(data.responded) || 0);
         const responsePercent = Math.max(0, Math.min(100, Number(data.response_percent) || 0));
         const options = Array.isArray(data.options) ? data.options : [];
+        this.feedbackExportInProgress = false;
         const submissions = Array.isArray(data.submissions) ? data.submissions : [];
         const files = Array.isArray(data.files) ? data.files : [];
         const uniqueFileRecipients = new Set(files.map(entry => String(entry.chat_id))).size;
         const filePercent = Math.max(0, Math.min(100, Number(data.file_percent) || 0));
+        const questions = Array.isArray(data.questions) ? data.questions : [];
 
         const createNode = (tag, className, text) => {
             const node = document.createElement(tag);
@@ -379,6 +470,23 @@ const HomeScreen = {
             if (text !== undefined) node.textContent = text;
             return node;
         };
+
+        const hero = document.querySelector('.feedback-page-hero');
+        if (hero) hero.style.display = data.feedback_enabled === false ? 'none' : '';
+        if (data.feedback_enabled === false) {
+            this.renderRecipientQuestionsSection(content, questions, createNode);
+            return;
+        }
+
+        if (data.feedback_enabled !== false && hero) {
+            hero.querySelector('.feedback-export-toolbar')?.remove();
+            const exportToolbar = createNode('div', 'feedback-export-toolbar');
+            const exportButton = createNode('button', 'feedback-export-button', 'Скачать Excel');
+            exportButton.type = 'button';
+            exportButton.addEventListener('click', () => this.exportFeedbackWorkbook());
+            exportToolbar.appendChild(exportButton);
+            hero.appendChild(exportToolbar);
+        }
 
         const createProgress = value => {
             const track = createNode('div', 'feedback-progress-track');
@@ -535,6 +643,97 @@ const HomeScreen = {
         }
 
         content.appendChild(answersSection);
+        this.renderRecipientQuestionsSection(content, questions, createNode);
+    },
+
+    renderRecipientQuestionsSection: function(content, questions, createNode) {
+        const section = createNode('section', 'feedback-section feedback-recipient-questions-section');
+        const heading = createNode('div', 'feedback-section-heading');
+        const copy = createNode('div', 'feedback-section-heading-copy');
+        copy.appendChild(createNode('h2', '', 'Вопросы получателей'));
+        copy.appendChild(createNode('p', '', 'Общие вопросы, видимые всем получателям'));
+        heading.appendChild(copy);
+        heading.appendChild(createNode('span', 'feedback-count-badge', String(questions.length)));
+        section.appendChild(heading);
+
+        if (!questions.length) {
+            const empty = createNode('div', 'feedback-empty-state');
+            empty.appendChild(createNode('div', 'feedback-empty-icon', '?'));
+            empty.appendChild(createNode('strong', '', 'Пока нет вопросов'));
+            empty.appendChild(createNode('p', '', 'Когда получатели зададут вопрос, он появится здесь.'));
+            section.appendChild(empty);
+        } else {
+            questions.forEach(question => {
+                const answered = Boolean(String(question.answer || '').trim());
+                const card = createNode('article', 'feedback-question-card feedback-recipient-question-card' + (answered ? '' : ' is-unanswered'));
+                const header = createNode('div', 'feedback-recipient-question-header');
+                const name = String(question.recipient_name || 'Получатель');
+                header.appendChild(createNode('span', 'feedback-respondent-avatar', name.trim().slice(0, 1).toUpperCase() || 'П'));
+                const author = createNode('div', 'feedback-respondent-copy');
+                author.appendChild(createNode('strong', 'feedback-respondent-name', name));
+                const createdAt = question.created_at ? new Date(String(question.created_at).replace(' ', 'T')) : null;
+                const dateLabel = createdAt && !Number.isNaN(createdAt.getTime())
+                    ? createdAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : 'Вопрос отправлен';
+                author.appendChild(createNode('span', 'feedback-respondent-date', dateLabel));
+                header.appendChild(author);
+                card.appendChild(header);
+                card.appendChild(createNode('div', 'feedback-question-text', question.question || ''));
+                card.appendChild(createNode('span', 'feedback-question-status ' + (answered ? 'is-answered' : 'is-unanswered'), answered ? 'Есть ответ' : 'Ждёт ответа'));
+
+                if (answered) {
+                    const answer = createNode('div', 'feedback-recipient-question-answer');
+                    answer.appendChild(createNode('strong', '', 'Ответ'));
+                    answer.appendChild(createNode('p', 'feedback-answer-text', question.answer));
+                    card.appendChild(answer);
+                }
+
+                const actions = createNode('div', 'feedback-recipient-question-actions');
+                if (!answered) {
+                    const answerButton = createNode('button', 'feedback-question-action feedback-question-answer-button', 'Ответить');
+                    answerButton.type = 'button';
+                    answerButton.addEventListener('click', () => {
+                        if (card.querySelector('.feedback-question-answer-form')) return;
+                        const form = createNode('form', 'feedback-question-answer-form');
+                        const input = createNode('textarea', 'feedback-question-answer-input');
+                        input.maxLength = 1000;
+                        input.required = true;
+                        input.placeholder = 'Напишите ответ получателю';
+                        const submit = createNode('button', 'feedback-question-action feedback-question-submit', 'Отправить');
+                        submit.type = 'submit';
+                        form.append(input, submit);
+                        form.addEventListener('submit', async event => {
+                            event.preventDefault();
+                            const answerText = input.value.trim();
+                            if (!answerText) return;
+                            submit.disabled = true;
+                            submit.textContent = 'Отправка…';
+                            try {
+                                await App.answerRecipientQuestion(this.feedbackReminderId, question.id, answerText);
+                                App.showToast('Ответ отправлен получателю');
+                                const currentTitle = document.getElementById('feedback-results-reminder-title')?.textContent || '';
+                                await this.openFeedbackResults({ id: this.feedbackReminderId, title: currentTitle });
+                            } catch (error) {
+                                App.showToast(error.message || 'Не удалось отправить ответ');
+                                submit.disabled = false;
+                                submit.textContent = 'Отправить';
+                            }
+                        });
+                        card.appendChild(form);
+                        input.focus();
+                    });
+                    actions.appendChild(answerButton);
+                }
+                const deleteButton = createNode('button', 'feedback-question-action feedback-question-delete', 'Удалить');
+                deleteButton.type = 'button';
+                deleteButton.addEventListener('click', () => this.openRecipientQuestionDeleteModal(question.id));
+                actions.appendChild(deleteButton);
+                card.appendChild(actions);
+                section.appendChild(card);
+            });
+        }
+
+        content.appendChild(section);
     },
 
     loadRecipientsData: async function() {
@@ -845,6 +1044,21 @@ const HomeScreen = {
         const sentDeleteModal = document.getElementById('sent-delete-modal');
         const sentDeleteCancel = document.getElementById('sent-delete-cancel');
         const sentDeleteConfirm = document.getElementById('sent-delete-confirm');
+        const questionDeleteModal = document.getElementById('recipient-question-delete-modal');
+        const questionDeleteCancel = document.getElementById('recipient-question-delete-cancel');
+        const questionDeleteConfirm = document.getElementById('recipient-question-delete-confirm');
+
+        if (questionDeleteCancel) {
+            questionDeleteCancel.addEventListener('click', () => this.closeRecipientQuestionDeleteModal());
+        }
+        if (questionDeleteConfirm) {
+            questionDeleteConfirm.addEventListener('click', () => this.confirmRecipientQuestionDelete());
+        }
+        if (questionDeleteModal) {
+            questionDeleteModal.addEventListener('click', event => {
+                if (event.target === questionDeleteModal) this.closeRecipientQuestionDeleteModal();
+            });
+        }
 
         if (sentDeleteCancel) {
             sentDeleteCancel.addEventListener('click', () => this.closeSentDeleteModal());
@@ -858,7 +1072,10 @@ const HomeScreen = {
             });
         }
         document.addEventListener('keydown', event => {
-            if (event.key === 'Escape') this.closeSentDeleteModal();
+            if (event.key === 'Escape') {
+                this.closeSentDeleteModal();
+                this.closeRecipientQuestionDeleteModal();
+            }
         });
 
         const scrollContainer = document.getElementById('templates-scroll');

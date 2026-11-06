@@ -117,6 +117,27 @@ db.exec(`
         UNIQUE(user_id, reminder_id)
     );
 
+    CREATE TABLE IF NOT EXISTS recipient_question_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        last_seen_question_id INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, reminder_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS recipient_questions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL,
+        recipient_user_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL DEFAULT '',
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL DEFAULT '',
+        answered_at TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS uploaded_media (
         filename TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -147,6 +168,7 @@ db.exec(`
 
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedback_submissions(reminder_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_recipient_questions_reminder ON recipient_questions(reminder_id)');
 
 module.exports = db;
 

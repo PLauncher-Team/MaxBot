@@ -37,7 +37,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$GITHUB_REF" == "refs/heads/ui-redesign" || "$GITHUB_REF" == "refs/heads/feature/recipient-feedback" ]] || { echo "::error::Only ui-redesign or feature/recipient-feedback may be deployed by this workflow"; exit 1; }
           test -n "$SSHPASS" || { echo "::error::Missing DEPLOY_SSH_PASSWORD"; exit 1; }
           test -n "$DEPLOY_SSH_USER" || { echo "::error::Missing DEPLOY_SSH_USER"; exit 1; }
           if [[ -n "$DEPLOY_SSH_KNOWN_HOSTS" ]]; then
@@ -54,8 +53,11 @@ jobs:
       - name: Run security tests and syntax checks
         run: |
           set -euo pipefail
+          npm install --omit=dev @node-projects/excelforge@3.8.0
+          npm ls --omit=dev @node-projects/excelforge
+          node --input-type=module -e "await import('@node-projects/excelforge'); console.log('ExcelForge is available')"
           npm test
-          for file in auth.js server.js bot.js scheduler.js routes/*.js js/*.js js/screens/*.js; do
+          for file in auth.js server.js bot.js scheduler.js xlsx.js routes/*.js js/*.js js/screens/*.js test/*.js; do
             node --check "$file"
           done
 

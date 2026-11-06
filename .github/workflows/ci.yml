@@ -6,7 +6,7 @@ on:
       - main
   push:
     branches:
-      - ui-redesign
+      - '**'
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           set -euo pipefail
-          for file in auth.js server.js bot.js scheduler.js routes/*.js js/*.js js/screens/*.js; do
+          for file in auth.js server.js bot.js scheduler.js xlsx.js routes/*.js js/*.js js/screens/*.js test/*.js; do
             node --check "$file"
           done
       - name: Audit production dependencies

@@ -141,6 +141,23 @@ const App = {
         return data;
     },
 
+    getFeedbackExport: async function(id) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/export', {
+            headers: this.getAuthHeaders()
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || 'Не удалось экспортировать ответы');
+        }
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        const plainName = disposition.match(/filename="([^"]+)"/i);
+        const filename = encodedName
+            ? decodeURIComponent(encodedName[1])
+            : (plainName ? plainName[1] : 'feedback.xlsx');
+        return { blob: await response.blob(), filename };
+    },
+
     markFeedbackRead: async function(id, lastSeenSubmissionId) {
         const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/read', {
             method: 'POST',
@@ -152,6 +169,44 @@ const App = {
         });
         const data = await response.json().catch(() => null);
         if (!response.ok) throw new Error(data?.error || 'Не удалось отметить обратную связь просмотренной');
+        return data;
+    },
+
+    markRecipientQuestionsRead: async function(id, lastSeenQuestionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ last_seen_question_id: Number(lastSeenQuestionId) || 0 })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отметить вопросы просмотренными');
+        return data;
+    },
+
+    answerRecipientQuestion: async function(id, questionId, answer) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/' + encodeURIComponent(questionId) + '/answer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ answer })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отправить ответ');
+        return data;
+    },
+
+    deleteRecipientQuestion: async function(id, questionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/questions/' + encodeURIComponent(questionId), {
+            method: 'DELETE',
+            headers: this.getAuthHeaders()
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось удалить вопрос');
         return data;
     },
 
