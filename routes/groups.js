@@ -10,7 +10,6 @@ function generateUniqueGroupId() {
 
 router.get('/', (req, res) => {
     try {
-        console.info('[API] GET /api/groups started');
         const rows = db.prepare(`
             SELECT g.*, COUNT(DISTINCT pg.participant_id) as participant_count
             FROM groups g
@@ -19,7 +18,6 @@ router.get('/', (req, res) => {
             GROUP BY g.id
             ORDER BY g.id DESC
         `).all(req.userId);
-        console.info('[API] GET /api/groups completed:', rows.length);
         res.json(rows);
     } catch (e) {
         console.error('Failed to fetch groups:', e);
