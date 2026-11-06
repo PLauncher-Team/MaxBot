@@ -54,5 +54,9 @@ test('creates a readable XLSX workbook with an embedded Excel chart', async () =
     const chartSheet = reopened.getSheet('Диаграммы');
     assert.ok(chartSheet);
     assert.equal(chartSheet.getCharts().length, 1);
-    assert.equal(chartSheet.getCharts()[0].type, 'doughnut');
+    const chart = chartSheet.getCharts()[0];
+    assert.equal(chart.type, 'doughnut');
+    assert.equal(chart.series[0].values, "'Данные графиков'!$B$2:$B$3");
+    assert.equal(chart.series[0].categories, "'Данные графиков'!$A$2:$A$3");
+    assert.ok(!chart.series[0].values.includes('undefined'));
 });
