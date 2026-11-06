@@ -1,11 +1,50 @@
 # MaxBot
 
-MAX Mini App and bot backend.
+MAX Mini App и backend MAX-бота.
 
-## Deployment
+## Требования к серверу
 
-See [deployment instructions](README-DEPLOY.md).
+Для развёртывания жюри понадобится:
 
-Requirements: Ubuntu VPS with public IPv4, a domain pointed to the VPS, inbound TCP ports 80 and 443, Docker Engine, Docker Compose v2, and a MAX bot token.
+- VPS с Ubuntu 22.04 или 24.04 и публичным IPv4-адресом.
+- Доменное имя с A-записью, указывающей на IPv4-адрес VPS.
+- Открытые входящие TCP-порты 80 и 443.
+- Установленные Docker Engine и Docker Compose v2.
+- Токен MAX-бота.
 
-Run `sudo bash deploy/setup.sh` from the deployment package. The installer asks for the bot token and domain, obtains a Let's Encrypt certificate, and starts the application.
+Перед установкой убедитесь, что DNS-запись домена уже обновилась и домен открывается на IP-адресе VPS.
+
+## Установка
+
+Скопируйте проект на VPS и из корневой папки проекта выполните:
+
+```bash
+sudo bash deploy/setup.sh
+```
+
+Установщик запросит токен MAX-бота и домен. Токен будет сохранён на сервере в отдельном файле с ограниченными правами доступа. Установщик соберёт Docker-образы, запустит Nginx, запросит TLS-сертификат Let's Encrypt и запустит приложение.
+
+После успешной установки приложение будет доступно по адресу:
+
+```
+https://ваш-домен
+```
+
+Для получения сертификата Let's Encrypt домен должен указывать на VPS, а входящий TCP-порт 80 должен быть доступен из интернета.
+
+## Управление
+
+Команды выполняются из корневой папки проекта:
+
+```bash
+bash deploy/maxbot status
+bash deploy/maxbot logs
+bash deploy/maxbot restart
+bash deploy/maxbot update
+bash deploy/maxbot backup
+bash deploy/maxbot stop
+```
+
+Данные SQLite и загруженные пользователями файлы сохраняются в Docker volume и переживают перезапуск контейнеров. Не удаляйте volumes при обновлении или остановке проекта.
+
+Проверка и автоматическое продление сертификата Let's Encrypt настраиваются через systemd timer. Корневой сертификат Минцифры в проекте используется для исходящих HTTPS-запросов к MAX и не является сертификатом HTTPS-сайта.
