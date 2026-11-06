@@ -7,6 +7,8 @@ const HomeScreen = {
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    pendingRecipientQuestionDeleteId: null,
+    recipientQuestionDeleteInProgress: false,
     feedbackReminderId: null,
     expandedReminderSections: { scheduled: false, sent: false },
 
@@ -371,6 +373,81 @@ const HomeScreen = {
         }
     },
 
+    openRecipientQuestionDeleteModal: function(questionId) {
+        const modal = document.getElementById('recipient-question-delete-modal');
+        if (!modal || this.recipientQuestionDeleteInProgress) return;
+        this.pendingRecipientQuestionDeleteId = questionId;
+        modal.style.display = 'flex';
+    },
+
+    closeRecipientQuestionDeleteModal: function() {
+        if (this.recipientQuestionDeleteInProgress) return;
+        const modal = document.getElementById('recipient-question-delete-modal');
+        if (modal) modal.style.display = 'none';
+        this.pendingRecipientQuestionDeleteId = null;
+    },
+
+    confirmRecipientQuestionDelete: async function() {
+        if (this.pendingRecipientQuestionDeleteId === null || this.recipientQuestionDeleteInProgress) return;
+        const modal = document.getElementById('recipient-question-delete-modal');
+        const confirmButton = document.getElementById('recipient-question-delete-confirm');
+        const cancelButton = document.getElementById('recipient-question-delete-cancel');
+        const buttonText = confirmButton ? confirmButton.textContent : '';
+        this.recipientQuestionDeleteInProgress = true;
+        if (confirmButton) {
+            confirmButton.disabled = true;
+            confirmButton.textContent = 'Удаление…';
+        }
+        if (cancelButton) cancelButton.disabled = true;
+        try {
+            await App.deleteRecipientQuestion(this.feedbackReminderId, this.pendingRecipientQuestionDeleteId);
+            if (modal) modal.style.display = 'none';
+            this.pendingRecipientQuestionDeleteId = null;
+            App.showToast('Вопрос удалён');
+            const currentTitle = document.getElementById('feedback-results-reminder-title')?.textContent || '';
+            await this.openFeedbackResults({ id: this.feedbackReminderId, title: currentTitle });
+        } catch (error) {
+            App.showToast(error.message || 'Не удалось удалить вопрос');
+        } finally {
+            this.recipientQuestionDeleteInProgress = false;
+            if (confirmButton) {
+                confirmButton.disabled = false;
+                confirmButton.textContent = buttonText || 'Удалить';
+            }
+            if (cancelButton) cancelButton.disabled = false;
+        }
+    },
+
+    exportFeedbackWorkbook: async function() {
+        if (!this.feedbackReminderId || this.feedbackExportInProgress) return;
+        const button = document.querySelector('.feedback-export-button');
+        this.feedbackExportInProgress = true;
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Готовим Excel…';
+        }
+        try {
+            const result = await App.getFeedbackExport(this.feedbackReminderId);
+            const objectUrl = URL.createObjectURL(result.blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = result.filename || ('feedback-' + this.feedbackReminderId + '.xlsx');
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            App.showToast('Excel-файл подготовлен');
+        } catch (error) {
+            App.showToast(error.message || 'Не удалось экспортировать ответы');
+        } finally {
+            this.feedbackExportInProgress = false;
+            if (button) {
+                button.disabled = false;
+                button.textContent = 'Скачать Excel';
+            }
+        }
+    },
+
     renderFeedbackResults: function(data) {
         const content = document.getElementById('feedback-results-content');
         if (!content) return;
@@ -380,6 +457,7 @@ const HomeScreen = {
         const responded = Math.max(0, Number(data.responded) || 0);
         const responsePercent = Math.max(0, Math.min(100, Number(data.response_percent) || 0));
         const options = Array.isArray(data.options) ? data.options : [];
+        this.feedbackExportInProgress = false;
         const submissions = Array.isArray(data.submissions) ? data.submissions : [];
         const files = Array.isArray(data.files) ? data.files : [];
         const uniqueFileRecipients = new Set(files.map(entry => String(entry.chat_id))).size;
@@ -398,6 +476,15 @@ const HomeScreen = {
         if (data.feedback_enabled === false) {
             this.renderRecipientQuestionsSection(content, questions, createNode);
             return;
+        }
+
+        if (data.feedback_enabled !== false) {
+            const exportToolbar = createNode('div', 'feedback-export-toolbar');
+            const exportButton = createNode('button', 'feedback-export-button', 'Скачать Excel');
+            exportButton.type = 'button';
+            exportButton.addEventListener('click', () => this.exportFeedbackWorkbook());
+            exportToolbar.appendChild(exportButton);
+            content.appendChild(exportToolbar);
         }
 
         const createProgress = value => {
@@ -638,19 +725,7 @@ const HomeScreen = {
                 }
                 const deleteButton = createNode('button', 'feedback-question-action feedback-question-delete', 'Удалить');
                 deleteButton.type = 'button';
-                deleteButton.addEventListener('click', async () => {
-                    if (typeof window.confirm === 'function' && !window.confirm('Удалить этот вопрос?')) return;
-                    deleteButton.disabled = true;
-                    try {
-                        await App.deleteRecipientQuestion(this.feedbackReminderId, question.id);
-                        App.showToast('Вопрос удалён');
-                        const currentTitle = document.getElementById('feedback-results-reminder-title')?.textContent || '';
-                        await this.openFeedbackResults({ id: this.feedbackReminderId, title: currentTitle });
-                    } catch (error) {
-                        App.showToast(error.message || 'Не удалось удалить вопрос');
-                        deleteButton.disabled = false;
-                    }
-                });
+                deleteButton.addEventListener('click', () => this.openRecipientQuestionDeleteModal(question.id));
                 actions.appendChild(deleteButton);
                 card.appendChild(actions);
                 section.appendChild(card);
