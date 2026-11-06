@@ -7,6 +7,7 @@ const App = {
     selectedTemplate: null,
 
     modalReplies: [],
+    editingTemplateId: null,
 
     escapeHtml: function(str) {
         if (str === null || str === undefined) return '';
@@ -104,6 +105,22 @@ const App = {
         return data;
     },
 
+    updateTemplate: async function(id, template) {
+        const res = await fetch('/api/templates/' + encodeURIComponent(id), {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify(template)
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok) {
+            throw new Error(data?.error || 'Не удалось обновить шаблон');
+        }
+        return data;
+    },
+
     deleteTemplate: async function(id) {
         const response = await fetch('/api/templates/' + id, {
             method: 'DELETE',
@@ -114,6 +131,27 @@ const App = {
             throw new Error(data?.error || 'Не удалось удалить шаблон');
         }
 
+        return data;
+    },
+
+    getFeedback: async function(id) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback', { headers: this.getAuthHeaders() });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось загрузить обратную связь');
+        return data;
+    },
+
+    markFeedbackRead: async function(id, lastSeenSubmissionId) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/read', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...this.getAuthHeaders()
+            },
+            body: JSON.stringify({ last_seen_submission_id: Number(lastSeenSubmissionId) || 0 })
+        });
+        const data = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(data?.error || 'Не удалось отметить обратную связь просмотренной');
         return data;
     },
 
@@ -433,24 +471,103 @@ const App = {
         });
     },
 
+    renderModalFeedbackOptions: function() {
+        const list = document.getElementById('modal-feedback-options-list');
+        if (!list) return;
+        list.replaceChildren();
+        (this.modalFeedbackOptions || []).forEach((option, index) => {
+            const row = document.createElement('div');
+            row.className = 'feedback-question-editor-row';
+            const label = document.createElement('span');
+            label.className = 'feedback-question-editor-text';
+            label.textContent = option;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'feedback-question-editor-remove';
+            remove.textContent = '×';
+            remove.setAttribute('aria-label', 'Удалить вариант');
+            remove.addEventListener('click', () => {
+                this.modalFeedbackOptions.splice(index, 1);
+                this.renderModalFeedbackOptions();
+            });
+            row.append(label, remove);
+            list.appendChild(row);
+        });
+    },
+
     openCreateTemplateModal: function() {
         const modal = document.getElementById('template-modal');
         const titleInput = document.getElementById('modal-template-title');
         const descInput = document.getElementById('modal-template-desc');
         const qInput = document.getElementById('modal-reply-q');
         const aInput = document.getElementById('modal-reply-a');
+        const heading = document.getElementById('modal-template-heading');
+        const saveButton = document.getElementById('modal-template-save');
+        this.editingTemplateId = null;
         if (titleInput) titleInput.value = '';
         if (descInput) descInput.value = '';
         if (qInput) qInput.value = '';
         if (aInput) aInput.value = '';
+        if (heading) heading.textContent = 'Новый шаблон';
+        if (saveButton) saveButton.textContent = 'Создать шаблон';
         this.modalReplies = [];
+        this.modalFeedbackOptions = [];
+        this.modalFeedbackEnabled = false;
+        this.modalFeedbackAllowFiles = false;
+        this.renderModalFeedbackSettings();
+        const optionInput = document.getElementById('modal-feedback-option-input');
+        if (optionInput) optionInput.value = '';
         this.renderModalReplies();
+        this.renderModalFeedbackOptions();
         if (modal) modal.style.display = 'flex';
+    },
+
+    openEditTemplateModal: function(template) {
+        const modal = document.getElementById('template-modal');
+        const titleInput = document.getElementById('modal-template-title');
+        const descInput = document.getElementById('modal-template-desc');
+        const qInput = document.getElementById('modal-reply-q');
+        const aInput = document.getElementById('modal-reply-a');
+        const heading = document.getElementById('modal-template-heading');
+        const saveButton = document.getElementById('modal-template-save');
+        const optionInput = document.getElementById('modal-feedback-option-input');
+        this.editingTemplateId = template.id;
+        if (titleInput) titleInput.value = template.title || '';
+        if (descInput) descInput.value = template.description || '';
+        if (qInput) qInput.value = '';
+        if (aInput) aInput.value = '';
+        if (heading) heading.textContent = 'Редактировать шаблон';
+        if (saveButton) saveButton.textContent = 'Сохранить изменения';
+        this.modalReplies = Array.isArray(template.quick_replies) ? template.quick_replies.map(reply => ({ ...reply })) : [];
+        this.modalFeedbackOptions = Array.isArray(template.feedback_options) ? [...template.feedback_options] : [];
+        this.modalFeedbackEnabled = Boolean(template.feedback_enabled);
+        this.modalFeedbackAllowFiles = this.modalFeedbackEnabled && Boolean(template.feedback_allow_files);
+        if (optionInput) optionInput.value = '';
+        this.renderModalFeedbackSettings();
+        this.renderModalReplies();
+        this.renderModalFeedbackOptions();
+        if (modal) modal.style.display = 'flex';
+    },
+
+    renderModalFeedbackSettings: function() {
+        const enabled = document.getElementById('modal-feedback-enabled-toggle');
+        const files = document.getElementById('modal-feedback-files-toggle');
+        const settings = document.getElementById('modal-feedback-settings');
+        if (enabled) {
+            enabled.classList.toggle('active', this.modalFeedbackEnabled);
+            enabled.setAttribute('aria-checked', String(this.modalFeedbackEnabled));
+        }
+        if (files) {
+            files.classList.toggle('active', this.modalFeedbackAllowFiles);
+            files.setAttribute('aria-checked', String(this.modalFeedbackAllowFiles));
+        }
+        if (settings) settings.hidden = !this.modalFeedbackEnabled;
     },
 
     closeCreateTemplateModal: function() {
         const modal = document.getElementById('template-modal');
         if (modal) modal.style.display = 'none';
+        this.editingTemplateId = null;
     },
 
     init: function() {
@@ -479,7 +596,8 @@ const App = {
             templates: document.getElementById('templates-screen'),
             create: document.getElementById('create-screen'),
             recipients: document.getElementById('recipients-screen'),
-            reminderView: document.getElementById('reminder-view-screen')
+            reminderView: document.getElementById('reminder-view-screen'),
+            feedbackResults: document.getElementById('feedback-results-screen')
         };
 
         if (window.WebApp) {
@@ -496,7 +614,7 @@ const App = {
                         this.recipientsReturnScreen = null;
                         this.showScreen(target);
                         if (target === 'create') CreateScreen.loadRecipientOptions();
-                    } else if (this.currentScreen === 'templates') {
+                    } else if (this.currentScreen === 'templates' || this.currentScreen === 'feedbackResults') {
                         this.showScreen('home');
                     }
                 });
@@ -557,6 +675,39 @@ const App = {
             });
         }
 
+        const bindModalFeedbackToggle = (element, property, disableFiles = false) => {
+            if (!element) return;
+            const toggle = () => {
+                this[property] = !this[property];
+                if (disableFiles && !this[property]) this.modalFeedbackAllowFiles = false;
+                this.renderModalFeedbackSettings();
+            };
+            element.addEventListener('click', toggle);
+            element.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    toggle();
+                }
+            });
+        };
+        bindModalFeedbackToggle(document.getElementById('modal-feedback-enabled-toggle'), 'modalFeedbackEnabled', true);
+        bindModalFeedbackToggle(document.getElementById('modal-feedback-files-toggle'), 'modalFeedbackAllowFiles');
+
+        const modalFeedbackOptionAddBtn = document.getElementById('modal-feedback-option-add-btn');
+        if (modalFeedbackOptionAddBtn) {
+            modalFeedbackOptionAddBtn.addEventListener('click', () => {
+                const input = document.getElementById('modal-feedback-option-input');
+                const option = input?.value.trim();
+                if (!option) return;
+                if (!this.modalFeedbackOptions) this.modalFeedbackOptions = [];
+                if (this.modalFeedbackOptions.length >= 20) { this.showToast('Можно добавить максимум 20 вариантов'); return; }
+                if (this.modalFeedbackOptions.some(item => item.toLowerCase() === option.toLowerCase())) { this.showToast('Такой вариант уже добавлен'); return; }
+                this.modalFeedbackOptions.push(option.slice(0, 200));
+                input.value = '';
+                this.renderModalFeedbackOptions();
+            });
+        }
+
         const modalReplyAddBtn = document.getElementById('modal-reply-add-btn');
         if (modalReplyAddBtn) {
             modalReplyAddBtn.addEventListener('click', () => {
@@ -589,19 +740,29 @@ const App = {
                     return;
                 }
 
+                const template = {
+                    title,
+                    description,
+                    quick_replies: this.modalReplies,
+                    feedback_enabled: this.modalFeedbackEnabled,
+                    feedback_allow_files: this.modalFeedbackEnabled && this.modalFeedbackAllowFiles,
+                    feedback_options: this.modalFeedbackEnabled ? (this.modalFeedbackOptions || []) : []
+                };
+                const isEditing = this.editingTemplateId !== null;
+
                 try {
-                    await this.saveTemplate({
-                        title,
-                        description,
-                        quick_replies: this.modalReplies
-                    });
+                    if (isEditing) {
+                        await this.updateTemplate(this.editingTemplateId, template);
+                    } else {
+                        await this.saveTemplate(template);
+                    }
                 } catch (error) {
-                    this.showToast(error.message || 'Не удалось сохранить шаблон');
+                    this.showToast(error.message || (isEditing ? 'Не удалось обновить шаблон' : 'Не удалось сохранить шаблон'));
                     return;
                 }
 
                 this.closeCreateTemplateModal();
-                this.showToast('Шаблон сохранён');
+                this.showToast(isEditing ? 'Шаблон обновлён' : 'Шаблон сохранён');
                 if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
                     HomeScreen.loadData();
                 }

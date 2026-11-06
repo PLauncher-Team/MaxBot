@@ -19,6 +19,9 @@ db.exec(`
         title TEXT NOT NULL,
         description TEXT NOT NULL,
         quick_replies TEXT NOT NULL,
+        feedback_options TEXT NOT NULL DEFAULT '[]',
+        feedback_enabled INTEGER NOT NULL DEFAULT 0,
+        feedback_allow_files INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -44,6 +47,10 @@ db.exec(`
         sent_at TEXT,
         message_ids TEXT,
         reply_message_ids TEXT,
+        feedback_enabled INTEGER NOT NULL DEFAULT 0,
+        feedback_allow_files INTEGER NOT NULL DEFAULT 0,
+        feedback_questions TEXT NOT NULL DEFAULT '[]',
+        feedback_options TEXT NOT NULL DEFAULT '[]',
         status TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -81,6 +88,35 @@ db.exec(`
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS feedback_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        chat_id TEXT NOT NULL,
+        recipient_name TEXT NOT NULL DEFAULT '',
+        answers TEXT NOT NULL DEFAULT '{}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(reminder_id, chat_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS feedback_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id INTEGER NOT NULL REFERENCES feedback_submissions(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        size INTEGER NOT NULL,
+        mime_type TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS feedback_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        reminder_id INTEGER NOT NULL REFERENCES reminders(id) ON DELETE CASCADE,
+        last_seen_submission_id INTEGER NOT NULL DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, reminder_id)
+    );
+
     CREATE TABLE IF NOT EXISTS uploaded_media (
         filename TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -109,4 +145,9 @@ db.exec(`
         ON recipient_download_tickets(expires_at);
 `);
 
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_submissions_reminder ON feedback_submissions(reminder_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_files_submission ON feedback_files(submission_id)');
+
 module.exports = db;
+
+db.exec('CREATE INDEX IF NOT EXISTS idx_feedback_views_reminder_user ON feedback_views(reminder_id, user_id)');

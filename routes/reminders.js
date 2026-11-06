@@ -295,6 +295,35 @@ function cleanupUnusedUploadedMedia(userId, previousMedia, nextMedia) {
     }
 }
 
+
+function cleanupUnreferencedUploadedMedia(filenames) {
+    const candidates = [...new Set((Array.isArray(filenames) ? filenames : []).filter(filename =>
+        typeof filename === 'string' && /^(?:img|file|vid)_[a-f0-9]{16,32}\.[a-z0-9]+$/i.test(filename)
+    ))];
+    if (!candidates.length) return;
+
+    const referenced = new Set();
+    db.prepare('SELECT images FROM reminders').all().forEach(row => {
+        safeJsonParse(row.images, []).forEach(item => {
+            if (item && typeof item.filename === 'string') referenced.add(item.filename);
+        });
+    });
+    db.prepare('SELECT filename FROM feedback_files').all().forEach(row => referenced.add(row.filename));
+
+    candidates.forEach(filename => {
+        if (referenced.has(filename)) return;
+        const owner = db.prepare('SELECT filename FROM uploaded_media WHERE filename = ?').get(filename);
+        if (!owner) return;
+        try {
+            const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+            db.prepare('DELETE FROM uploaded_media WHERE filename = ?').run(filename);
+        } catch (error) {
+            console.error('Failed to clean unused uploaded media:', error.message);
+        }
+    });
+}
+
 function sanitizeQuickReplies(quickReplies) {
     if (quickReplies === undefined || quickReplies === null) return [];
     if (!Array.isArray(quickReplies) || quickReplies.length > 20) return null;
@@ -306,6 +335,15 @@ function sanitizeQuickReplies(quickReplies) {
             answer: typeof reply.answer === 'string' ? reply.answer.trim().slice(0, 500) : ''
         }))
         .filter(reply => reply.question.length > 0);
+}
+
+function sanitizeFeedbackOptions(feedbackOptions) {
+    if (feedbackOptions === undefined || feedbackOptions === null) return [];
+    if (!Array.isArray(feedbackOptions) || feedbackOptions.length > 20) return null;
+    return feedbackOptions
+        .filter(option => typeof option === 'string')
+        .map(option => option.trim().slice(0, 200))
+        .filter(Boolean);
 }
 
 function isValidScheduledTime(value) {
@@ -516,6 +554,275 @@ router.get('/public/:id/media/:filename', async (req, res) => {
     }
 });
 
+router.post('/public/:id/feedback/profile', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, message_ids FROM reminders WHERE id = ?').get(id);
+        if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
+        const chatId = await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId);
+        if (!chatId) return res.status(404).json({ error: 'Reminder not found' });
+        const name = typeof req.body?.recipient_name === 'string' ? req.body.recipient_name.trim().slice(0, 150) : '';
+        if (!name) return res.json({ success: true, updated: false });
+        const result = db.prepare("UPDATE feedback_submissions SET recipient_name = ? WHERE reminder_id = ? AND chat_id = ? AND recipient_name = ''")
+            .run(name, id, chatId);
+        res.json({ success: true, updated: result.changes > 0 });
+    } catch (error) {
+        console.error('Failed to update feedback respondent profile:', error.message);
+        res.status(500).json({ error: 'Не удалось обновить имя получателя' });
+    }
+});
+
+router.post('/public/:id/feedback', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT user_id, feedback_enabled, feedback_allow_files, feedback_options, message_ids, repeat_type FROM reminders WHERE id = ?').get(id);
+        if (!reminder || !reminder.feedback_enabled || reminder.repeat_type && reminder.repeat_type !== 'Никогда') return res.status(404).json({ error: 'Feedback is unavailable' });
+        const messageIds = safeJsonParse(reminder.message_ids, {});
+        const chatId = await getRecipientChatId(reminder, messageIds, req.userId);
+        if (!chatId) return res.status(404).json({ error: 'Reminder not found' });
+        const options = safeJsonParse(reminder.feedback_options, []).filter(item => typeof item === 'string' && item.trim());
+        const incoming = req.body?.answers && typeof req.body.answers === 'object' && !Array.isArray(req.body.answers) ? req.body.answers : {};
+        const selectedOption = typeof incoming.choice === 'string' ? incoming.choice.trim() : '';
+        const answers = selectedOption && options.includes(selectedOption) ? { choice: selectedOption } : {};
+        const files = Array.isArray(req.body?.files) ? req.body.files : [];
+        if (Object.keys(answers).length === 0 && files.length === 0) return res.status(400).json({ error: 'Добавьте ответ или файл' });
+        if (!reminder.feedback_allow_files && files.length) return res.status(400).json({ error: 'File attachments are disabled' });
+        if (files.length > 3) return res.status(400).json({ error: 'Можно прикрепить не более 3 файлов' });
+        const rawRecipient = req.body?.recipient_name;
+        const recipientName = typeof rawRecipient === 'string' ? rawRecipient.trim().slice(0, 150) : '';
+        const preparedFiles = [];
+        for (const item of files) {
+            const filename = typeof item?.filename === 'string' ? item.filename : '';
+            const match = /^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename);
+            if (!match) return res.status(400).json({ error: 'Некорректный файл' });
+            const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+            const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+            if (!owner || String(owner.user_id) !== String(req.userId) || !fs.existsSync(filePath)) return res.status(400).json({ error: 'Файл не найден' });
+            const stat = fs.statSync(filePath);
+            if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+            const buffer = fs.readFileSync(filePath);
+            const extension = match[1].toLowerCase();
+            if (!hasValidFileSignature(buffer, extension)) return res.status(400).json({ error: 'Формат файла не поддерживается' });
+            preparedFiles.push({ filename, name: cleanUploadedFileName(item.name || filename, extension), size: stat.size, mime_type: FILE_TYPES[extension] });
+        }
+        const previousFiles = db.prepare('SELECT f.filename FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND s.chat_id = ?')
+            .all(id, chatId)
+            .map(file => file.filename);
+        const save = db.transaction(() => {
+            const existing = db.prepare('SELECT id FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?').get(id, chatId);
+            let submissionId;
+            if (existing) {
+                submissionId = existing.id;
+                db.prepare("UPDATE feedback_submissions SET answers = ?, recipient_name = CASE WHEN ? <> '' THEN ? ELSE recipient_name END, created_at = CURRENT_TIMESTAMP WHERE id = ?")
+                    .run(JSON.stringify(answers), recipientName, recipientName, submissionId);
+            } else {
+                submissionId = db.prepare('INSERT INTO feedback_submissions (reminder_id, chat_id, recipient_name, answers) VALUES (?, ?, ?, ?)')
+                    .run(id, chatId, recipientName, JSON.stringify(answers)).lastInsertRowid;
+            }
+            db.prepare('DELETE FROM feedback_files WHERE submission_id = ?').run(submissionId);
+            preparedFiles.forEach(file => {
+                db.prepare('INSERT INTO feedback_files (submission_id, filename, name, size, mime_type) VALUES (?, ?, ?, ?, ?)')
+                    .run(submissionId, file.filename, file.name, file.size, file.mime_type);
+            });
+            return submissionId;
+        });
+        save();
+        cleanupUnreferencedUploadedMedia(previousFiles.filter(filename =>
+            !preparedFiles.some(file => file.filename === filename)
+        ));
+        res.json({ success: true });
+    } catch (error) {
+        if (error.message === 'FILE_TOO_LARGE') return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+        if (error.message === 'INVALID_FILE' || error.message === 'INVALID_UPLOAD') return res.status(400).json({ error: 'Формат файла не поддерживается' });
+        console.error('Failed to save recipient feedback:', error.message);
+        res.status(500).json({ error: 'Не удалось сохранить обратную связь' });
+    }
+});
+
+
+router.get('/public/:id/feedback/files/:filename', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const filename = String(req.params.filename || '');
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
+        const chatId = reminder
+            ? await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId)
+            : null;
+        if (!reminder || !chatId) return res.status(404).json({ error: 'File not found' });
+        const file = db.prepare('SELECT f.name, f.mime_type FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND s.chat_id = ? AND f.filename = ?')
+            .get(id, chatId, filename);
+        if (!file) return res.status(404).json({ error: 'File not found' });
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.type(file.mime_type || 'application/octet-stream');
+        return res.download(filePath, file.name);
+    } catch (error) {
+        console.error('Failed to download recipient feedback attachment:', error.message);
+        return res.status(500).json({ error: 'Не удалось скачать файл' });
+    }
+});
+
+router.delete('/public/:id/feedback/files/:filename', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const filename = String(req.params.filename || '');
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
+        const chatId = reminder
+            ? await getRecipientChatId(reminder, safeJsonParse(reminder.message_ids, {}), req.userId)
+            : null;
+        if (!reminder || !chatId) return res.status(404).json({ error: 'File not found' });
+        const submission = db.prepare('SELECT id, answers FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?')
+            .get(id, chatId);
+        const file = submission
+            ? db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? AND filename = ?').get(submission.id, filename)
+            : null;
+        if (file) {
+            db.transaction(() => {
+                db.prepare('DELETE FROM feedback_files WHERE id = ?').run(file.id);
+                const remaining = db.prepare('SELECT id FROM feedback_files WHERE submission_id = ? LIMIT 1').get(submission.id);
+                const answers = safeJsonParse(submission.answers, {});
+                if (!remaining && !Object.keys(answers).some(key => typeof answers[key] === 'string' && answers[key].trim())) {
+                    db.prepare('DELETE FROM feedback_submissions WHERE id = ?').run(submission.id);
+                }
+            })();
+            cleanupUnreferencedUploadedMedia([filename]);
+            return res.json({ success: true });
+        }
+
+        const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
+        if (!owner || String(owner.user_id) !== String(req.userId)) {
+            return res.status(404).json({ error: 'File not found' });
+        }
+        const isReferencedByFeedback = db.prepare('SELECT id FROM feedback_files WHERE filename = ? LIMIT 1').get(filename);
+        const isReferencedByReminder = db.prepare('SELECT images FROM reminders').all().some(row =>
+            safeJsonParse(row.images, []).some(item => item && item.filename === filename)
+        );
+        if (isReferencedByFeedback || isReferencedByReminder) {
+            return res.status(409).json({ error: 'Файл уже прикреплён' });
+        }
+        cleanupUnreferencedUploadedMedia([filename]);
+        const remainingOwner = db.prepare('SELECT filename FROM uploaded_media WHERE filename = ?').get(filename);
+        if (remainingOwner) return res.status(409).json({ error: 'Не удалось удалить временный файл' });
+        return res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to delete recipient feedback attachment:', error.message);
+        return res.status(500).json({ error: 'Не удалось удалить файл' });
+    }
+});
+
+router.get('/:id/feedback', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT id, user_id, recipients, feedback_options, feedback_enabled, feedback_allow_files FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        if (!reminder || !reminder.feedback_enabled) return res.status(404).json({ error: 'Feedback is unavailable' });
+        const submissions = db.prepare('SELECT id, chat_id, recipient_name, answers, created_at FROM feedback_submissions WHERE reminder_id = ? ORDER BY created_at DESC').all(id);
+        const participants = db.prepare('SELECT chat_id, user_id, name FROM participants WHERE teacher_id = ?').all(req.userId);
+        const participantByIdentity = new Map();
+        participants.forEach(participant => {
+            if (participant.chat_id !== null && participant.chat_id !== undefined) {
+                participantByIdentity.set(String(participant.chat_id), participant);
+            }
+            if (participant.user_id !== null && participant.user_id !== undefined) {
+                participantByIdentity.set(String(participant.user_id), participant);
+            }
+        });
+        const recipients = getTargetChatIds(req.userId, safeJsonParse(reminder.recipients, []));
+        const options = safeJsonParse(reminder.feedback_options, []).filter(item => typeof item === 'string' && item.trim()).map(option => {
+            const count = submissions.filter(row => safeJsonParse(row.answers, {}).choice === option).length;
+            return { option, count, percent: recipients.length ? Math.round(count / recipients.length * 100) : 0 };
+        });
+        const files = submissions.map(row => ({
+            chat_id: row.chat_id,
+            files: db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id').all(row.id)
+                .map(file => ({ ...file, download_url: '/api/reminders/' + id + '/feedback/files/' + encodeURIComponent(file.filename) }))
+        })).filter(row => row.files.length);
+        res.json({
+            latest_submission_id: submissions.reduce((max, row) => Math.max(max, Number(row.id) || 0), 0),
+            total_recipients: recipients.length,
+            responded: submissions.length,
+            response_percent: recipients.length ? Math.round(submissions.length / recipients.length * 100) : 0,
+            feedback_allow_files: Boolean(reminder.feedback_allow_files),
+            file_percent: recipients.length ? Math.round(files.length / recipients.length * 100) : 0,
+            options,
+            submissions: submissions.map(row => {
+                const participant = participantByIdentity.get(String(row.chat_id));
+                return {
+                    chat_id: row.chat_id,
+                    name: row.recipient_name || participant?.name || '',
+                    answers: safeJsonParse(row.answers, {}),
+                    created_at: row.created_at
+                };
+            }),
+            files
+        });
+    } catch (error) {
+        console.error('Failed to load feedback:', error.message);
+        res.status(500).json({ error: 'Не удалось загрузить обратную связь' });
+    }
+});
+
+router.post('/:id/feedback/read', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isSafeInteger(id) || id <= 0) return res.status(400).json({ error: 'Invalid reminder id' });
+        const reminder = db.prepare('SELECT id FROM reminders WHERE id = ? AND user_id = ? AND feedback_enabled = 1').get(id, req.userId);
+        if (!reminder) return res.status(404).json({ error: 'Feedback is unavailable' });
+
+        const lastSeenSubmissionId = Number(req.body?.last_seen_submission_id);
+        if (!Number.isSafeInteger(lastSeenSubmissionId) || lastSeenSubmissionId < 0) {
+            return res.status(400).json({ error: 'Invalid feedback read position' });
+        }
+        const latestSubmissionId = db.prepare('SELECT COALESCE(MAX(id), 0) AS id FROM feedback_submissions WHERE reminder_id = ?')
+            .get(id).id;
+        if (lastSeenSubmissionId > latestSubmissionId) {
+            return res.status(400).json({ error: 'Feedback read position is out of range' });
+        }
+
+        db.prepare(`
+            INSERT INTO feedback_views (user_id, reminder_id, last_seen_submission_id)
+            VALUES (?, ?, ?)
+            ON CONFLICT(user_id, reminder_id) DO UPDATE SET
+                last_seen_submission_id = MAX(feedback_views.last_seen_submission_id, excluded.last_seen_submission_id),
+                updated_at = CURRENT_TIMESTAMP
+        `).run(String(req.userId), id, lastSeenSubmissionId);
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Failed to mark feedback as read:', error.message);
+        res.status(500).json({ error: 'Не удалось отметить обратную связь просмотренной' });
+    }
+});
+
+router.get('/:id/feedback/files/:filename', (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        const filename = String(req.params.filename || '');
+        const reminder = db.prepare('SELECT user_id FROM reminders WHERE id = ? AND user_id = ?').get(id, req.userId);
+        const file = db.prepare('SELECT f.name, f.mime_type FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND f.filename = ?').get(id, filename);
+        if (!reminder || !file || !/^file_[a-f0-9]{32}\.[a-z0-9]+$/i.test(filename)) return res.status(404).json({ error: 'File not found' });
+        const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.type(file.mime_type || 'application/octet-stream');
+        return res.download(filePath, file.name);
+    } catch (error) {
+        res.status(500).json({ error: 'Не удалось скачать файл' });
+    }
+});
+
 router.get('/public/:id', async (req, res) => {
     try {
         const id = Number(req.params.id);
@@ -523,7 +830,7 @@ router.get('/public/:id', async (req, res) => {
             return res.status(400).json({ error: 'Invalid reminder id' });
         }
 
-        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, images, message_ids FROM reminders WHERE id = ?').get(id);
+        const reminder = db.prepare('SELECT user_id, title, description, sender_name, quick_replies, feedback_questions, feedback_options, images, message_ids, feedback_enabled, feedback_allow_files, repeat_type FROM reminders WHERE id = ?').get(id);
         const messageIds = safeJsonParse(reminder?.message_ids, {});
         const chatId = reminder ? await getRecipientChatId(reminder, messageIds, req.userId) : null;
         if (!reminder || !chatId) {
@@ -556,6 +863,17 @@ router.get('/public/:id', async (req, res) => {
             }))
             : [];
 
+        const feedbackSubmission = db.prepare('SELECT id, answers, created_at FROM feedback_submissions WHERE reminder_id = ? AND chat_id = ?')
+            .get(id, chatId);
+        const feedbackFiles = feedbackSubmission
+            ? db.prepare('SELECT filename, name, size, mime_type FROM feedback_files WHERE submission_id = ? ORDER BY id')
+                .all(feedbackSubmission.id)
+                .map(file => ({
+                    ...file,
+                    download_url: '/api/reminders/public/' + id + '/feedback/files/' + encodeURIComponent(file.filename)
+                }))
+            : [];
+
         res.setHeader('Cache-Control', 'no-store');
         return res.json({
             title: reminder.title || '',
@@ -565,7 +883,15 @@ router.get('/public/:id', async (req, res) => {
                 id: String(reminder.user_id)
             },
             images: publicImages,
-            quick_replies: publicReplies
+            quick_replies: publicReplies,
+            feedback_options: sanitizeFeedbackOptions(safeJsonParse(reminder.feedback_options, [])) || [],
+            feedback_enabled: Boolean(reminder.feedback_enabled) && reminder.repeat_type === 'Никогда',
+            feedback_allow_files: Boolean(reminder.feedback_allow_files),
+            feedback_submission: feedbackSubmission ? {
+                answers: safeJsonParse(feedbackSubmission.answers, {}),
+                created_at: feedbackSubmission.created_at,
+                files: feedbackFiles
+            } : null
         });
     } catch (error) {
         console.error('Failed to fetch recipient reminder:', error.message);
@@ -575,68 +901,40 @@ router.get('/public/:id', async (req, res) => {
 
 router.get('/', (req, res) => {
     try {
-        // Keep only five sent reminders and five upcoming scheduled reminders.
-        // Remove stored responses with pruned records to avoid orphaned database rows.
         const pruneReminderHistory = db.transaction(userId => {
-            db.prepare(`
-                DELETE FROM responses
-                WHERE reminder_id IN (
-                    SELECT id FROM reminders
-                    WHERE user_id = ? AND status = 'sent'
-                    ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC
-                    LIMIT -1 OFFSET 5
-                )
-            `).run(userId);
+            const oldSent = db.prepare("SELECT id, images FROM reminders WHERE user_id = ? AND status = 'sent' ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC LIMIT -1 OFFSET 5").all(userId);
+            const oldScheduled = db.prepare("SELECT id, images FROM reminders WHERE user_id = ? AND status = 'scheduled' ORDER BY CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END, scheduled_time ASC, id ASC LIMIT -1 OFFSET 5").all(userId);
+            const removed = oldSent.concat(oldScheduled);
+            if (!removed.length) return [];
 
-            db.prepare(`
-                DELETE FROM reminders
-                WHERE user_id = ? AND status = 'sent'
-                  AND id NOT IN (
-                      SELECT id FROM reminders
-                      WHERE user_id = ? AND status = 'sent'
-                      ORDER BY julianday(COALESCE(sent_at, created_at)) DESC, id DESC
-                      LIMIT 5
-                  )
-            `).run(userId, userId);
+            const ids = removed.map(row => row.id);
+            const placeholders = ids.map(() => '?').join(',');
+            const filenames = new Set();
+            removed.forEach(row => {
+                safeJsonParse(row.images, []).forEach(item => {
+                    if (item && typeof item.filename === 'string') filenames.add(item.filename);
+                });
+            });
+            db.prepare('SELECT f.filename FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id IN (' + placeholders + ')')
+                .all(...ids)
+                .forEach(row => filenames.add(row.filename));
 
-            db.prepare(`
-                DELETE FROM responses
-                WHERE reminder_id IN (
-                    SELECT id FROM reminders
-                    WHERE user_id = ? AND status = 'scheduled'
-                      AND id NOT IN (
-                          SELECT id FROM reminders
-                          WHERE user_id = ? AND status = 'scheduled'
-                          ORDER BY
-                              CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END,
-                              scheduled_time ASC,
-                              id ASC
-                          LIMIT 5
-                      )
-                )
-            `).run(userId, userId);
+            db.prepare('DELETE FROM responses WHERE reminder_id IN (' + placeholders + ')').run(...ids);
+            db.prepare('DELETE FROM recipient_download_tickets WHERE reminder_id IN (' + placeholders + ')').run(...ids);
+            db.prepare('DELETE FROM feedback_files WHERE submission_id IN (SELECT id FROM feedback_submissions WHERE reminder_id IN (' + placeholders + '))').run(...ids);
+            db.prepare('DELETE FROM feedback_submissions WHERE reminder_id IN (' + placeholders + ')').run(...ids);
+            db.prepare('DELETE FROM reminders WHERE user_id = ? AND id IN (' + placeholders + ')').run(userId, ...ids);
 
-            db.prepare(`
-                DELETE FROM reminders
-                WHERE user_id = ? AND status = 'scheduled'
-                  AND id NOT IN (
-                      SELECT id FROM reminders
-                      WHERE user_id = ? AND status = 'scheduled'
-                      ORDER BY
-                          CASE WHEN scheduled_time IS NULL THEN 1 ELSE 0 END,
-                          scheduled_time ASC,
-                          id ASC
-                      LIMIT 5
-                  )
-            `).run(userId, userId);
+            return [...filenames];
         });
-        pruneReminderHistory(req.userId);
+        cleanupUnreferencedUploadedMedia(pruneReminderHistory(req.userId));
 
-        const rows = db.prepare('SELECT * FROM reminders WHERE user_id = ? ORDER BY id DESC').all(req.userId);
+        const rows = db.prepare("SELECT reminders.*, CASE WHEN reminders.feedback_enabled = 1 THEN (SELECT COUNT(*) FROM feedback_submissions fs WHERE fs.reminder_id = reminders.id AND fs.id > COALESCE((SELECT fv.last_seen_submission_id FROM feedback_views fv WHERE fv.reminder_id = reminders.id AND fv.user_id = reminders.user_id), 0)) ELSE 0 END AS feedback_unread_count FROM reminders WHERE user_id = ? ORDER BY id DESC").all(req.userId);
         const parsed = rows.map(r => ({
             ...r,
             recipients: safeJsonParse(r.recipients, []),
             quick_replies: safeJsonParse(r.quick_replies, []),
+            feedback_questions: safeJsonParse(r.feedback_questions, []),
             images: safeJsonParse(r.images, [])
         }));
         res.json(parsed);
@@ -745,11 +1043,20 @@ router.delete('/:id', async (req, res) => {
                 .run(JSON.stringify(remainingMessageIds), id, req.userId);
             return res.status(502).json({ error: 'Не удалось удалить сообщение у всех получателей. Повторите попытку' });
         }
+        const feedbackFilenames = db.prepare('SELECT f.filename FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ?')
+            .all(id)
+            .map(file => file.filename);
         db.transaction(() => {
             db.prepare('DELETE FROM responses WHERE reminder_id = ?').run(id);
+            db.prepare('DELETE FROM recipient_download_tickets WHERE reminder_id = ?').run(id);
+            db.prepare('DELETE FROM feedback_files WHERE submission_id IN (SELECT id FROM feedback_submissions WHERE reminder_id = ?)').run(id);
+            db.prepare('DELETE FROM feedback_submissions WHERE reminder_id = ?').run(id);
             db.prepare('DELETE FROM reminders WHERE id = ? AND user_id = ?').run(id, req.userId);
         })();
-        cleanupUnusedUploadedMedia(req.userId, safeJsonParse(reminder.images, []), []);
+        const reminderFilenames = safeJsonParse(reminder.images, [])
+            .map(item => item && item.filename)
+            .filter(Boolean);
+        cleanupUnreferencedUploadedMedia([...reminderFilenames, ...feedbackFilenames]);
         res.json({ success: true, deleted_messages: deletedMessages });
     } catch (e) {
         console.error('Failed to delete reminder:', e);
@@ -768,7 +1075,11 @@ router.post('/', async (req, res) => {
             repeat_time,
             recipients,
             quick_replies,
-            images
+            images,
+            feedback_enabled,
+            feedback_allow_files,
+            feedback_questions,
+            feedback_options
         } = req.body || {};
 
         if (typeof send_now !== 'boolean') {
@@ -810,7 +1121,11 @@ router.post('/', async (req, res) => {
         if (!validReplies) {
             return res.status(400).json({ error: 'quick_replies must contain at most 20 items' });
         }
-
+        const cleanFeedbackEnabled = cleanRepeatType === 'Никогда' && feedback_enabled === true;
+        const cleanFeedbackAllowFiles = cleanFeedbackEnabled && feedback_allow_files === true;
+        const validFeedbackOptions = sanitizeFeedbackOptions(feedback_options);
+        if (!validFeedbackOptions) return res.status(400).json({ error: 'feedback_options must contain at most 20 options' });
+        const cleanFeedbackOptions = cleanFeedbackEnabled ? validFeedbackOptions : [];
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
             return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
@@ -818,8 +1133,8 @@ router.post('/', async (req, res) => {
 
         const stmt = db.prepare(`
             INSERT INTO reminders (
-                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, images, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                user_id, title, description, sender_name, send_now, scheduled_time, repeat_type, repeat_time, recipients, quick_replies, feedback_questions, feedback_options, images, feedback_enabled, feedback_allow_files, status
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         const info = stmt.run(
@@ -833,7 +1148,11 @@ router.post('/', async (req, res) => {
             cleanRepeatTime,
             JSON.stringify(validRecipients),
             JSON.stringify(validReplies),
+            JSON.stringify([]),
+            JSON.stringify(cleanFeedbackOptions),
             JSON.stringify(validImages),
+            cleanFeedbackEnabled ? 1 : 0,
+            cleanFeedbackAllowFiles ? 1 : 0,
             status
         );
 

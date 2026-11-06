@@ -1,5 +1,6 @@
 const db = require('./db');
 const { sendBroadcastMessage } = require('./bot');
+const { runStorageMaintenance } = require('./maintenance');
 
 let schedulerRunning = false;
 
@@ -218,7 +219,9 @@ async function checkScheduledReminders() {
 
 function startScheduler() {
     checkScheduledReminders();
+    runStorageMaintenance();
     setInterval(checkScheduledReminders, 15000);
+    setInterval(runStorageMaintenance, 60 * 60 * 1000);
 }
 
 module.exports = {

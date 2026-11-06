@@ -156,14 +156,41 @@
     white-space: nowrap;
 }
 
+.template-edit-btn,
 .template-delete-btn {
-    background: none;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
     border: none;
-    padding: 4px;
+    padding: 5px;
+    border-radius: 9px;
+    background: #f2f2f7;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.template-item-right .template-edit-btn {
+    position: static;
+    top: auto;
+    right: auto;
+    background: var(--accent-soft, #edf1ff);
+    color: var(--accent, #4263eb);
+}
+
+.template-edit-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.template-delete-btn {
+    background: #fff1f0;
 }
 
 .template-delete-btn svg {
@@ -172,6 +199,12 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+}
+
+.template-edit-btn:focus-visible,
+.template-delete-btn:focus-visible {
+    outline: 2px solid #007aff;
+    outline-offset: 2px;
 }
 
 .empty-search {

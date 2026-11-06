@@ -7,6 +7,7 @@ const HomeScreen = {
     remindersRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
+    feedbackReminderId: null,
     expandedReminderSections: { scheduled: false, sent: false },
 
     updateTemplateScrollControls: function() {
@@ -41,18 +42,24 @@ const HomeScreen = {
             if (templatesScroll) {
                 templatesScroll.querySelectorAll('.template-card').forEach(el => el.remove());
                 templates.forEach(t => {
-                    const card = document.createElement('button');
-                    card.type = 'button';
+                    const card = document.createElement('div');
                     card.className = 'template-card';
                     card.setAttribute('data-id', t.id);
+                    const displayTitle = String(t.title || '');
                     card.innerHTML = `
-                        <div class="template-card-content">
-                            <div class="template-title">${App.escapeHtml(t.title)}</div>
+                        <button type="button" class="template-card-open">
+                            <div class="template-title">${App.escapeHtml(displayTitle)}</div>
                             <div class="template-badge">Шаблон</div>
-                        </div>
+                        </button>
+                        <button type="button" class="template-edit-btn" aria-label="Редактировать шаблон ${App.escapeHtml(displayTitle)}" title="Редактировать">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"></path></svg>
+                        </button>
                     `;
-                    card.addEventListener('click', () => {
+                    card.querySelector('.template-card-open').addEventListener('click', () => {
                         CreateScreen.startWizard(t);
+                    });
+                    card.querySelector('.template-edit-btn').addEventListener('click', () => {
+                        App.openEditTemplateModal(t);
                     });
                     templatesScroll.insertBefore(card, addCard);
                 });
@@ -279,10 +286,13 @@ const HomeScreen = {
                             <div class="reminder-item-desc">${App.escapeHtml(item.description)}</div>
                             <div class="sent-reminder-meta"><strong>Получатели:</strong> ${App.escapeHtml(recipientsText || 'Не указаны')}</div>
                             <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px;">
+                                ${item.feedback_enabled ? '<button class="group-share-btn feedback-sent-reminder-btn" style="background-color: #e9e7ff; color: #6554c0;"><span>Обратная связь</span>' + (Number(item.feedback_unread_count) > 0 ? '<span class="feedback-response-count">' + Number(item.feedback_unread_count) + '</span>' : '') + '</button>' : ''}
                                 <button class="group-share-btn edit-sent-reminder-btn" style="background-color: #e5f2ff; color: #007aff;">Изменить</button>
                                 <button class="group-share-btn delete-sent-reminder-btn" style="background-color: #ffe5e5; color: #ff3b30;">Удалить</button>
                             </div>
                         `;
+                        const feedbackButton = el.querySelector('.feedback-sent-reminder-btn');
+                        if (feedbackButton) feedbackButton.addEventListener('click', () => this.openFeedbackResults(item));
                         el.querySelector('.edit-sent-reminder-btn').addEventListener('click', () => {
                             CreateScreen.populateForSentEdit(item);
                             App.showScreen('create');
@@ -301,6 +311,230 @@ const HomeScreen = {
         } finally {
             this.remindersRefreshInProgress = false;
         }
+    },
+
+    openFeedbackResults: async function(item) {
+        const content = document.getElementById('feedback-results-content');
+        const title = document.getElementById('feedback-results-reminder-title');
+        const subtitle = document.getElementById('feedback-results-reminder-subtitle');
+        const pageContent = document.querySelector('.feedback-page-content');
+        if (!content) return;
+
+        this.feedbackReminderId = item.id;
+        if (title) title.textContent = item.title || 'Ответы получателей';
+        if (subtitle) subtitle.textContent = 'Статистика и ответы по отправленному напоминанию';
+        if (pageContent) pageContent.scrollTop = 0;
+        content.replaceChildren();
+        const loading = document.createElement('div');
+        loading.className = 'feedback-loading-state';
+        loading.textContent = 'Загружаем ответы…';
+        content.appendChild(loading);
+        App.showScreen('feedbackResults');
+
+        try {
+            const data = await App.getFeedback(item.id);
+            if (String(this.feedbackReminderId) !== String(item.id)) return;
+            this.renderFeedbackResults(data);
+            try {
+                await App.markFeedbackRead(item.id, data.latest_submission_id);
+                await this.refreshReminders();
+            } catch (readError) {
+                console.error('Failed to mark feedback as read:', readError);
+            }
+        } catch (error) {
+            content.replaceChildren();
+            const state = document.createElement('div');
+            state.className = 'feedback-empty-state feedback-error-state';
+            const heading = document.createElement('strong');
+            heading.textContent = 'Не удалось загрузить обратную связь';
+            const description = document.createElement('p');
+            description.textContent = error.message || 'Проверьте соединение и попробуйте ещё раз.';
+            const retry = document.createElement('button');
+            retry.type = 'button';
+            retry.className = 'feedback-retry-btn';
+            retry.textContent = 'Повторить';
+            retry.addEventListener('click', () => this.openFeedbackResults(item));
+            state.append(heading, description, retry);
+            content.appendChild(state);
+        }
+    },
+
+    renderFeedbackResults: function(data) {
+        const content = document.getElementById('feedback-results-content');
+        if (!content) return;
+        content.replaceChildren();
+
+        const total = Math.max(0, Number(data.total_recipients) || 0);
+        const responded = Math.max(0, Number(data.responded) || 0);
+        const responsePercent = Math.max(0, Math.min(100, Number(data.response_percent) || 0));
+        const options = Array.isArray(data.options) ? data.options : [];
+        const submissions = Array.isArray(data.submissions) ? data.submissions : [];
+        const files = Array.isArray(data.files) ? data.files : [];
+        const uniqueFileRecipients = new Set(files.map(entry => String(entry.chat_id))).size;
+        const filePercent = Math.max(0, Math.min(100, Number(data.file_percent) || 0));
+
+        const createNode = (tag, className, text) => {
+            const node = document.createElement(tag);
+            if (className) node.className = className;
+            if (text !== undefined) node.textContent = text;
+            return node;
+        };
+
+        const createProgress = value => {
+            const track = createNode('div', 'feedback-progress-track');
+            const fill = createNode('div', 'feedback-progress-fill');
+            fill.style.width = Math.max(0, Math.min(100, Number(value) || 0)) + '%';
+            track.appendChild(fill);
+            return track;
+        };
+
+        const overview = createNode('section', 'feedback-overview-grid');
+        const responseCard = createNode('article', 'feedback-stat-card feedback-stat-card-primary');
+        responseCard.appendChild(createNode('span', 'feedback-stat-label', 'ОТВЕТИЛИ'));
+        responseCard.appendChild(createNode('strong', 'feedback-stat-value', responsePercent + '%'));
+        responseCard.appendChild(createNode('span', 'feedback-stat-description', responded + ' из ' + total + ' получателей'));
+        responseCard.appendChild(createProgress(responsePercent));
+        overview.appendChild(responseCard);
+
+        if (data.feedback_allow_files === true) {
+            const filesCard = createNode('article', 'feedback-stat-card');
+            filesCard.appendChild(createNode('span', 'feedback-stat-label', 'ПРИКРЕПИЛИ ФАЙЛЫ'));
+            filesCard.appendChild(createNode('strong', 'feedback-stat-value', filePercent + '%'));
+            filesCard.appendChild(createNode('span', 'feedback-stat-description', uniqueFileRecipients + ' получателей'));
+            filesCard.appendChild(createProgress(filePercent));
+            overview.appendChild(filesCard);
+        }
+
+        const submissionsCard = createNode('article', 'feedback-stat-card');
+        submissionsCard.appendChild(createNode('span', 'feedback-stat-label', 'ПОЛУЧЕНО ОТВЕТОВ'));
+        submissionsCard.appendChild(createNode('strong', 'feedback-stat-value', String(responded)));
+        submissionsCard.appendChild(createNode('span', 'feedback-stat-description', 'из ' + total + ' адресатов'));
+        submissionsCard.appendChild(createProgress(responsePercent));
+        overview.appendChild(submissionsCard);
+        content.appendChild(overview);
+
+        if (options.length) {
+            const optionsSection = createNode('section', 'feedback-section');
+            const optionsHeading = createNode('div', 'feedback-section-heading');
+            const optionsHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+            optionsHeadingCopy.appendChild(createNode('h2', '', 'Результаты опроса'));
+            optionsHeadingCopy.appendChild(createNode('p', '', 'Распределение выбранных вариантов'));
+            optionsHeading.appendChild(optionsHeadingCopy);
+            optionsSection.appendChild(optionsHeading);
+            options.forEach(option => {
+                const card = createNode('article', 'feedback-question-card');
+                const optionText = createNode('div', 'feedback-question-text', option.option);
+                const stats = createNode('div', 'feedback-question-stats');
+                stats.appendChild(createNode('strong', '', (Number(option.percent) || 0) + '%'));
+                stats.appendChild(createNode('span', '', (Number(option.count) || 0) + ' из ' + total + ' получателей'));
+                card.append(optionText, stats, createProgress(option.percent));
+                optionsSection.appendChild(card);
+            });
+            content.appendChild(optionsSection);
+        }
+
+        const answersSection = createNode('section', 'feedback-section feedback-answers-section');
+        const answersHeading = createNode('div', 'feedback-section-heading');
+        const answersHeadingCopy = createNode('div', 'feedback-section-heading-copy');
+        answersHeadingCopy.appendChild(createNode('h2', '', 'Ответы получателей'));
+        answersHeadingCopy.appendChild(createNode('p', '', 'Индивидуальные ответы и вложения'));
+        answersHeading.appendChild(answersHeadingCopy);
+        answersHeading.appendChild(createNode('span', 'feedback-count-badge', String(submissions.length)));
+        answersSection.appendChild(answersHeading);
+
+        if (!submissions.length) {
+            const empty = createNode('div', 'feedback-empty-state');
+            const icon = createNode('div', 'feedback-empty-icon', '…');
+            empty.appendChild(icon);
+            empty.appendChild(createNode('strong', '', 'Пока нет ответов'));
+            empty.appendChild(createNode('p', '', 'Когда получатели отправят обратную связь, их ответы появятся в этом разделе.'));
+            answersSection.appendChild(empty);
+        } else {
+            submissions.forEach(submission => {
+                const card = createNode('article', 'feedback-respondent-card');
+                const header = createNode('div', 'feedback-respondent-header');
+                const person = this.recipientParticipants.find(participant => String(participant.chat_id) === String(submission.chat_id) || String(participant.user_id) === String(submission.chat_id));
+                const personName = submission.name || person?.name || 'Получатель';
+                header.appendChild(createNode('span', 'feedback-respondent-avatar', personName.trim().slice(0, 1).toUpperCase() || 'П'));
+                const personCopy = createNode('div', 'feedback-respondent-copy');
+                personCopy.appendChild(createNode('strong', 'feedback-respondent-name', personName));
+                const submittedAt = submission.created_at ? new Date(String(submission.created_at).replace(' ', 'T')) : null;
+                const dateLabel = submittedAt && !Number.isNaN(submittedAt.getTime())
+                    ? submittedAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    : 'Ответ отправлен';
+                personCopy.appendChild(createNode('span', 'feedback-respondent-date', dateLabel));
+                header.appendChild(personCopy);
+                card.appendChild(header);
+
+                const answerList = createNode('div', 'feedback-answer-list');
+                let hasAnswers = false;
+                const answers = submission.answers && typeof submission.answers === 'object' ? submission.answers : {};
+                if (typeof answers.choice === 'string' && answers.choice.trim()) {
+                    hasAnswers = true;
+                    const answerItem = createNode('div', 'feedback-answer-item');
+                    answerItem.appendChild(createNode('span', 'feedback-answer-question', 'Выбранный вариант'));
+                    answerItem.appendChild(createNode('p', 'feedback-answer-text', answers.choice));
+                    answerList.appendChild(answerItem);
+                }
+                if (hasAnswers) {
+                    card.appendChild(answerList);
+                }
+
+                const respondentFiles = files
+                    .filter(entry => String(entry.chat_id) === String(submission.chat_id))
+                    .flatMap(entry => Array.isArray(entry.files) ? entry.files : []);
+                if (respondentFiles.length) {
+                    const attachmentSection = createNode('div', 'feedback-attachments');
+                    attachmentSection.appendChild(createNode('span', 'feedback-attachments-title', 'Прикреплённые файлы'));
+                    respondentFiles.forEach(file => {
+                        const row = createNode('div', 'feedback-file-row');
+                        const extension = String(file.name || '').split('.').pop().slice(0, 5).toUpperCase() || 'FILE';
+                        row.appendChild(createNode('span', 'feedback-file-type', extension));
+                        const fileCopy = createNode('div', 'feedback-file-copy');
+                        fileCopy.appendChild(createNode('strong', '', file.name || 'Файл'));
+                        const fileSize = Number(file.size) || 0;
+                        const sizeLabel = fileSize >= 1024 * 1024
+                            ? (fileSize / (1024 * 1024)).toFixed(1) + ' МБ'
+                            : Math.max(1, Math.round(fileSize / 1024)) + ' КБ';
+                        fileCopy.appendChild(createNode('span', '', sizeLabel));
+                        row.appendChild(fileCopy);
+                        const download = createNode('button', 'feedback-file-download', 'Скачать');
+                        download.type = 'button';
+                        download.addEventListener('click', async () => {
+                            download.disabled = true;
+                            download.textContent = 'Загрузка…';
+                            try {
+                                const response = await fetch(file.download_url, { headers: App.getAuthHeaders() });
+                                if (!response.ok) throw new Error('Не удалось скачать файл');
+                                const objectUrl = URL.createObjectURL(await response.blob());
+                                const link = document.createElement('a');
+                                link.href = objectUrl;
+                                link.download = file.name || 'attachment';
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                            } catch (error) {
+                                App.showToast(error.message || 'Не удалось скачать файл');
+                            } finally {
+                                download.disabled = false;
+                                download.textContent = 'Скачать';
+                            }
+                        });
+                        row.appendChild(download);
+                        attachmentSection.appendChild(row);
+                    });
+                    card.appendChild(attachmentSection);
+                }
+
+                if (!hasAnswers && !respondentFiles.length) {
+                    card.appendChild(createNode('p', 'feedback-no-answer', 'Получатель отправил пустой ответ.'));
+                }
+                answersSection.appendChild(card);
+            });
+        }
+
+        content.appendChild(answersSection);
     },
 
     loadRecipientsData: async function() {
@@ -604,6 +838,10 @@ const HomeScreen = {
     },
 
     init: function() {
+        const feedbackBackButton = document.getElementById('feedback-results-back-btn');
+        if (feedbackBackButton) {
+            feedbackBackButton.addEventListener('click', () => App.showScreen('home'));
+        }
         const sentDeleteModal = document.getElementById('sent-delete-modal');
         const sentDeleteCancel = document.getElementById('sent-delete-cancel');
         const sentDeleteConfirm = document.getElementById('sent-delete-confirm');

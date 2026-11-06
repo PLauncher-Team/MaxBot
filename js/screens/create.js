@@ -4,6 +4,7 @@ const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xls
 
 const CreateScreen = {
     currentQuickReplies: [],
+    feedbackOptions: [],
     selectedGroups: [],
     selectedPeople: [],
     recipientGroups: [],
@@ -17,6 +18,8 @@ const CreateScreen = {
     wizardStep: 1,
     currentImages: [],
     editingSentReminder: false,
+    feedbackEnabled: false,
+    feedbackAllowFiles: false,
 
     repeatOptions: ['Никогда', 'Каждый день', 'Каждую неделю', 'Каждый месяц'],
     repeatIndex: 0,
@@ -42,7 +45,7 @@ const CreateScreen = {
         if (!list) return;
         list.innerHTML = '';
 
-        const addOption = (title, description, template, isEmpty = false) => {
+        const addOption = (title, template, isEmpty = false) => {
             const option = document.createElement('button');
             option.type = 'button';
             option.className = 'wizard-template-option' + (isEmpty ? ' wizard-template-option-empty' : '');
@@ -50,17 +53,11 @@ const CreateScreen = {
             name.className = 'wizard-template-option-title';
             name.textContent = title;
             option.appendChild(name);
-            if (description) {
-                const detail = document.createElement('span');
-                detail.className = 'wizard-template-option-description';
-                detail.textContent = description;
-                option.appendChild(detail);
-            }
             option.addEventListener('click', () => this.selectWizardTemplate(template));
             list.appendChild(option);
         };
 
-        addOption('Без шаблона', 'Создать напоминание с пустой формой', null, true);
+        addOption('Без шаблона', null, true);
         const loading = document.createElement('div');
         loading.className = 'wizard-template-loading';
         loading.textContent = 'Загрузка шаблонов...';
@@ -69,7 +66,7 @@ const CreateScreen = {
         try {
             const templates = await App.getTemplates();
             loading.remove();
-            templates.forEach(template => addOption(template.title || 'Без названия', template.description || '', template));
+            templates.forEach(template => addOption(template.title || 'Без названия', template));
         } catch (error) {
             loading.textContent = 'Не удалось загрузить шаблоны';
         }
@@ -492,6 +489,8 @@ const CreateScreen = {
         const repeatTimeInput = document.getElementById('repeat-time-input');
         const headerTitle = document.querySelector('#create-screen .create-title');
         const saveBtn = document.getElementById('save-reminder-btn');
+        const feedbackSection = document.getElementById('feedback-settings-section');
+        if (feedbackSection) feedbackSection.style.display = 'none';
         const sendNowSection = sendNowToggle?.closest('.create-section');
         const repeatSection = document.getElementById('repeat-type-btn')?.closest('.create-section');
         if (sendNowSection) sendNowSection.style.display = 'block';
@@ -506,6 +505,9 @@ const CreateScreen = {
         if (descInput) descInput.value = reminder.description || '';
         this.renderSenderProfile();
         this.currentQuickReplies = Array.isArray(reminder.quick_replies) ? [...reminder.quick_replies] : [];
+        this.feedbackOptions = [];
+        this.feedbackEnabled = false;
+        this.feedbackAllowFiles = false;
         const savedMedia = Array.isArray(reminder.images) ? reminder.images : [];
         this.currentImages = [
             ...savedMedia.filter(image => image && image.type === 'image' && typeof image.url === 'string').slice(0, 3),
@@ -542,6 +544,7 @@ const CreateScreen = {
         this.wizardActive = false;
         this.showWizardStep(3);
         this.renderQuickReplies();
+        this.renderFeedbackQuestions();
         this.renderSelectedRecipients();
         this.loadRecipientOptions();
         this.renderImagesPreview();
@@ -588,6 +591,9 @@ const CreateScreen = {
 
     populateForm: function(template) {
         this.editingSentReminder = false;
+        this.feedbackEnabled = false;
+        this.feedbackAllowFiles = false;
+        this.feedbackOptions = [];
         App.editingReminderId = null;
         const titleInput = document.getElementById('create-title-input');
         const descInput = document.getElementById('create-desc-input');
@@ -612,10 +618,14 @@ const CreateScreen = {
             if (titleInput) titleInput.value = template.title || '';
             if (descInput) descInput.value = template.description || '';
             this.currentQuickReplies = Array.isArray(template.quick_replies) ? [...template.quick_replies] : [];
+            this.feedbackOptions = Array.isArray(template.feedback_options) ? [...template.feedback_options] : [];
+            this.feedbackEnabled = Boolean(template.feedback_enabled);
+            this.feedbackAllowFiles = this.feedbackEnabled && Boolean(template.feedback_allow_files);
         } else {
             if (titleInput) titleInput.value = '';
             if (descInput) descInput.value = '';
             this.currentQuickReplies = [];
+            this.feedbackOptions = [];
         }
 
         this.renderSenderProfile();
@@ -651,8 +661,28 @@ const CreateScreen = {
         const recipientSearch = document.getElementById('wizard-recipient-search');
         if (recipientSearch) recipientSearch.value = '';
         this.renderQuickReplies();
+        this.renderFeedbackQuestions();
         this.renderSelectedRecipients();
         this.renderImagesPreview();
+        this.renderFeedbackSettings();
+    },
+
+    renderFeedbackSettings: function() {
+        const enabled = document.getElementById('feedback-enabled-toggle');
+        const files = document.getElementById('feedback-files-toggle');
+        const options = document.getElementById('feedback-settings-options');
+        const section = document.getElementById('feedback-settings-section');
+        const isNewSingle = !App.editingReminderId && !this.editingSentReminder;
+        if (section) section.style.display = isNewSingle && this.repeatIndex === 0 ? 'block' : 'none';
+        if (enabled) {
+            enabled.classList.toggle('active', this.feedbackEnabled);
+            enabled.setAttribute('aria-checked', String(this.feedbackEnabled));
+        }
+        if (files) {
+            files.classList.toggle('active', this.feedbackAllowFiles);
+            files.setAttribute('aria-checked', String(this.feedbackAllowFiles));
+        }
+        if (options) options.hidden = !this.feedbackEnabled;
     },
 
     renderQuickReplies: function() {
@@ -684,6 +714,31 @@ const CreateScreen = {
         });
     },
 
+    renderFeedbackQuestions: function() {
+        const list = document.getElementById('feedback-options-list');
+        if (!list) return;
+        list.replaceChildren();
+
+        this.feedbackOptions.forEach((question, index) => {
+            const row = document.createElement('div');
+            row.className = 'feedback-question-editor-row';
+            const text = document.createElement('span');
+            text.className = 'feedback-question-editor-text';
+            text.textContent = question;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'feedback-question-editor-remove';
+            remove.setAttribute('aria-label', 'Удалить вариант');
+            remove.textContent = '×';
+            remove.addEventListener('click', () => {
+                this.feedbackOptions.splice(index, 1);
+                this.renderFeedbackQuestions();
+            });
+            row.append(text, remove);
+            list.appendChild(row);
+        });
+    },
+
     init: function() {
         const sendNowToggle = document.getElementById('send-now-toggle');
         const sendToSelfToggle = document.getElementById('send-to-self-toggle');
@@ -695,6 +750,8 @@ const CreateScreen = {
         const qInput = document.getElementById('quick-reply-q-input');
         const aInput = document.getElementById('quick-reply-a-input');
         const addReplyBtn = document.getElementById('quick-reply-add-btn');
+        const feedbackOptionInput = document.getElementById('feedback-option-input');
+        const addFeedbackOptionBtn = document.getElementById('feedback-option-add-btn');
         const saveReminderBtn = document.getElementById('save-reminder-btn');
         const addPhotoBtn = document.getElementById('add-photo-btn');
         const photoInput = document.getElementById('create-photo-input');
@@ -770,6 +827,53 @@ const CreateScreen = {
                 repeatTypeText.textContent = chosen;
                 if (repeatTimeRow) {
                     repeatTimeRow.style.display = chosen === 'Никогда' ? 'none' : 'flex';
+                }
+                if (chosen !== 'Никогда') {
+                    this.feedbackEnabled = false;
+                    this.feedbackAllowFiles = false;
+                }
+                this.renderFeedbackSettings();
+            });
+        }
+
+        const bindFeedbackToggle = (element, property, dependent) => {
+            if (!element) return;
+            const toggle = () => {
+                this[property] = !this[property];
+                if (dependent && !this[property]) this.feedbackAllowFiles = false;
+                this.renderFeedbackSettings();
+            };
+            element.addEventListener('click', toggle);
+            element.addEventListener('keydown', event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+            });
+        };
+        bindFeedbackToggle(document.getElementById('feedback-enabled-toggle'), 'feedbackEnabled', true);
+        bindFeedbackToggle(document.getElementById('feedback-files-toggle'), 'feedbackAllowFiles', false);
+
+        if (addFeedbackOptionBtn && feedbackOptionInput) {
+            addFeedbackOptionBtn.addEventListener('click', () => {
+                const option = feedbackOptionInput.value.trim();
+                if (!option) {
+                    App.showToast('Введите вариант ответа');
+                    return;
+                }
+                if (this.feedbackOptions.length >= 20) {
+                    App.showToast('Можно добавить не более 20 вариантов');
+                    return;
+                }
+                if (this.feedbackOptions.some(item => item.toLocaleLowerCase() === option.toLocaleLowerCase())) {
+                    App.showToast('Такой вариант уже добавлен');
+                    return;
+                }
+                this.feedbackOptions.push(option.slice(0, 200));
+                feedbackOptionInput.value = '';
+                this.renderFeedbackQuestions();
+            });
+            feedbackOptionInput.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addFeedbackOptionBtn.click();
                 }
             });
         }
@@ -871,6 +975,9 @@ const CreateScreen = {
                     repeat_time: this.editingSentReminder ? null : repeatTime,
                     recipients: finalRecipients,
                     quick_replies: this.currentQuickReplies,
+                    feedback_options: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled ? this.feedbackOptions : [],
+                    feedback_enabled: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled,
+                    feedback_allow_files: !App.editingReminderId && repeatType === 'Никогда' && this.feedbackEnabled && this.feedbackAllowFiles,
                     images: this.currentImages.map(({ isNew, ...item }) => item)
                 };
 
