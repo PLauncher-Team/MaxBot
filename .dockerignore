@@ -1,0 +1,14 @@
+.git
+.github
+node_modules
+data
+.env
+.env.*
+*.sqlite
+*.sqlite-*
+*.db
+*.log
+releases
+Dockerfile*
+docker-compose*
+README-DEPLOY.md
