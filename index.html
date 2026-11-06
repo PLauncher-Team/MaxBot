@@ -487,11 +487,11 @@
 </div>
 
 <div class="modal-overlay sent-delete-overlay" id="recipient-question-delete-modal" style="display: none;">
-    <div class="modal-card sent-delete-card">
+    <div class="modal-card sent-delete-card" role="dialog" aria-modal="true" aria-labelledby="recipient-question-delete-title">
         <div class="sent-delete-icon">
             <svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="m19 6-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
         </div>
-        <div class="sent-delete-title">Удалить вопрос?</div>
+        <div class="sent-delete-title" id="recipient-question-delete-title">Удалить вопрос?</div>
         <div class="sent-delete-description">Вопрос и ответ на него будут удалены из истории. Это действие нельзя отменить.</div>
         <div class="sent-delete-actions">
             <button type="button" class="sent-delete-cancel" id="recipient-question-delete-cancel">Отмена</button>
