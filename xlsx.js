@@ -82,7 +82,8 @@ function xmlEscape(value) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
+        .replace(/'/g, '&apos;')
+        .replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]/g, '');
 }
 
 function columnName(index) {
@@ -97,7 +98,7 @@ function columnName(index) {
 }
 
 function worksheetXml(rows) {
-    const maxColumns = Math.max(1, ...rows.map(row => row.length));
+    const maxColumns = Math.max(1, rows.reduce((max, row) => Math.max(max, row.length), 0));
     const widths = Array.from({ length: maxColumns }, (_, column) => {
         const longest = rows.reduce((max, row) => Math.max(max, String(row[column] ?? '').length), 0);
         return Math.max(12, Math.min(48, longest + 3));
