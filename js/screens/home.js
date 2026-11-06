@@ -1043,6 +1043,21 @@ const HomeScreen = {
         const sentDeleteModal = document.getElementById('sent-delete-modal');
         const sentDeleteCancel = document.getElementById('sent-delete-cancel');
         const sentDeleteConfirm = document.getElementById('sent-delete-confirm');
+        const questionDeleteModal = document.getElementById('recipient-question-delete-modal');
+        const questionDeleteCancel = document.getElementById('recipient-question-delete-cancel');
+        const questionDeleteConfirm = document.getElementById('recipient-question-delete-confirm');
+
+        if (questionDeleteCancel) {
+            questionDeleteCancel.addEventListener('click', () => this.closeRecipientQuestionDeleteModal());
+        }
+        if (questionDeleteConfirm) {
+            questionDeleteConfirm.addEventListener('click', () => this.confirmRecipientQuestionDelete());
+        }
+        if (questionDeleteModal) {
+            questionDeleteModal.addEventListener('click', event => {
+                if (event.target === questionDeleteModal) this.closeRecipientQuestionDeleteModal();
+            });
+        }
 
         if (sentDeleteCancel) {
             sentDeleteCancel.addEventListener('click', () => this.closeSentDeleteModal());
@@ -1056,7 +1071,10 @@ const HomeScreen = {
             });
         }
         document.addEventListener('keydown', event => {
-            if (event.key === 'Escape') this.closeSentDeleteModal();
+            if (event.key === 'Escape') {
+                this.closeSentDeleteModal();
+                this.closeRecipientQuestionDeleteModal();
+            }
         });
 
         const scrollContainer = document.getElementById('templates-scroll');
