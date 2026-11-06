@@ -566,9 +566,9 @@ const HomeScreen = {
                 header.appendChild(createNode('span', 'feedback-respondent-avatar', personName.trim().slice(0, 1).toUpperCase() || 'П'));
                 const personCopy = createNode('div', 'feedback-respondent-copy');
                 personCopy.appendChild(createNode('strong', 'feedback-respondent-name', personName));
-                const submittedAt = submission.created_at ? new Date(String(submission.created_at).replace(' ', 'T')) : null;
+                const submittedAt = submission.created_at ? new Date(String(submission.created_at).replace(' ', 'T') + 'Z') : null;
                 const dateLabel = submittedAt && !Number.isNaN(submittedAt.getTime())
-                    ? submittedAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    ? submittedAt.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
                     : 'Ответ отправлен';
                 personCopy.appendChild(createNode('span', 'feedback-respondent-date', dateLabel));
                 header.appendChild(personCopy);
@@ -671,9 +671,9 @@ const HomeScreen = {
                 header.appendChild(createNode('span', 'feedback-respondent-avatar', name.trim().slice(0, 1).toUpperCase() || 'П'));
                 const author = createNode('div', 'feedback-respondent-copy');
                 author.appendChild(createNode('strong', 'feedback-respondent-name', name));
-                const createdAt = question.created_at ? new Date(String(question.created_at).replace(' ', 'T')) : null;
+                const createdAt = question.created_at ? new Date(String(question.created_at).replace(' ', 'T') + 'Z') : null;
                 const dateLabel = createdAt && !Number.isNaN(createdAt.getTime())
-                    ? createdAt.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+                    ? createdAt.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
                     : 'Вопрос отправлен';
                 author.appendChild(createNode('span', 'feedback-respondent-date', dateLabel));
                 header.appendChild(author);
