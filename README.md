@@ -81,4 +81,5 @@ bash maxbot logs     # Посмотреть логи в реальном вре�
 bash maxbot restart  # Перезапустить сервисы
 bash maxbot update   # Обновить приложение
 bash maxbot stop     # Остановить проект
+bash maxbot clear-db # Очистить БД с подтверждением
 ```
