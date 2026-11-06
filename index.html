@@ -56,7 +56,7 @@
     <link rel="stylesheet" href="css/redesign.css?v=10">
     <link rel="stylesheet" href="css/ambient-background.css?v=9">
     <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=9">
-    <link rel="stylesheet" href="css/screens/feedback.css?v=3">
+    <link rel="stylesheet" href="css/screens/feedback.css?v=4">
 </head>
 <body>
 <div class="browser-gate" id="browser-gate" style="display: none;">
@@ -486,6 +486,20 @@
     </div>
 </div>
 
+<div class="modal-overlay sent-delete-overlay" id="recipient-question-delete-modal" style="display: none;">
+    <div class="modal-card sent-delete-card">
+        <div class="sent-delete-icon">
+            <svg viewBox="0 0 24 24"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="m19 6-1 14H6L5 6"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
+        </div>
+        <div class="sent-delete-title">Удалить вопрос?</div>
+        <div class="sent-delete-description">Вопрос и ответ на него будут удалены из истории. Это действие нельзя отменить.</div>
+        <div class="sent-delete-actions">
+            <button type="button" class="sent-delete-cancel" id="recipient-question-delete-cancel">Отмена</button>
+            <button type="button" class="sent-delete-confirm" id="recipient-question-delete-confirm">Удалить</button>
+        </div>
+    </div>
+</div>
+
 <div class="toast-notification" id="toast-notification">
     <div class="toast-icon">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -493,9 +507,9 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=27"></script>
+<script src="js/app.js?v=28"></script>
 <script src="js/screens/recipient-reminder.js?v=17"></script>
-<script src="js/screens/home.js?v=42"></script>
+<script src="js/screens/home.js?v=43"></script>
 <script src="js/screens/templates.js?v=12"></script>
 <script src="js/screens/create.js?v=32"></script>
 </body>
