@@ -12,3 +12,9 @@ releases
 Dockerfile*
 docker-compose*
 README-DEPLOY.md
+
+secrets
+backups
+certs
+*.tar
+*.tar.gz
