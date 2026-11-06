@@ -125,7 +125,6 @@ async function createWorkbook(inputSheets) {
                     to: { col: startColumn + 8, row: startRow + 15 }
                 },
                 legend: { position: 'bottom' },
-                style: 10,
                 colorPalette: type === 'doughnut' ? 'green' : 'blue',
                 roundedCorners: true,
                 shadow: true,
