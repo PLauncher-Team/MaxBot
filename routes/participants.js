@@ -5,7 +5,6 @@ const router = express.Router();
 
 router.get('/', (req, res) => {
     try {
-        console.info('[API] GET /api/participants started');
         const rows = db.prepare(`
             SELECT p.*
             FROM participants p
@@ -31,7 +30,6 @@ router.get('/', (req, res) => {
                 group_name: groups[0]?.name || null
             };
         });
-        console.info('[API] GET /api/participants completed:', result.length);
         res.json(result);
     } catch (e) {
         console.error('Failed to fetch participants:', e);
