@@ -26,5 +26,42 @@ case "${1:-}" in
     mkdir -p backups
     docker run --rm -v "$(basename "$PWD")_maxbot_data:/data:ro" -v "$PWD/backups:/backup" alpine sh -c 'tar czf /backup/maxbot-data-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .'
     ;;
-  *) echo "Использование: ./maxbot {status|logs|restart|stop|update|backup}"; exit 2 ;;
+  clear-db)
+    echo "ВНИМАНИЕ: будут безвозвратно удалены все данные приложения и загруженные файлы."
+    read -r -p "Для подтверждения введите УДАЛИТЬ: " CONFIRM
+    if [[ "$CONFIRM" != "УДАЛИТЬ" ]]; then
+      echo "Очистка отменена."
+      exit 0
+    fi
+    docker compose exec -T app node -e '
+      const fs = require("fs");
+      const path = require("path");
+      const db = require("./db");
+      const clear = db.transaction(() => db.exec(`
+        DELETE FROM recipient_download_tickets;
+        DELETE FROM feedback_files;
+        DELETE FROM feedback_views;
+        DELETE FROM recipient_question_views;
+        DELETE FROM recipient_questions;
+        DELETE FROM feedback_submissions;
+        DELETE FROM responses;
+        DELETE FROM participant_groups;
+        DELETE FROM participants;
+        DELETE FROM groups;
+        DELETE FROM reminders;
+        DELETE FROM templates;
+        DELETE FROM template_seed_state;
+        DELETE FROM uploaded_media;
+        DELETE FROM sqlite_sequence;
+      `));
+      clear();
+      const uploadsDir = path.join(__dirname, "data", "uploads");
+      fs.rmSync(uploadsDir, { recursive: true, force: true });
+      fs.mkdirSync(uploadsDir, { recursive: true });
+      db.pragma("wal_checkpoint(TRUNCATE)");
+      db.close();
+      process.stdout.write("База данных и загруженные файлы очищены.\\n");
+    '
+    ;;
+  *) echo "Использование: ./maxbot {status|logs|restart|stop|update|backup|clear-db}"; exit 2 ;;
 esac
