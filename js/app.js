@@ -141,6 +141,23 @@ const App = {
         return data;
     },
 
+    getFeedbackExport: async function(id) {
+        const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/export', {
+            headers: this.getAuthHeaders()
+        });
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.error || 'Не удалось экспортировать ответы');
+        }
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+        const plainName = disposition.match(/filename="([^"]+)"/i);
+        const filename = encodedName
+            ? decodeURIComponent(encodedName[1])
+            : (plainName ? plainName[1] : 'feedback.xlsx');
+        return { blob: await response.blob(), filename };
+    },
+
     markFeedbackRead: async function(id, lastSeenSubmissionId) {
         const response = await fetch('/api/reminders/' + encodeURIComponent(id) + '/feedback/read', {
             method: 'POST',
