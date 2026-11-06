@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createWorkbook } = require('../xlsx');
 
-test('creates a readable XLSX workbook with an embedded Excel chart', async () => {
+test('creates a readable XLSX workbook without chart or chart-data sheets', async () => {
     const buffer = await createWorkbook([
         {
             name: 'Ответы',
@@ -13,33 +13,19 @@ test('creates a readable XLSX workbook with an embedded Excel chart', async () =
             ]
         },
         {
-            name: 'Диаграммы',
+            name: 'Статистика',
             rows: [
-                ['Статистика ответов'],
-                ['Сводная диаграмма по результатам']
-            ],
-            charts: [
-                {
-                    title: 'Ответы получателей',
-                    type: 'doughnut',
-                    seriesName: 'Количество',
-                    categories: {
-                        range: { sheet: 'Данные графиков', column: 'A', startRow: 2, endRow: 3 },
-                        values: ['Ответили', 'Ожидают']
-                    },
-                    values: {
-                        range: { sheet: 'Данные графиков', column: 'B', startRow: 2, endRow: 3 },
-                        values: [2, 1]
-                    }
-                }
+                ['Показатель', 'Значение'],
+                ['Всего получателей', 2],
+                ['Ответили', 2]
             ]
         },
         {
-            name: 'Данные графиков',
+            name: 'Варианты ответов',
             rows: [
-                ['Статус', 'Количество'],
-                ['Ответили', 2],
-                ['Ожидают', 1]
+                ['Вариант ответа', 'Количество'],
+                ['Да', 1],
+                ['Нет', 1]
             ]
         }
     ]);
@@ -50,13 +36,14 @@ test('creates a readable XLSX workbook with an embedded Excel chart', async () =
     const { Workbook } = await import('@node-projects/excelforge');
     const reopened = await Workbook.fromBytes(buffer);
 
-    assert.deepEqual(reopened.getSheetNames(), ['Ответы', 'Диаграммы', 'Данные графиков']);
-    const chartSheet = reopened.getSheet('Диаграммы');
-    assert.ok(chartSheet);
-    assert.equal(chartSheet.getCharts().length, 1);
-    const chart = chartSheet.getCharts()[0];
-    assert.equal(chart.type, 'doughnut');
-    assert.equal(chart.series[0].values, "'Данные графиков'!$B$2:$B$3");
-    assert.equal(chart.series[0].categories, "'Данные графиков'!$A$2:$A$3");
-    assert.ok(!chart.series[0].values.includes('undefined'));
+    const expectedSheets = ['Ответы', 'Статистика', 'Варианты ответов'];
+    assert.deepEqual(reopened.getSheetNames(), expectedSheets);
+    assert.ok(!reopened.getSheetNames().includes('Диаграммы'));
+    assert.ok(!reopened.getSheetNames().includes('Данные графиков'));
+
+    for (const sheetName of expectedSheets) {
+        const sheet = reopened.getSheet(sheetName);
+        assert.ok(sheet, 'Expected sheet "' + sheetName + '" to exist');
+        assert.equal(sheet.getCharts().length, 0);
+    }
 });
