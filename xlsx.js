@@ -97,9 +97,218 @@ async function createWorkbook(inputSheets) {
         return "'" + String(name).replace(/'/g, "''") + "'";
     }
 
-    function chartRange(range) {
-        return quotedSheetName(range.sheet) + '!$' + range.column + '$' +
-            range.startRow + ':$' + range.column + '$' + range.endRow;
+    function chartRange(range, description) {
+        const sheetName = range?.sheet;
+        const column = String(range?.column || '').toUpperCase();
+        const startRow = range?.startRow;
+        const endRow = range?.endRow;
+        if (
+            typeof sheetName !== 'string' || !sheetName.trim() ||
+            !/^[A-Z]{1,3}$/.test(column) ||
+            !Number.isInteger(startRow) || startRow < 1 ||
+            !Number.isInteger(endRow) || endRow < startRow
+        ) {
+            throw new Error(
+                'Invalid ' + description + ' chart range. Expected sheet, column, startRow and endRow.'
+            );
+        }
+        return quotedSheetName(sheetName) + '!
+
+    for (const inputSheet of inputSheets) {
+        if (!Array.isArray(inputSheet.charts) || inputSheet.charts.length === 0) continue;
+        const sheet = sheetMap.get(inputSheet.name);
+        if (!sheet) continue;
+        inputSheet.charts.forEach((chart, index) => {
+            const left = index % 2;
+            const top = Math.floor(index / 2);
+            const startRow = 3 + top * 18;
+            const startColumn = left * 9;
+            const type = chart.type;
+            const chartOptions = {
+                type,
+                title: chart.title || '',
+                series: [{
+                    name: chart.seriesName || chart.title || 'Количество',
+                    values: chartRange(chart.values?.range, 'values'),
+                    categories: chartRange(chart.categories?.range, 'categories')
+                }],
+                from: { col: startColumn, row: startRow },
+                to: { col: startColumn + 8, row: startRow + 15 },
+                legend: 'bottom',
+                colorPalette: type === 'doughnut' ? 'green' : 'blue',
+                roundedCorners: true,
+                shadow: true,
+            };
+            if (type === 'doughnut' || type === 'pie') {
+                chartOptions.dataLabels = {
+                    showCategory: true,
+                    showPercent: true,
+                    position: 'bestFit'
+                };
+            } else if (type === 'bar' || type === 'column') {
+                chartOptions.dataLabels = {
+                    showValue: true,
+                    position: 'outEnd'
+                };
+            }
+            sheet.addChart(chartOptions);
+        });
+    }
+
+    if (sheetMap.has('Диаграммы')) workbook.setActiveSheet('Диаграммы');
+    return Buffer.from(await workbook.build());
+}
+
+module.exports = { createWorkbook };
+ + column + '
+
+    for (const inputSheet of inputSheets) {
+        if (!Array.isArray(inputSheet.charts) || inputSheet.charts.length === 0) continue;
+        const sheet = sheetMap.get(inputSheet.name);
+        if (!sheet) continue;
+        inputSheet.charts.forEach((chart, index) => {
+            const left = index % 2;
+            const top = Math.floor(index / 2);
+            const startRow = 3 + top * 18;
+            const startColumn = left * 9;
+            const type = chart.type === 'column' ? 'col' : chart.type;
+            const chartOptions = {
+                type,
+                title: chart.title || '',
+                series: [{
+                    name: chart.seriesName || chart.title || 'Количество',
+                    dataRange: chartRange(chart.values.range),
+                    catRange: chartRange(chart.categories.range)
+                }],
+                from: { col: startColumn, row: startRow },
+                to: { col: startColumn + 8, row: startRow + 15 },
+                legend: { position: 'bottom' },
+                colorPalette: type === 'doughnut' ? 'green' : 'blue',
+                roundedCorners: true,
+                shadow: true,
+            };
+            if (type === 'doughnut' || type === 'pie') {
+                chartOptions.dataLabels = {
+                    showCategory: true,
+                    showPercent: true,
+                    position: 'bestFit'
+                };
+            } else if (type === 'bar' || type === 'column') {
+                chartOptions.dataLabels = {
+                    showValue: true,
+                    position: 'outEnd'
+                };
+            } else if (type === 'line') {
+            }
+            sheet.addChart(chartOptions);
+        });
+    }
+
+    if (sheetMap.has('Диаграммы')) workbook.setActiveSheet('Диаграммы');
+    return Buffer.from(await workbook.build());
+}
+
+module.exports = { createWorkbook };
+ +
+            startRow + ':
+
+    for (const inputSheet of inputSheets) {
+        if (!Array.isArray(inputSheet.charts) || inputSheet.charts.length === 0) continue;
+        const sheet = sheetMap.get(inputSheet.name);
+        if (!sheet) continue;
+        inputSheet.charts.forEach((chart, index) => {
+            const left = index % 2;
+            const top = Math.floor(index / 2);
+            const startRow = 3 + top * 18;
+            const startColumn = left * 9;
+            const type = chart.type === 'column' ? 'col' : chart.type;
+            const chartOptions = {
+                type,
+                title: chart.title || '',
+                series: [{
+                    name: chart.seriesName || chart.title || 'Количество',
+                    dataRange: chartRange(chart.values.range),
+                    catRange: chartRange(chart.categories.range)
+                }],
+                from: { col: startColumn, row: startRow },
+                to: { col: startColumn + 8, row: startRow + 15 },
+                legend: { position: 'bottom' },
+                colorPalette: type === 'doughnut' ? 'green' : 'blue',
+                roundedCorners: true,
+                shadow: true,
+            };
+            if (type === 'doughnut' || type === 'pie') {
+                chartOptions.dataLabels = {
+                    showCategory: true,
+                    showPercent: true,
+                    position: 'bestFit'
+                };
+            } else if (type === 'bar' || type === 'column') {
+                chartOptions.dataLabels = {
+                    showValue: true,
+                    position: 'outEnd'
+                };
+            } else if (type === 'line') {
+            }
+            sheet.addChart(chartOptions);
+        });
+    }
+
+    if (sheetMap.has('Диаграммы')) workbook.setActiveSheet('Диаграммы');
+    return Buffer.from(await workbook.build());
+}
+
+module.exports = { createWorkbook };
+ + column + '
+
+    for (const inputSheet of inputSheets) {
+        if (!Array.isArray(inputSheet.charts) || inputSheet.charts.length === 0) continue;
+        const sheet = sheetMap.get(inputSheet.name);
+        if (!sheet) continue;
+        inputSheet.charts.forEach((chart, index) => {
+            const left = index % 2;
+            const top = Math.floor(index / 2);
+            const startRow = 3 + top * 18;
+            const startColumn = left * 9;
+            const type = chart.type === 'column' ? 'col' : chart.type;
+            const chartOptions = {
+                type,
+                title: chart.title || '',
+                series: [{
+                    name: chart.seriesName || chart.title || 'Количество',
+                    dataRange: chartRange(chart.values.range),
+                    catRange: chartRange(chart.categories.range)
+                }],
+                from: { col: startColumn, row: startRow },
+                to: { col: startColumn + 8, row: startRow + 15 },
+                legend: { position: 'bottom' },
+                colorPalette: type === 'doughnut' ? 'green' : 'blue',
+                roundedCorners: true,
+                shadow: true,
+            };
+            if (type === 'doughnut' || type === 'pie') {
+                chartOptions.dataLabels = {
+                    showCategory: true,
+                    showPercent: true,
+                    position: 'bestFit'
+                };
+            } else if (type === 'bar' || type === 'column') {
+                chartOptions.dataLabels = {
+                    showValue: true,
+                    position: 'outEnd'
+                };
+            } else if (type === 'line') {
+            }
+            sheet.addChart(chartOptions);
+        });
+    }
+
+    if (sheetMap.has('Диаграммы')) workbook.setActiveSheet('Диаграммы');
+    return Buffer.from(await workbook.build());
+}
+
+module.exports = { createWorkbook };
+ + endRow;
     }
 
     for (const inputSheet of inputSheets) {
