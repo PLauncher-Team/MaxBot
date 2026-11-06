@@ -111,24 +111,24 @@ async function createWorkbook(inputSheets) {
             const top = Math.floor(index / 2);
             const startRow = 3 + top * 18;
             const startColumn = left * 9;
-            const type = chart.type === 'bar' ? 'bar' : chart.type;
+            const type = chart.type === 'column' ? 'col' : chart.type;
             const chartOptions = {
                 type,
                 title: chart.title || '',
                 series: [{
                     name: chart.seriesName || chart.title || 'Количество',
-                    values: chartRange(chart.values.range),
-                    categories: chartRange(chart.categories.range)
+                    dataRange: chartRange(chart.values.range),
+                    catRange: chartRange(chart.categories.range)
                 }],
-                from: { col: startColumn, row: startRow },
-                to: { col: startColumn + 8, row: startRow + 15 },
-                legend: 'bottom',
+                position: {
+                    from: { col: startColumn, row: startRow },
+                    to: { col: startColumn + 8, row: startRow + 15 }
+                },
+                legend: { position: 'bottom' },
                 style: 10,
                 colorPalette: type === 'doughnut' ? 'green' : 'blue',
-                varyColors: type === 'doughnut' || type === 'pie',
                 roundedCorners: true,
                 shadow: true,
-                chartFill: 'white'
             };
             if (type === 'doughnut' || type === 'pie') {
                 chartOptions.dataLabels = {
@@ -141,11 +141,7 @@ async function createWorkbook(inputSheets) {
                     showValue: true,
                     position: 'outEnd'
                 };
-                chartOptions.xAxis = { gridLines: false };
-                chartOptions.yAxis = { min: 0, gridLines: true };
             } else if (type === 'line') {
-                chartOptions.xAxis = { gridLines: false };
-                chartOptions.yAxis = { min: 0, gridLines: true };
             }
             sheet.addChart(chartOptions);
         });
