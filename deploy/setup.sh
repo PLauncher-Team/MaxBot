@@ -13,7 +13,7 @@ printf '\n'
 [[ -n "$BOT_TOKEN" ]] || { echo "Токен не может быть пустым"; exit 1; }
 read -r -p "Домен приложения: " MAXBOT_DOMAIN
 MAXBOT_DOMAIN="${MAXBOT_DOMAIN,,}"
-[[ "$MAXBOT_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,}$ ]] || { echo "Некорректный домен"; exit 1; }
+[[ "$MAXBOT_DOMAIN" =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$ ]] || { echo "Некорректный домен"; exit 1; }
 mkdir -p secrets
 umask 077
 printf '%s' "$BOT_TOKEN" > secrets/bot_token
