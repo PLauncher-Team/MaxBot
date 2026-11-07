@@ -102,16 +102,18 @@ function calculateNextScheduledTime(currentStr, repeatType, repeatTime, afterStr
 function getTargetChatIds(reminder) {
     const validRecipients = safeJsonParse(reminder.recipients, []);
     const targetChatIds = [];
+    const includeSelf = validRecipients.includes('Себе');
+    const selfUserId = String(reminder.user_id);
 
-    if (validRecipients.includes('Себе')) {
-        targetChatIds.push(String(reminder.user_id));
+    if (includeSelf) {
+        targetChatIds.push(selfUserId);
     }
 
     const groupNames = validRecipients.filter(name => name !== 'Себе' && !/^person:[0-9]+$/.test(name));
     if (groupNames.length > 0) {
         const placeholders = groupNames.map(() => '?').join(',');
         const query = `
-            SELECT DISTINCT p.chat_id
+            SELECT DISTINCT p.chat_id, p.user_id
             FROM participants p
             JOIN participant_groups pg ON pg.participant_id = p.id
             JOIN groups g ON pg.group_id = g.id
@@ -119,11 +121,11 @@ function getTargetChatIds(reminder) {
         `;
         const rows = db.prepare(query).all(reminder.user_id, ...groupNames);
         rows.forEach(row => {
+            if (includeSelf && row.user_id !== null && String(row.user_id) === selfUserId) return;
             const chatId = String(row.chat_id);
             if (!targetChatIds.includes(chatId)) targetChatIds.push(chatId);
         });
     }
-
 
     const personIds = validRecipients
         .filter(value => /^person:[0-9]+$/.test(value))
@@ -132,10 +134,11 @@ function getTargetChatIds(reminder) {
     if (personIds.length > 0) {
         const placeholders = personIds.map(() => '?').join(',');
         const rows = db.prepare(`
-            SELECT chat_id FROM participants
+            SELECT chat_id, user_id FROM participants
             WHERE teacher_id = ? AND id IN (${placeholders})
         `).all(reminder.user_id, ...personIds);
         rows.forEach(row => {
+            if (includeSelf && row.user_id !== null && String(row.user_id) === selfUserId) return;
             const chatId = String(row.chat_id);
             if (!targetChatIds.includes(chatId)) targetChatIds.push(chatId);
         });
