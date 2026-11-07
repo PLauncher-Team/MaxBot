@@ -199,7 +199,9 @@ const RecipientReminder = {
                     }
                 });
                 const icon = document.createElement('span');
-                icon.className = 'recipient-reminder-document-icon';
+                const extension = App.getFileExtension(item.name);
+                icon.className = 'recipient-reminder-document-icon recipient-reminder-document-icon-' + App.getFileIconType(item.name);
+                icon.dataset.extension = extension.toUpperCase() || 'FILE';
                 icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>';
                 const name = document.createElement('span');
                 name.className = 'recipient-reminder-document-name';
