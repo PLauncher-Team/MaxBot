@@ -139,7 +139,7 @@ async function editMaxMessage(botToken, mid, text, sender = null) {
     }
 }
 
-async function handleBotStart(ctx) {
+async function handleBotStart(ctx, showWelcome = true) {
     try {
         let text = '';
         const update = ctx.update || {};
@@ -221,6 +221,8 @@ async function handleBotStart(ctx) {
             }
         }
 
+        if (!showWelcome) return;
+
         const welcomeMsg = 'Добро пожаловать в Бота-напоминателя! Подключайтесь к группам по ссылкам от ваших преподавателей.';
         if (typeof ctx.reply === 'function') {
             await ctx.reply(welcomeMsg);
@@ -237,7 +239,10 @@ try {
     if (BOT_TOKEN) {
         botInstance = new Bot(BOT_TOKEN);
         if (typeof botInstance.command === 'function') {
-            botInstance.command('start', handleBotStart);
+            botInstance.command('start', (ctx) => handleBotStart(ctx, true));
+        }
+        if (typeof botInstance.on === 'function') {
+            botInstance.on('bot_started', (ctx) => handleBotStart(ctx, false));
         }
         if (typeof botInstance.action === 'function') {
             botInstance.action(/ans:([0-9]+):(.+)/, async (ctx) => {
