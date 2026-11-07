@@ -6,6 +6,7 @@ const HomeScreen = {
     recipientParticipants: [],
     remindersRefreshInProgress: false,
     recipientRefreshInProgress: false,
+    recipientDataRequestId: 0,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
     pendingRecipientQuestionDeleteId: null,
@@ -740,11 +741,14 @@ const HomeScreen = {
     },
 
     loadRecipientsData: async function() {
+        this.recipientDataRequestId += 1;
+        const requestId = this.recipientDataRequestId;
         const [groups, participants, botInfo] = await Promise.all([
             App.getGroups(),
             App.getParticipants(),
             App.getBotInfo()
         ]);
+        if (requestId !== this.recipientDataRequestId) return;
         this.recipientGroups = groups;
         this.recipientParticipants = participants;
 
