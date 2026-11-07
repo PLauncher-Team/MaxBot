@@ -142,10 +142,8 @@ function decodeUploadedMedia(data, expectedKind = 'image', originalName = '') {
         };
     }
 
-    const extension = path.extname(String(originalName || '')).slice(1).toLowerCase();
-    const mimeType = FILE_TYPES[extension];
-    if (!mimeType || !hasValidFileSignature(buffer, extension)) throw new Error('INVALID_FILE');
-    return { buffer, kind: 'file', ext: extension, mimeType, name: cleanUploadedFileName(originalName, extension) };
+    const extension = 'bin';
+    return { buffer, kind: 'file', ext: extension, mimeType: 'application/octet-stream', name: cleanUploadedFileName(originalName, extension) };
 }
 
 function storeUploadedMedia(media, userId) {
@@ -233,8 +231,8 @@ function sanitizeUploadedMedia(images, userId) {
             if (!match) return null;
             extension = match[2].toLowerCase();
         } else if (item.type === 'file') {
-            const match = /^file_([a-f0-9]{32})\.([a-z0-9]+)$/i.exec(item.filename);
-            if (!match || !FILE_TYPES[match[2].toLowerCase()]) return null;
+            const match = /^file_([a-f0-9]{32})\.([a-z0-9]{1,16})$/i.exec(item.filename);
+            if (!match) return null;
             extension = match[2].toLowerCase();
         } else {
             return null;
@@ -268,8 +266,7 @@ function sanitizeUploadedMedia(images, userId) {
             if (!dimensions || dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) return null;
             result.push({ url: parsedUrl.toString(), type: 'image', filename: item.filename, name: safeName, size: stat.size, mime_type: mimeType, width: dimensions.width, height: dimensions.height });
         } else {
-            if (!hasValidFileSignature(buffer, extension)) return null;
-            result.push({ url: parsedUrl.toString(), type: 'file', filename: item.filename, name: safeName, size: stat.size, mime_type: FILE_TYPES[extension] });
+            result.push({ url: parsedUrl.toString(), type: 'file', filename: item.filename, name: safeName, size: stat.size, mime_type: FILE_TYPES[extension] || 'application/octet-stream' });
         }
     }
     return result;
@@ -525,7 +522,7 @@ router.get('/public/:id/media/:filename', async (req, res) => {
     try {
         const id = Number(req.params.id);
         const filename = String(req.params.filename || '');
-        if (!Number.isSafeInteger(id) || id <= 0 || !/^(?:img_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(?:png|jpg|gif|webp)|file_[a-f0-9]{32}\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip))$/i.test(filename)) {
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^(?:img_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(?:png|jpg|gif|webp)|file_[a-f0-9]{32}\.[a-z0-9]{1,16})$/i.test(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
 
@@ -625,7 +622,7 @@ router.post('/public/:id/feedback', async (req, res) => {
         const preparedFiles = [];
         for (const item of files) {
             const filename = typeof item?.filename === 'string' ? item.filename : '';
-            const match = /^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename);
+            const match = /^file_[a-f0-9]{32}\.([a-z0-9]{1,16})$/i.exec(filename);
             if (!match) return res.status(400).json({ error: 'Некорректный файл' });
             const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
             const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
@@ -634,8 +631,8 @@ router.post('/public/:id/feedback', async (req, res) => {
             if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
             const buffer = fs.readFileSync(filePath);
             const extension = match[1].toLowerCase();
-            if (!hasValidFileSignature(buffer, extension)) return res.status(400).json({ error: 'Формат файла не поддерживается' });
-            preparedFiles.push({ filename, name: cleanUploadedFileName(item.name || filename, extension), size: stat.size, mime_type: FILE_TYPES[extension] });
+            if (FILE_TYPES[extension] && !hasValidFileSignature(buffer, extension)) return res.status(400).json({ error: 'Формат файла не поддерживается' });
+            preparedFiles.push({ filename, name: cleanUploadedFileName(item.name || filename, extension), size: stat.size, mime_type: FILE_TYPES[extension] || 'application/octet-stream' });
         }
         const previousFiles = db.prepare('SELECT f.filename FROM feedback_files f JOIN feedback_submissions s ON s.id = f.submission_id WHERE s.reminder_id = ? AND s.chat_id = ?')
             .all(id, chatId)
@@ -676,7 +673,7 @@ router.get('/public/:id/feedback/files/:filename', async (req, res) => {
     try {
         const id = Number(req.params.id);
         const filename = String(req.params.filename || '');
-        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.[a-z0-9]{1,16}$/i.test(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
         const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
@@ -704,7 +701,7 @@ router.delete('/public/:id/feedback/files/:filename', async (req, res) => {
     try {
         const id = Number(req.params.id);
         const filename = String(req.params.filename || '');
-        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.test(filename)) {
+        if (!Number.isSafeInteger(id) || id <= 0 || !/^file_[a-f0-9]{32}\.[a-z0-9]{1,16}$/i.test(filename)) {
             return res.status(404).json({ error: 'File not found' });
         }
         const reminder = db.prepare('SELECT user_id, message_ids FROM reminders WHERE id = ?').get(id);
@@ -1276,7 +1273,7 @@ router.post('/upload-file', (req, res) => {
 
 router.delete('/uploads/:filename', (req, res) => {
     const filename = String(req.params.filename || '');
-    const match = /^file_[a-f0-9]{32}\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename)
+    const match = /^file_[a-f0-9]{32}\.[a-z0-9]{1,16}$/i.exec(filename)
         || /^img_[a-f0-9]{32}\.(png|jpg|gif|webp)$/i.exec(filename);
     if (!match) return res.status(400).json({ error: 'Некорректный файл' });
     const owner = db.prepare('SELECT user_id FROM uploaded_media WHERE filename = ?').get(filename);
