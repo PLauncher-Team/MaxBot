@@ -841,3 +841,49 @@
     opacity: .55;
     cursor: wait;
 }
+
+
+.recipient-reminder-document-icon {
+    position: relative;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.recipient-reminder-document-icon::after {
+    content: attr(data-extension);
+    display: block;
+    font-size: 7px;
+    font-weight: 800;
+    line-height: 8px;
+    letter-spacing: .25px;
+}
+
+.recipient-reminder-document-icon-pdf {
+    background: rgba(216, 75, 88, .12);
+    color: #d84b58;
+}
+
+.recipient-reminder-document-icon-document {
+    background: rgba(61, 130, 214, .13);
+    color: #3d82d6;
+}
+
+.recipient-reminder-document-icon-spreadsheet {
+    background: rgba(38, 153, 106, .13);
+    color: #26996a;
+}
+
+.recipient-reminder-document-icon-presentation {
+    background: rgba(205, 119, 66, .13);
+    color: #cd7742;
+}
+
+.recipient-reminder-document-icon-archive {
+    background: rgba(142, 106, 194, .14);
+    color: #8e6ac2;
+}
+
+.recipient-reminder-document-icon-text {
+    background: rgba(119, 129, 150, .15);
+    color: #778196;
+}
