@@ -117,13 +117,13 @@ function hasValidFileSignature(buffer, extension) {
 
 function decodeUploadedMedia(data, expectedKind = 'image', originalName = '') {
     if (typeof data !== 'string' || data.length === 0) throw new Error('INVALID_UPLOAD');
-    const match = /^data:([^;,]+);base64,([a-z0-9+/]+={0,2})$/i.exec(data);
+    const match = /^data:([^;,]+);base64,([a-z0-9+/]*={0,2})$/i.exec(data);
     if (!match) throw new Error('INVALID_UPLOAD');
     const declaredMimeType = match[1].toLowerCase();
     const encoded = match[2];
     if (encoded.length % 4 !== 0) throw new Error('INVALID_UPLOAD');
     const buffer = Buffer.from(encoded, 'base64');
-    if (buffer.length === 0 || buffer.toString('base64') !== encoded) throw new Error('INVALID_UPLOAD');
+    if (buffer.toString('base64') !== encoded) throw new Error('INVALID_UPLOAD');
     if (buffer.length > MAX_UPLOAD_BYTES) throw new Error('FILE_TOO_LARGE');
 
     if (expectedKind === 'image') {
@@ -251,7 +251,7 @@ function sanitizeUploadedMedia(images, userId) {
         let buffer;
         try {
             stat = fs.statSync(filePath);
-            if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return null;
+            if (!stat.isFile() || stat.size < 0 || stat.size > MAX_UPLOAD_BYTES) return null;
             buffer = fs.readFileSync(filePath);
         } catch (error) {
             return null;
@@ -628,7 +628,7 @@ router.post('/public/:id/feedback', async (req, res) => {
             const filePath = path.join(__dirname, '..', 'data', 'uploads', filename);
             if (!owner || String(owner.user_id) !== String(req.userId) || !fs.existsSync(filePath)) return res.status(400).json({ error: 'Файл не найден' });
             const stat = fs.statSync(filePath);
-            if (!stat.isFile() || stat.size <= 0 || stat.size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
+            if (!stat.isFile() || stat.size < 0 || stat.size > MAX_UPLOAD_BYTES) return res.status(400).json({ error: 'Каждый файл должен быть не больше 10 МБ' });
             const buffer = fs.readFileSync(filePath);
             const extension = match[1].toLowerCase();
             if (FILE_TYPES[extension] && !hasValidFileSignature(buffer, extension)) return res.status(400).json({ error: 'Формат файла не поддерживается' });
