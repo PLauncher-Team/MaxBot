@@ -49,7 +49,8 @@ const publicMediaTypes = {
     odt: 'application/octet-stream',
     ods: 'application/octet-stream',
     odp: 'application/octet-stream',
-    zip: 'application/octet-stream'
+    zip: 'application/octet-stream',
+    bin: 'application/octet-stream'
 };
 
 app.disable('x-powered-by');
@@ -78,7 +79,7 @@ app.use((req, res, next) => {
 // Only generated image/video filenames are served; active formats such as SVG/HTML are forbidden.
 app.get('/api/uploads/:filename', (req, res) => {
     const filename = req.params.filename;
-    const match = /^(img|vid|file)_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(png|jpg|gif|webp|mp4|mov|webm|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip)$/i.exec(filename || '');
+    const match = /^(img|vid|file)_[a-f0-9]{16}(?:[a-f0-9]{16})?\.(png|jpg|gif|webp|mp4|mov|webm|pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|rtf|md|odt|ods|odp|zip|bin)$/i.exec(filename || '');
     if (!match) {
         return res.status(404).json({ error: 'File not found' });
     }
