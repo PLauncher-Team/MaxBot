@@ -70,11 +70,6 @@ const App = {
             }
         }
 
-        if (screenName === 'home') {
-            const templatesScroll = document.getElementById('templates-scroll');
-            if (templatesScroll) templatesScroll.scrollLeft = 0;
-        }
-
         if (screenName === 'home' && typeof HomeScreen !== 'undefined' && typeof HomeScreen.refreshReminders === 'function') {
             HomeScreen.refreshReminders();
         }
@@ -673,6 +668,9 @@ const App = {
             reminderView: document.getElementById('reminder-view-screen'),
             feedbackResults: document.getElementById('feedback-results-screen')
         };
+
+        const templatesScroll = document.getElementById('templates-scroll');
+        if (templatesScroll) templatesScroll.scrollLeft = 0;
 
         if (window.WebApp) {
             if (typeof window.WebApp.ready === 'function') {
