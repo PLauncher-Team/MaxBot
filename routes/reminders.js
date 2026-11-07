@@ -1408,7 +1408,7 @@ router.post('/', async (req, res) => {
         const cleanFeedbackOptions = cleanFeedbackEnabled ? validFeedbackOptions : [];
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
-            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
+            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 файла по 10 МБ' });
         }
 
         const stmt = db.prepare(`
@@ -1521,7 +1521,7 @@ router.put('/:id', async (req, res) => {
 
         const validImages = sanitizeUploadedMedia(images, req.userId);
         if (!validImages) {
-            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 документа по 10 МБ' });
+            return res.status(400).json({ error: 'Вложения должны быть загружены через приложение. Максимум 3 фото и 3 файла по 10 МБ' });
         }
         const oldImages = safeJsonParse(existing.images, []);
 
