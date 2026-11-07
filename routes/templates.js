@@ -97,7 +97,7 @@ function normalizeTemplate(payload) {
 router.get('/', (req, res) => {
     try {
         initializeDefaultTemplates(req.userId);
-        const rows = db.prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY id ASC').all(req.userId);
+        const rows = db.prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY CASE WHEN LOWER(TRIM(title)) = 'по умолчанию' THEN 0 ELSE 1 END, id ASC').all(req.userId);
         const parsed = rows.map(row => ({
             ...row,
             quick_replies: safeJsonParse(row.quick_replies, []),
