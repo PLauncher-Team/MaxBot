@@ -189,11 +189,14 @@ async function handleBotStart(ctx) {
         if (uniqueId) {
             const group = db.prepare('SELECT * FROM groups WHERE unique_id = ?').get(uniqueId);
             if (group) {
+                let alreadyJoined = false;
                 const joinGroup = db.transaction(() => {
-                    const existing = db.prepare('SELECT id FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?)').get(group.user_id, senderId, senderUserId || senderId);
+                    const existing = db.prepare('SELECT id, group_id FROM participants WHERE teacher_id = ? AND (chat_id = ? OR user_id = ?)').get(group.user_id, senderId, senderUserId || senderId);
                     let participantId;
                     if (existing) {
                         participantId = existing.id;
+                        alreadyJoined = existing.group_id === group.id
+                            || Boolean(db.prepare('SELECT 1 FROM participant_groups WHERE participant_id = ? AND group_id = ?').get(participantId, group.id));
                         db.prepare('UPDATE participants SET chat_id = ?, user_id = COALESCE(user_id, ?), name = ?, group_id = COALESCE(group_id, ?) WHERE id = ?')
                             .run(senderId, senderUserId || senderId, senderName, group.id, participantId);
                     } else {
@@ -206,11 +209,13 @@ async function handleBotStart(ctx) {
                 });
                 joinGroup();
 
-                const replyMsg = `Вы успешно присоединились к группе "${group.name}"! Теперь вы будете получать важные напоминания.`;
-                if (typeof ctx.reply === 'function') {
-                    await ctx.reply(replyMsg);
-                } else if (botInstance) {
-                    await botInstance.api.sendMessageToUser(senderId, replyMsg);
+                if (!alreadyJoined) {
+                    const replyMsg = `Вы успешно присоединились к группе "${group.name}"! Теперь вы будете получать важные напоминания.`;
+                    if (typeof ctx.reply === 'function') {
+                        await ctx.reply(replyMsg);
+                    } else if (botInstance) {
+                        await botInstance.api.sendMessageToUser(senderId, replyMsg);
+                    }
                 }
                 return;
             }
@@ -233,10 +238,6 @@ try {
         botInstance = new Bot(BOT_TOKEN);
         if (typeof botInstance.command === 'function') {
             botInstance.command('start', handleBotStart);
-        }
-        if (typeof botInstance.on === 'function') {
-            botInstance.on('bot_started', handleBotStart);
-            botInstance.on('message_created', handleBotStart);
         }
         if (typeof botInstance.action === 'function') {
             botInstance.action(/ans:([0-9]+):(.+)/, async (ctx) => {
