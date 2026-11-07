@@ -287,13 +287,13 @@ const CreateScreen = {
             visibleCount++;
         };
 
-        if (this.recipientFilter === 'all' || this.recipientFilter === 'groups') this.recipientGroups.forEach(group => {
+        if (this.recipientFilter === 'groups') this.recipientGroups.forEach(group => {
             const name = String(group.name || '');
             if (!name.toLocaleLowerCase().includes(query)) return;
             addChoice(name, (group.participant_count || 0) + ' участников', this.selectedGroups.includes(name), 'group', group.id);
         });
 
-        if (this.recipientFilter === 'all' || this.recipientFilter === 'people') this.recipientPeople.forEach(person => {
+        if (this.recipientFilter === 'people') this.recipientPeople.forEach(person => {
             const name = String(person.name || 'Участник');
             if (!name.toLocaleLowerCase().includes(query)) return;
             const groupNames = Array.isArray(person.groups) ? person.groups.map(group => group.name).filter(Boolean) : [];
@@ -576,7 +576,7 @@ const CreateScreen = {
     },
 
     populateForSentEdit: function(reminder) {
-        this.recipientFilter = 'all';
+        this.recipientFilter = 'groups';
         const recipientSearch = document.getElementById('wizard-recipient-search');
         if (recipientSearch) recipientSearch.value = '';
 
@@ -681,7 +681,7 @@ const CreateScreen = {
 
         this.selectedGroups = [];
         this.selectedPeople = [];
-        this.recipientFilter = 'all';
+        this.recipientFilter = 'groups';
         const recipientSearch = document.getElementById('wizard-recipient-search');
         if (recipientSearch) recipientSearch.value = '';
         this.renderQuickReplies();
@@ -806,7 +806,7 @@ const CreateScreen = {
 
         document.querySelectorAll('[data-recipient-filter]').forEach(button => {
             button.addEventListener('click', () => {
-                this.recipientFilter = button.getAttribute('data-recipient-filter') || 'all';
+                this.recipientFilter = button.getAttribute('data-recipient-filter') === 'people' ? 'people' : 'groups';
                 this.renderSelectedRecipients();
             });
         });
