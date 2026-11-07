@@ -1,61 +1,20 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://st.max.ru/js/max-web-app.js"></script>
-    <script>
-    (() => {
-        const root = document.documentElement;
-        const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
-        const themeFromBackground = (value) => {
-            if (typeof value !== 'string') return null;
-            const match = value.trim().match(/^#([0-9a-f]{6})$/i);
-            if (!match) return null;
-            const hex = match[1];
-            const channels = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
-            const linear = channels.map(c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-            const luminance = 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
-            return luminance < 0.42 ? 'dark' : 'light';
-        };
-
-        const applyTheme = () => {
-            const app = window.WebApp;
-            const scheme = app && (app.colorScheme || app.color_scheme);
-            const params = app && (app.themeParams || app.theme_params);
-            const fromParams = params && themeFromBackground(
-                params.bg_color || params.background_color || params.backgroundColor
-            );
-            const theme = scheme === 'dark' || scheme === 'light'
-                ? scheme
-                : (fromParams || (media && media.matches ? 'dark' : 'light'));
-
-            root.setAttribute('data-theme', theme);
-            const meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', theme === 'dark' ? '#111827' : '#f5f7fb');
-        };
-
-        applyTheme();
-        if (media && typeof media.addEventListener === 'function') {
-            media.addEventListener('change', applyTheme);
-        }
-        if (window.WebApp && typeof window.WebApp.onEvent === 'function') {
-            try { window.WebApp.onEvent('themeChanged', applyTheme); } catch (error) {}
-            try { window.WebApp.onEvent('theme_changed', applyTheme); } catch (error) {}
-        }
-    })();
-    </script>
-    <meta name="theme-color" content="#f5f7fb">
+    <meta name="theme-color" content="#111827">
     <title>Напоминания</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/screens/home.css?v=20">
     <link rel="stylesheet" href="css/screens/templates.css?v=4">
     <link rel="stylesheet" href="css/screens/create.css?v=5">
-    <link rel="stylesheet" href="css/redesign.css?v=10">
-    <link rel="stylesheet" href="css/ambient-background.css?v=9">
-    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=9">
+    <link rel="stylesheet" href="css/redesign.css?v=11">
+    <link rel="stylesheet" href="css/ambient-background.css?v=10">
+    <link rel="stylesheet" href="css/screens/recipient-reminder.css?v=10">
     <link rel="stylesheet" href="css/screens/feedback.css?v=6">
 </head>
 <body>
@@ -274,8 +233,7 @@
                     <div class="create-section-title">Кому отправить напоминание?</div>
                     <p class="wizard-step-description">Выберите группы, отдельных участников или отправку себе.</p>
                     <div class="recipient-filter-tabs" role="group" aria-label="Фильтр получателей">
-                        <button type="button" data-recipient-filter="all" class="active" aria-pressed="true">Все</button>
-                        <button type="button" data-recipient-filter="groups" aria-pressed="false">Группы</button>
+                        <button type="button" data-recipient-filter="groups" class="active" aria-pressed="true">Группы</button>
                         <button type="button" data-recipient-filter="people" aria-pressed="false">Люди</button>
                     </div>
                     <input type="search" class="recipient-search-input" id="wizard-recipient-search" placeholder="Поиск по названию" autocomplete="off">
@@ -507,10 +465,10 @@
     <span id="toast-message">***</span>
 </div>
 
-<script src="js/app.js?v=28"></script>
-<script src="js/screens/recipient-reminder.js?v=17"></script>
-<script src="js/screens/home.js?v=46"></script>
+<script src="js/app.js?v=29"></script>
+<script src="js/screens/recipient-reminder.js?v=18"></script>
+<script src="js/screens/home.js?v=47"></script>
 <script src="js/screens/templates.js?v=12"></script>
-<script src="js/screens/create.js?v=32"></script>
+<script src="js/screens/create.js?v=33"></script>
 </body>
 </html>
