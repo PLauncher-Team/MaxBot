@@ -474,7 +474,7 @@ const RecipientReminder = {
             const uploaded = await App.uploadAttachment(file, progress => {
                 item.progress = progress;
                 this.renderFeedbackFiles(list);
-            });
+            }, 'file');
             if (!this.feedbackFiles.includes(item)) {
                 if (uploaded.filename) await this.deleteFeedbackUpload(uploaded.filename).catch(() => {});
                 return;
@@ -623,7 +623,6 @@ const RecipientReminder = {
             const input = document.createElement('input');
             input.type = 'file';
             input.multiple = true;
-            input.accept = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf,.md,.odt,.ods,.odp,.zip';
             input.className = 'recipient-feedback-file-input';
             const chooseButton = document.createElement('button');
             chooseButton.type = 'button';
@@ -636,13 +635,7 @@ const RecipientReminder = {
                 if (selectedFiles.length > availableSlots) {
                     App.showToast('Можно прикрепить не более 3 файлов');
                 }
-                const allowed = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'md', 'odt', 'ods', 'odp', 'zip']);
                 selectedFiles.slice(0, availableSlots).forEach(file => {
-                    const extension = String(file.name || '').split('.').pop().toLowerCase();
-                    if (!allowed.has(extension)) {
-                        App.showToast('Этот формат файла не поддерживается');
-                        return;
-                    }
                     if (file.size > 10 * 1024 * 1024) {
                         App.showToast('Каждый файл должен быть не больше 10 МБ');
                         return;
