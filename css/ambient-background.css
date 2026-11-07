@@ -109,6 +109,10 @@ body {
     background: #43516a;
 }
 
+:root[data-theme="dark"] .toggle-switch.active {
+    background: var(--success);
+}
+
 :root[data-theme="dark"] .toggle-switch::after {
     background: #f5f7fb;
 }
