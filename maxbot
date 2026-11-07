@@ -28,40 +28,18 @@ case "${1:-}" in
     ;;
   clear-db)
     echo "ВНИМАНИЕ: будут безвозвратно удалены все данные приложения и загруженные файлы."
-    read -r -p "Для подтверждения введите УДАЛИТЬ: " CONFIRM
-    if [[ "$CONFIRM" != "УДАЛИТЬ" ]]; then
+    read -r -p "Продолжить? [y/N]: " CONFIRM
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
       echo "Очистка отменена."
       exit 0
     fi
-    docker compose exec -T app node -e '
-      const fs = require("fs");
-      const path = require("path");
-      const db = require("./db");
-      const clear = db.transaction(() => db.exec(`
-        DELETE FROM recipient_download_tickets;
-        DELETE FROM feedback_files;
-        DELETE FROM feedback_views;
-        DELETE FROM recipient_question_views;
-        DELETE FROM recipient_questions;
-        DELETE FROM feedback_submissions;
-        DELETE FROM responses;
-        DELETE FROM participant_groups;
-        DELETE FROM participants;
-        DELETE FROM groups;
-        DELETE FROM reminders;
-        DELETE FROM templates;
-        DELETE FROM template_seed_state;
-        DELETE FROM uploaded_media;
-        DELETE FROM sqlite_sequence;
-      `));
-      clear();
-      const uploadsDir = path.join(__dirname, "data", "uploads");
-      fs.rmSync(uploadsDir, { recursive: true, force: true });
-      fs.mkdirSync(uploadsDir, { recursive: true });
-      db.pragma("wal_checkpoint(TRUNCATE)");
-      db.close();
-      process.stdout.write("База данных и загруженные файлы очищены.\\n");
-    '
+    docker compose stop app
+    if ! docker compose run --rm --no-deps --user 0 --entrypoint sh app -c 'rm -rf /app/data && mkdir -p /app/data'; then
+      docker compose up -d app
+      exit 1
+    fi
+    docker compose up -d app
+    echo "Данные приложения полностью очищены."
     ;;
   *) echo "Использование: ./maxbot {status|logs|restart|stop|update|backup|clear-db}"; exit 2 ;;
 esac
