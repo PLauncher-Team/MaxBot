@@ -669,9 +669,6 @@ const App = {
             feedbackResults: document.getElementById('feedback-results-screen')
         };
 
-        const templatesScroll = document.getElementById('templates-scroll');
-        if (templatesScroll) templatesScroll.scrollLeft = 0;
-
         if (window.WebApp) {
             if (typeof window.WebApp.ready === 'function') {
                 window.WebApp.ready();
