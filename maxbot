@@ -34,7 +34,7 @@ case "${1:-}" in
       exit 0
     fi
     docker compose stop app
-    if ! docker compose run --rm --no-deps --user 0 --entrypoint sh app -c 'rm -rf /app/data && mkdir -p /app/data'; then
+    if ! docker compose run --rm --no-deps --user 0 --entrypoint sh app -c 'find /app/data -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + && mkdir -p /app/data'; then
       docker compose up -d app
       exit 1
     fi
