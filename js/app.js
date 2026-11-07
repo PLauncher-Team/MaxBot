@@ -19,6 +19,24 @@ const App = {
             .replace(/'/g, '&#039;');
     },
 
+    getFileExtension: function(fileName) {
+        const normalized = String(fileName || '').split(/[?#]/, 1)[0].replace(/\\/g, '/');
+        const baseName = normalized.slice(normalized.lastIndexOf('/') + 1).toLowerCase();
+        const match = baseName.match(/\.([a-z0-9]{1,10})$/);
+        return match ? match[1] : '';
+    },
+
+    getFileIconType: function(fileName) {
+        const extension = this.getFileExtension(fileName);
+        if (extension === 'pdf') return 'pdf';
+        if (['doc', 'docx', 'odt', 'rtf'].includes(extension)) return 'document';
+        if (['xls', 'xlsx', 'ods', 'csv'].includes(extension)) return 'spreadsheet';
+        if (['ppt', 'pptx', 'odp'].includes(extension)) return 'presentation';
+        if (extension === 'zip') return 'archive';
+        if (['txt', 'md'].includes(extension)) return 'text';
+        return 'generic';
+    },
+
     getAuthHeaders: function() {
         const initData = window.WebApp && typeof window.WebApp.initData === 'string'
             ? window.WebApp.initData
@@ -492,7 +510,9 @@ const App = {
             });
             if (res.ok) {
                 const data = await res.json();
-                this.showToast('Вы присоединились к группе: ' + data.group_name);
+                if (!data.already_joined) {
+                    this.showToast('Вы присоединились к группе: ' + data.group_name);
+                }
             }
         } catch (e) {}
     },
