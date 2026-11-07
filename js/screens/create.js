@@ -9,9 +9,11 @@ const CreateScreen = {
     selectedPeople: [],
     recipientGroups: [],
     recipientPeople: [],
-    recipientFilter: 'all',
+    recipientFilter: 'groups',
     recipientLoadError: null,
     recipientLoadRequestId: 0,
+    recipientRefreshInProgress: false,
+    saveInProgress: false,
     sendToSelf: false,
     wizardActive: false,
     startedFromTemplate: false,
@@ -211,6 +213,33 @@ const CreateScreen = {
                     this.renderSelectedRecipients();
                 }
             }
+        }
+    },
+
+    refreshRecipientOptions: async function() {
+        if (this.recipientRefreshInProgress) return;
+        const requestId = this.recipientLoadRequestId;
+        this.recipientRefreshInProgress = true;
+        try {
+            const [groups, people] = await Promise.all([
+                App.getGroups(),
+                App.getParticipants()
+            ]);
+            if (requestId !== this.recipientLoadRequestId) return;
+            if (!Array.isArray(groups) || !Array.isArray(people)) {
+                throw new Error('Сервер вернул некорректный список получателей');
+            }
+            this.recipientGroups = groups;
+            this.recipientPeople = people;
+            const groupNames = new Set(groups.map(group => String(group.name || '')));
+            const personIds = new Set(people.map(person => String(person.id)));
+            this.selectedGroups = this.selectedGroups.filter(name => groupNames.has(name));
+            this.selectedPeople = this.selectedPeople.filter(id => personIds.has(String(id)));
+            this.renderSelectedRecipients();
+        } catch (error) {
+            console.error('Failed to refresh recipient choices:', error);
+        } finally {
+            this.recipientRefreshInProgress = false;
         }
     },
 
@@ -447,8 +476,10 @@ const CreateScreen = {
                     thumb.appendChild(name);
                 } else {
                     thumb.classList.add('attachment-file-thumb');
+                    const extension = App.getFileExtension(item.name);
+                    const iconType = App.getFileIconType(item.name);
                     thumb.innerHTML = `
-                        <div class="attachment-file-icon" aria-hidden="true">
+                        <div class="attachment-file-icon attachment-file-icon-${iconType}" data-extension="${App.escapeHtml(extension.toUpperCase() || 'FILE')}" aria-hidden="true">
                             <svg viewBox="0 0 24 24"><path d="M6 2.75h8l4.5 4.5v14H6z"></path><path d="M14 2.75v5h4.5M9 13h6M9 16h6"></path></svg>
                         </div>
                         <div class="attachment-preview-name">${App.escapeHtml(item.name || 'Файл')}</div>
@@ -926,6 +957,7 @@ const CreateScreen = {
 
         if (saveReminderBtn) {
             saveReminderBtn.addEventListener('click', async () => {
+                if (this.saveInProgress) return;
                 const title = document.getElementById('create-title-input')?.value.trim();
                 const description = document.getElementById('create-desc-input')?.value.trim();
                 if (!title) {
@@ -979,36 +1011,43 @@ const CreateScreen = {
                     images: this.currentImages.map(({ isNew, ...item }) => item)
                 };
 
+                this.saveInProgress = true;
+                saveReminderBtn.disabled = true;
                 try {
-                    if (App.editingReminderId) {
-                        const result = await App.updateReminder(App.editingReminderId, payload);
-                        if (result && result.error) {
-                            App.showToast(result.error);
-                            return;
-                        }
-                        App.editingReminderId = null;
-                        this.editingSentReminder = false;
-                        this.wizardActive = false;
-                        if (result && result.failed > 0) {
-                            App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                    try {
+                        if (App.editingReminderId) {
+                            const result = await App.updateReminder(App.editingReminderId, payload);
+                            if (result && result.error) {
+                                App.showToast(result.error);
+                                return;
+                            }
+                            App.editingReminderId = null;
+                            this.editingSentReminder = false;
+                            this.wizardActive = false;
+                            if (result && result.failed > 0) {
+                                App.showToast('Обновлено не для всех получателей: ' + result.failed);
+                            } else {
+                                App.showToast('Напоминание обновлено');
+                            }
                         } else {
-                            App.showToast('Напоминание обновлено');
+                            await App.saveReminder(payload);
+                            this.wizardActive = false;
+                            App.showToast('Напоминание сохранено');
                         }
-                    } else {
-                        await App.saveReminder(payload);
-                        this.wizardActive = false;
-                        App.showToast('Напоминание сохранено');
+                    } catch (error) {
+                        App.showToast(error.message || 'Не удалось сохранить напоминание');
+                        return;
                     }
-                } catch (error) {
-                    App.showToast(error.message || 'Не удалось сохранить напоминание');
-                    return;
-                }
 
-                if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
-                    HomeScreen.loadData();
-                }
+                    if (typeof HomeScreen !== 'undefined' && HomeScreen.loadData) {
+                        await HomeScreen.loadData();
+                    }
 
-                App.showScreen('home');
+                    App.showScreen('home');
+                } finally {
+                    this.saveInProgress = false;
+                    saveReminderBtn.disabled = false;
+                }
             });
         }
 
