@@ -67,18 +67,6 @@ const HomeScreen = {
                 });
             }
 
-            if (templatesScroll && !this.initialTemplatesScrollReset) {
-                this.initialTemplatesScrollReset = true;
-                templatesScroll.style.scrollBehavior = 'auto';
-                templatesScroll.scrollLeft = 0;
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        templatesScroll.scrollLeft = 0;
-                        templatesScroll.style.removeProperty('scroll-behavior');
-                        this.updateTemplateScrollControls();
-                    });
-                });
-            }
         } catch (error) {
             console.error('Failed to load templates:', error);
             App.showToast(error.message || 'Не удалось загрузить шаблоны');
