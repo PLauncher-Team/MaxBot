@@ -133,14 +133,14 @@ const RecipientReminder = {
             controls.className = 'recipient-reminder-gallery-controls';
             const previous = document.createElement('button');
             previous.type = 'button';
-            previous.className = 'recipient-reminder-gallery-arrow';
+            previous.className = 'recipient-reminder-gallery-arrow recipient-reminder-gallery-arrow-previous';
             previous.textContent = '‹';
             previous.setAttribute('aria-label', 'Предыдущее фото');
             const counter = document.createElement('span');
             counter.className = 'recipient-reminder-gallery-counter';
             const next = document.createElement('button');
             next.type = 'button';
-            next.className = 'recipient-reminder-gallery-arrow';
+            next.className = 'recipient-reminder-gallery-arrow recipient-reminder-gallery-arrow-next';
             next.textContent = '›';
             next.setAttribute('aria-label', 'Следующее фото');
             const showImage = () => {
@@ -161,8 +161,8 @@ const RecipientReminder = {
                     showImage();
                 }
             });
-            viewport.appendChild(image);
-            controls.append(previous, counter, next);
+            viewport.append(previous, image, next);
+            controls.append(counter);
             gallery.append(viewport, controls);
             mediaContainer.appendChild(gallery);
             showImage();
