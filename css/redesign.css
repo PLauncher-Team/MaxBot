@@ -2054,3 +2054,49 @@ select:focus {
     padding: 5px 9px;
     font-size: 11px;
 }
+
+
+.attachment-file-icon {
+    position: relative;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.attachment-file-icon::after {
+    content: attr(data-extension);
+    display: block;
+    font-size: 6px;
+    font-weight: 800;
+    line-height: 7px;
+    letter-spacing: .2px;
+}
+
+.attachment-file-icon-pdf {
+    background: rgba(216, 75, 88, .12);
+    color: #d84b58;
+}
+
+.attachment-file-icon-document {
+    background: rgba(61, 130, 214, .13);
+    color: #3d82d6;
+}
+
+.attachment-file-icon-spreadsheet {
+    background: rgba(38, 153, 106, .13);
+    color: #26996a;
+}
+
+.attachment-file-icon-presentation {
+    background: rgba(205, 119, 66, .13);
+    color: #cd7742;
+}
+
+.attachment-file-icon-archive {
+    background: rgba(142, 106, 194, .14);
+    color: #8e6ac2;
+}
+
+.attachment-file-icon-text {
+    background: rgba(119, 129, 150, .15);
+    color: #778196;
+}
