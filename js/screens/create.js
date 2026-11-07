@@ -502,6 +502,7 @@ const CreateScreen = {
     },
 
     populateForEdit: function(reminder) {
+        this.recipientFilter = 'groups';
         this.editingSentReminder = false;
         App.editingReminderId = reminder.id;
         const titleInput = document.getElementById('create-title-input');
