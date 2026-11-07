@@ -70,6 +70,11 @@ const App = {
             }
         }
 
+        if (screenName === 'home') {
+            const templatesScroll = document.getElementById('templates-scroll');
+            if (templatesScroll) templatesScroll.scrollLeft = 0;
+        }
+
         if (screenName === 'home' && typeof HomeScreen !== 'undefined' && typeof HomeScreen.refreshReminders === 'function') {
             HomeScreen.refreshReminders();
         }
