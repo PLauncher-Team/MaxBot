@@ -5,6 +5,7 @@ const HomeScreen = {
     recipientGroups: [],
     recipientParticipants: [],
     remindersRefreshInProgress: false,
+    recipientRefreshInProgress: false,
     pendingSentDeleteId: null,
     sentDeleteInProgress: false,
     pendingRecipientQuestionDeleteId: null,
@@ -597,8 +598,9 @@ const HomeScreen = {
                     attachmentSection.appendChild(createNode('span', 'feedback-attachments-title', 'Прикреплённые файлы'));
                     respondentFiles.forEach(file => {
                         const row = createNode('div', 'feedback-file-row');
-                        const extension = String(file.name || '').split('.').pop().slice(0, 5).toUpperCase() || 'FILE';
-                        row.appendChild(createNode('span', 'feedback-file-type', extension));
+                        const extension = App.getFileExtension(file.name);
+                        const iconType = App.getFileIconType(file.name);
+                        row.appendChild(createNode('span', 'feedback-file-type feedback-file-type-' + iconType, extension.slice(0, 5).toUpperCase() || 'FILE'));
                         const fileCopy = createNode('div', 'feedback-file-copy');
                         fileCopy.appendChild(createNode('strong', '', file.name || 'Файл'));
                         const fileSize = Number(file.size) || 0;
@@ -1040,6 +1042,35 @@ const HomeScreen = {
         renderParticipantsList();
     },
 
+    refreshRecipients: async function() {
+        if (this.recipientRefreshInProgress) return;
+        const isRecipientsScreen = App.currentScreen === 'home' || App.currentScreen === 'recipients';
+        const isRecipientWizard = App.currentScreen === 'create'
+            && typeof CreateScreen !== 'undefined'
+            && CreateScreen.wizardActive
+            && CreateScreen.wizardStep === 2;
+        if (!isRecipientsScreen && !isRecipientWizard) return;
+
+        this.recipientRefreshInProgress = true;
+        try {
+            if (isRecipientWizard) {
+                await CreateScreen.refreshRecipientOptions();
+            } else {
+                await this.loadRecipientsData();
+            }
+        } catch (error) {
+            console.error('Failed to refresh recipients:', error);
+        } finally {
+            this.recipientRefreshInProgress = false;
+        }
+    },
+
+    refreshVisibleData: function() {
+        if (document.hidden) return;
+        if (App.currentScreen === 'home') this.refreshReminders();
+        this.refreshRecipients();
+    },
+
     init: function() {
         const feedbackBackButton = document.getElementById('feedback-results-back-btn');
         if (feedbackBackButton) {
@@ -1209,24 +1240,11 @@ const HomeScreen = {
         this.loadData();
 
         if (!this.autoRefreshInterval) {
-            this.autoRefreshInterval = setInterval(() => {
-                if (App.currentScreen === 'home' && !document.hidden) {
-                    this.refreshReminders();
-                }
-            }, 10000);
+            this.autoRefreshInterval = setInterval(() => this.refreshVisibleData(), 10000);
         }
 
-        document.addEventListener('visibilitychange', () => {
-            if (!document.hidden && App.currentScreen === 'home') {
-                this.refreshReminders();
-            }
-        });
-
-        window.addEventListener('focus', () => {
-            if (App.currentScreen === 'home') {
-                this.refreshReminders();
-            }
-        });
+        document.addEventListener('visibilitychange', () => this.refreshVisibleData());
+        window.addEventListener('focus', () => this.refreshVisibleData());
     }
 };
 
