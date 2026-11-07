@@ -580,7 +580,7 @@ const RecipientReminder = {
         description.className = 'recipient-feedback-description';
         description.textContent = options.length
             ? 'Выберите подходящий вариант. Ответ можно изменить позже.'
-            : 'Прикрепите документы, которые хотите отправить учителю.';
+            : 'Прикрепите файлы, которые хотите отправить учителю.';
         container.appendChild(description);
 
         let selectedOption = typeof previous?.answers?.choice === 'string' ? previous.answers.choice : '';
@@ -616,7 +616,7 @@ const RecipientReminder = {
             fileWrap.className = 'recipient-feedback-files';
             const label = document.createElement('div');
             label.className = 'recipient-feedback-files-title';
-            label.textContent = 'Документы';
+            label.textContent = 'Файлы';
             const note = document.createElement('div');
             note.className = 'recipient-feedback-files-note';
             note.textContent = 'До 3 файлов · не более 10 МБ каждый';
