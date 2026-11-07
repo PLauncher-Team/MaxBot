@@ -124,7 +124,7 @@ async function editMaxMessage(botToken, mid, text, sender = null) {
         const senderMarkup = senderId
             ? '<blockquote>От кого: <a href="max://user/' + senderId + '">' + (senderName || 'Учитель') + '</a></blockquote>'
             : '';
-        const safeText = String(text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const safeText = String(text || '').replace(/\r\n?/g, '\n').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         const response = await fetch(`https://platform-api2.max.ru/messages?message_id=${encodeURIComponent(mid)}`, {
             method: 'PUT',
             headers: {
