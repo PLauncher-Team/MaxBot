@@ -2108,3 +2108,13 @@ select:focus {
     background: rgba(119, 129, 150, .15);
     color: #778196;
 }
+
+.recipients-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.recipients-tabs > .tab-btn {
+    width: 100%;
+    min-width: 0;
+}
