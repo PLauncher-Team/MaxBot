@@ -312,7 +312,7 @@ const App = {
         return null;
     },
 
-    uploadAttachment: function(file, onProgress) {
+    uploadAttachment: function(file, onProgress, requestedType = 'auto') {
         return new Promise((resolve, reject) => {
             const extension = String(file.name || '').split('.').pop().toLowerCase();
             const imageMimeTypes = {
@@ -322,7 +322,7 @@ const App = {
                 gif: 'image/gif',
                 webp: 'image/webp'
             };
-            const isImage = Object.prototype.hasOwnProperty.call(imageMimeTypes, extension);
+            const isImage = requestedType === 'image' || (requestedType !== 'file' && Object.prototype.hasOwnProperty.call(imageMimeTypes, extension));
             const endpoint = isImage ? '/api/reminders/upload-media' : '/api/reminders/upload-file';
             const reader = new FileReader();
 
