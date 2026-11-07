@@ -18,8 +18,6 @@ mkdir -p secrets
 umask 077
 printf '%s' "$BOT_TOKEN" > secrets/bot_token
 unset BOT_TOKEN
-# The app runs as UID/GID 1000 (the "node" user in the Dockerfile).
-# Local Compose secrets are bind-mounted, so host ownership and mode matter.
 chown 1000:1000 secrets/bot_token
 chmod 400 secrets/bot_token
 printf 'MAXBOT_DOMAIN=%s\n' "$MAXBOT_DOMAIN" > .env
