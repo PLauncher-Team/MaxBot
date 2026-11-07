@@ -181,6 +181,14 @@ button {
     background: var(--accent-strong);
 }
 
+.bottom-button:disabled {
+    opacity: .55;
+    cursor: wait;
+    pointer-events: none;
+    transform: none;
+    box-shadow: none;
+}
+
 .create-bottom {
     padding-top: 12px;
 }
