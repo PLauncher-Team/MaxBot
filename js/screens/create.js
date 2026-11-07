@@ -1,6 +1,5 @@
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const MAX_IMAGE_DIMENSION = 7680;
-const SUPPORTED_DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'rtf', 'md', 'odt', 'ods', 'odp', 'zip']);
 
 const CreateScreen = {
     currentQuickReplies: [],
@@ -399,11 +398,7 @@ const CreateScreen = {
     uploadAttachmentFile: async function(file, pendingItem) {
         try {
             if (file.size > MAX_ATTACHMENT_BYTES) throw new Error('Каждый файл должен быть не больше 10 МБ');
-            const extension = String(file.name || '').split('.').pop().toLowerCase();
-            const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension);
-            if (!isImage && !SUPPORTED_DOCUMENT_EXTENSIONS.has(extension)) {
-                throw new Error('Этот формат файла не поддерживается');
-            }
+            const isImage = pendingItem.type === 'image';
             if (isImage) {
                 const dimensions = await this.getImageDimensions(file);
                 if (dimensions.width > MAX_IMAGE_DIMENSION || dimensions.height > MAX_IMAGE_DIMENSION) {
@@ -415,7 +410,7 @@ const CreateScreen = {
             const uploaded = await App.uploadAttachment(file, progress => {
                 pendingItem.progress = progress;
                 this.renderImagesPreview();
-            });
+            }, pendingItem.type);
             const index = this.currentImages.indexOf(pendingItem);
             if (index === -1) {
                 if (uploaded.filename) await App.deleteUploadedMedia(uploaded.filename).catch(() => {});
