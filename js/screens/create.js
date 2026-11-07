@@ -922,7 +922,7 @@ const CreateScreen = {
             const getCount = () => this.currentImages.filter(item => item.type === type || (!item.type && type === 'file')).length;
             button.addEventListener('click', () => {
                 if (getCount() >= 3) {
-                    App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
+                    App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 файла');
                     return;
                 }
                 input.click();
@@ -931,7 +931,7 @@ const CreateScreen = {
                 const files = Array.from(event.target.files || []);
                 if (!files.length) return;
                 const availableSlots = 3 - getCount();
-                if (files.length > availableSlots) App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 документа');
+                if (files.length > availableSlots) App.showToast(type === 'image' ? 'Можно добавить максимум 3 фото' : 'Можно добавить максимум 3 файла');
                 files.slice(0, availableSlots).forEach(file => {
                     const pending = {
                         pending: true,
