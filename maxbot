@@ -35,20 +35,20 @@ case "${1:-}" in
       echo "Команду uninstall можно запускать только из корневой папки MaxBot."
       exit 1
     fi
-    echo "Будут остановлены и удалены контейнеры MaxBot, а также удалена папка проекта."
-    echo "Docker, его образы и тома с данными останутся."
+    echo "Будут удалены контейнеры, образы и тома MaxBot, а также папка проекта."
+    echo "Docker Engine и Docker Compose останутся установленными."
     read -r -p "Продолжить? [y/N]: " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
       echo "Удаление отменено."
       exit 0
     fi
-    docker compose down --remove-orphans
+    docker compose down --rmi all --volumes --remove-orphans
     systemctl disable --now maxbot-certbot-renew.timer >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/maxbot-certbot-renew.timer /etc/systemd/system/maxbot-certbot-renew.service
     systemctl daemon-reload
     cd ..
     rm -rf -- "$PROJECT_DIR"
-    echo "MaxBot удалён. Docker и тома с данными сохранены."
+    echo "MaxBot, его контейнеры, образы и данные удалены. Docker не затронут."
     ;;
   clear-db)
     echo "ВНИМАНИЕ: будут безвозвратно удалены все данные приложения и загруженные файлы."
