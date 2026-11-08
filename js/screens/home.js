@@ -5,6 +5,7 @@ const HomeScreen = {
     recipientGroups: [],
     recipientParticipants: [],
     remindersRefreshInProgress: false,
+    feedbackRefreshInProgress: false,
     recipientRefreshInProgress: false,
     recipientDataRequestId: 0,
     pendingSentDeleteId: null,
@@ -373,6 +374,41 @@ const HomeScreen = {
             retry.addEventListener('click', () => this.openFeedbackResults(item));
             state.append(heading, description, retry);
             content.appendChild(state);
+        }
+    },
+
+    refreshFeedbackResults: async function() {
+        if (this.feedbackRefreshInProgress || !this.feedbackReminderId || App.currentScreen !== 'feedbackResults') return;
+        this.feedbackRefreshInProgress = true;
+
+        try {
+            const reminderId = this.feedbackReminderId;
+            const data = await App.getFeedback(reminderId);
+            if (String(this.feedbackReminderId) !== String(reminderId) || App.currentScreen !== 'feedbackResults') return;
+            this.renderFeedbackResults(data);
+
+            let shouldRefreshReminders = false;
+            if (data.latest_question_id > 0) {
+                try {
+                    await App.markRecipientQuestionsRead(reminderId, data.latest_question_id);
+                    shouldRefreshReminders = true;
+                } catch (error) {
+                    console.error('Failed to mark recipient questions as read:', error);
+                }
+            }
+            if (data.feedback_enabled) {
+                try {
+                    await App.markFeedbackRead(reminderId, data.latest_submission_id);
+                    shouldRefreshReminders = true;
+                } catch (error) {
+                    console.error('Failed to mark feedback as read:', error);
+                }
+            }
+            if (shouldRefreshReminders) await this.refreshReminders();
+        } catch (error) {
+            console.error('Failed to refresh feedback results:', error);
+        } finally {
+            this.feedbackRefreshInProgress = false;
         }
     },
 
@@ -1071,7 +1107,8 @@ const HomeScreen = {
 
     refreshVisibleData: function() {
         if (document.hidden) return;
-        if (App.currentScreen === 'home') this.refreshReminders();
+        if (App.currentScreen === 'home' || App.currentScreen === 'feedbackResults') this.refreshReminders();
+        if (App.currentScreen === 'feedbackResults') this.refreshFeedbackResults();
         this.refreshRecipients();
     },
 
