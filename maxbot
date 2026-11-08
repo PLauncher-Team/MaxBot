@@ -35,20 +35,25 @@ case "${1:-}" in
       echo "Команду uninstall можно запускать только из корневой папки MaxBot."
       exit 1
     fi
-    echo "Будут удалены контейнеры, образы и тома MaxBot, а также папка проекта."
-    echo "Docker Engine и Docker Compose останутся установленными."
+    echo "Будут удалены контейнеры, данные и собственные образы MaxBot, а также папка проекта."
+    echo "Общие Docker-образы и Docker Engine останутся нетронутыми."
     read -r -p "Продолжить? [y/N]: " CONFIRM
     if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
       echo "Удаление отменено."
       exit 0
     fi
-    docker compose down --rmi all --volumes --remove-orphans
+    PROJECT_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]')"
+    mapfile -t PROJECT_IMAGES < <(docker compose images --format '{{.Repository}}:{{.Tag}}' app nginx | awk -v prefix="$PROJECT_NAME" 'index($0, prefix "-") == 1 || index($0, prefix "_") == 1')
+    docker compose down --volumes --remove-orphans
+    for IMAGE in "${PROJECT_IMAGES[@]}"; do
+      docker image rm "$IMAGE" >/dev/null 2>&1 || true
+    done
     systemctl disable --now maxbot-certbot-renew.timer >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/maxbot-certbot-renew.timer /etc/systemd/system/maxbot-certbot-renew.service
     systemctl daemon-reload
     cd ..
     rm -rf -- "$PROJECT_DIR"
-    echo "MaxBot, его контейнеры, образы и данные удалены. Docker не затронут."
+    echo "MaxBot, его контейнеры, данные и собственные образы удалены. Docker и общие образы не затронуты."
     ;;
   clear-db)
     echo "ВНИМАНИЕ: будут безвозвратно удалены все данные приложения и загруженные файлы."
