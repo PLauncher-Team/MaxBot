@@ -43,10 +43,14 @@ case "${1:-}" in
       exit 0
     fi
     PROJECT_NAME="$(basename "$PROJECT_DIR" | tr '[:upper:]' '[:lower:]')"
-    mapfile -t PROJECT_IMAGES < <(docker compose images --format '{{.Repository}}:{{.Tag}}' app nginx | awk -v prefix="$PROJECT_NAME" 'index($0, prefix "-") == 1 || index($0, prefix "_") == 1')
+    mapfile -t PROJECT_IMAGE_IDS < <(docker compose images -q app nginx | sort -u)
     docker compose down --volumes --remove-orphans
-    for IMAGE in "${PROJECT_IMAGES[@]}"; do
-      docker image rm "$IMAGE" >/dev/null 2>&1 || true
+    for IMAGE_ID in "${PROJECT_IMAGE_IDS[@]}"; do
+      IMAGE_PROJECT="$(docker image inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$IMAGE_ID" 2>/dev/null || true)"
+      IMAGE_SERVICE="$(docker image inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$IMAGE_ID" 2>/dev/null || true)"
+      if [[ "$IMAGE_PROJECT" == "$PROJECT_NAME" && ( "$IMAGE_SERVICE" == "app" || "$IMAGE_SERVICE" == "nginx" ) ]]; then
+        docker image rm "$IMAGE_ID" >/dev/null 2>&1 || true
+      fi
     done
     systemctl disable --now maxbot-certbot-renew.timer >/dev/null 2>&1 || true
     rm -f /etc/systemd/system/maxbot-certbot-renew.timer /etc/systemd/system/maxbot-certbot-renew.service
