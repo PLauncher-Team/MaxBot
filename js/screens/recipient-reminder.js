@@ -340,7 +340,6 @@ const RecipientReminder = {
                 return;
             }
             submit.disabled = true;
-            submit.textContent = 'Отправка…';
             const maxUser = window.WebApp?.initDataUnsafe?.user || {};
             const recipientName = [maxUser.first_name, maxUser.last_name]
                 .filter(value => typeof value === 'string' && value.trim())
@@ -702,12 +701,10 @@ const RecipientReminder = {
                 });
                 if (fileList) this.renderFeedbackFiles(fileList);
                 App.showToast('Ответ сохранён');
-                submit.textContent = 'Изменения сохранены';
                 submit.disabled = false;
             } catch (error) {
                 App.showToast(error.message || 'Не удалось отправить ответ');
                 submit.disabled = false;
-                submit.textContent = this.hasPreviousFeedback ? 'Сохранить изменения' : (options.length ? 'Отправить ответ' : 'Отправить файлы');
             }
         });
         container.appendChild(submit);
