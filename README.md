@@ -82,4 +82,5 @@ bash maxbot restart  # Перезапустить сервисы
 bash maxbot update   # Обновить приложение
 bash maxbot stop     # Остановить проект
 bash maxbot clear-db # Очистить БД с подтверждением
+bash maxbot uninstall # Удалить контейнеры и папку MaxBot
 ```
