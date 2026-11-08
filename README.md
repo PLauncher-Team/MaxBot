@@ -82,5 +82,5 @@ bash maxbot restart  # Перезапустить сервисы
 bash maxbot update   # Обновить приложение
 bash maxbot stop     # Остановить проект
 bash maxbot clear-db # Очистить БД с подтверждением
-bash maxbot uninstall # Полностью удалить MaxBot, включая данные и образы
+bash maxbot uninstall # Удалить MaxBot, его данные и собственные Docker-образы
 ```
