@@ -26,6 +26,30 @@ case "${1:-}" in
     mkdir -p backups
     docker run --rm -v "$(basename "$PWD")_maxbot_data:/data:ro" -v "$PWD/backups:/backup" alpine sh -c 'tar czf /backup/maxbot-data-$(date +%Y%m%d-%H%M%S).tar.gz -C /data .'
     ;;
+  uninstall)
+    if [[ $EUID -ne 0 ]]; then
+      exec sudo -E bash "$0" uninstall
+    fi
+    PROJECT_DIR="$(pwd -P)"
+    if [[ "$(basename "$PROJECT_DIR")" != "MaxBot" || ! -f docker-compose.yml ]]; then
+      echo "Команду uninstall можно запускать только из корневой папки MaxBot."
+      exit 1
+    fi
+    echo "Будут остановлены и удалены контейнеры MaxBot, а также удалена папка проекта."
+    echo "Docker, его образы и тома с данными останутся."
+    read -r -p "Продолжить? [y/N]: " CONFIRM
+    if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+      echo "Удаление отменено."
+      exit 0
+    fi
+    docker compose down --remove-orphans
+    systemctl disable --now maxbot-certbot-renew.timer >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/maxbot-certbot-renew.timer /etc/systemd/system/maxbot-certbot-renew.service
+    systemctl daemon-reload
+    cd ..
+    rm -rf -- "$PROJECT_DIR"
+    echo "MaxBot удалён. Docker и тома с данными сохранены."
+    ;;
   clear-db)
     echo "ВНИМАНИЕ: будут безвозвратно удалены все данные приложения и загруженные файлы."
     read -r -p "Продолжить? [y/N]: " CONFIRM
@@ -41,5 +65,5 @@ case "${1:-}" in
     docker compose up -d app
     echo "Данные приложения полностью очищены."
     ;;
-  *) echo "Использование: ./maxbot {status|logs|restart|stop|update|backup|clear-db}"; exit 2 ;;
+  *) echo "Использование: ./maxbot {status|logs|restart|stop|update|backup|clear-db|uninstall}"; exit 2 ;;
 esac
